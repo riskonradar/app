@@ -230,6 +230,46 @@ MOLLIE_API_KEY=...
 
 All secrets go in `.env.local` at the repo root. Never commit real keys. `.env.example` has the template.
 
+## Pipeline Bot Deployment
+
+Detailed service handoff and operations docs live in `services/AGENTS.md` and `services/CLAUDE.md`. Read those before changing discovery, classification, evidence extraction, pipeline migrations, or the droplet deployment.
+
+Current DigitalOcean deployment:
+
+```text
+Host: 164.92.153.187
+SSH key: ~/.ssh/riskonradar_do_ed25519
+App snapshot: /opt/riskonradar
+Python venv: /opt/riskonradar/venv
+Production env: /etc/riskonradar/pipeline.env
+```
+
+Systemd units:
+
+```sh
+riskonradar-discovery.timer
+riskonradar-discovery.service
+riskonradar-classifier.service
+```
+
+Runtime model:
+
+- Discovery runs weekly and writes new/changed candidates as `pending_classification`.
+- Classifier runs continuously, polling pending candidates every 5 minutes.
+- The queue handoff is Supabase state, not a direct service-to-service call.
+- Production classifier uses Gemini with `--extractor llm`, `--workers 1`.
+- Do not use `--extractor auto` in production unless the user explicitly accepts keyword fallback being saved.
+- Never commit `/etc/riskonradar/pipeline.env` or values copied from it.
+
+Useful checks:
+
+```sh
+ssh -i ~/.ssh/riskonradar_do_ed25519 root@164.92.153.187
+systemctl status riskonradar-discovery.timer
+systemctl status riskonradar-classifier.service
+journalctl -u riskonradar-classifier.service -f
+```
+
 ## Architecture Decisions
 
 Backend: Use Next.js for the app backend. Do not add a separate general-purpose backend service yet. Keep paper discovery and classification outside Next.js — they are background pipeline concerns.

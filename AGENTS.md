@@ -643,4 +643,53 @@ The recommended assembly pattern:
 - Always schema-qualify: `papers_raw.paper_candidates`, not just `paper_candidates`
 - Non-public schemas may need to be exposed in Supabase API settings for PostgREST access; direct Postgres access works immediately
 
+---
+
+## Pipeline Bot Deployment
+
+The discovery/classifier services are currently deployed on a DigitalOcean droplet.
+
+Server context:
+
+- Host: `164.92.153.187`
+- SSH key: `~/.ssh/riskonradar_do_ed25519`
+- App snapshot: `/opt/riskonradar`
+- Python virtualenv: `/opt/riskonradar/venv`
+- Production env file: `/etc/riskonradar/pipeline.env`
+
+Never commit the production env file or any values copied from it.
+
+Systemd units:
+
+- `riskonradar-discovery.timer`: enabled weekly discovery timer.
+- `riskonradar-discovery.service`: one-shot discovery job.
+- `riskonradar-classifier.service`: continuously running classifier worker.
+
+Current production commands:
+
+```sh
+/opt/riskonradar/venv/bin/paper-discovery --source all --limit 25 --mark-stale-days 60 --mark-removed-days 180
+/opt/riskonradar/venv/bin/paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1
+```
+
+Production behavior:
+
+- Discovery runs weekly and writes new/changed papers to `pending_classification`.
+- Classifier polls Supabase every 5 minutes and processes pending papers.
+- Classifier uses Gemini through `LLM_PROVIDER=gemini`.
+- Keep production on `--extractor llm`; do not use `--extractor auto` unless the user explicitly accepts keyword fallback being saved.
+- Worker count is intentionally `1` to protect quota/cost.
+
+Useful operations:
+
+```sh
+ssh -i ~/.ssh/riskonradar_do_ed25519 root@164.92.153.187
+systemctl status riskonradar-discovery.timer
+systemctl status riskonradar-classifier.service
+systemctl list-timers riskonradar-discovery.timer
+journalctl -u riskonradar-discovery.service -f
+journalctl -u riskonradar-classifier.service -f
+systemctl restart riskonradar-classifier.service
+```
+
 Do not change this architecture without explicit user approval.
