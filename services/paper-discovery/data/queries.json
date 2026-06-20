@@ -1,0 +1,35 @@
+{
+  "_comment": "Discovery queries sent to Crossref and OpenAlex when sweeping each trusted journal ISSN. These are broad search strings for finding papers, not extraction keywords. The classifier handles relevance scoring after papers are stored.",
+  "domain": [
+    "failure analysis",
+    "failure mode",
+    "failure mechanism",
+    "reliability",
+    "fatigue",
+    "fracture",
+    "corrosion",
+    "wear",
+    "FMEA",
+    "root cause analysis",
+    "predictive maintenance",
+    "condition monitoring",
+    "remaining useful life",
+    "degradation"
+  ],
+  "component": [
+    "bearing failure",
+    "gear failure",
+    "pump failure",
+    "seal failure",
+    "turbine blade failure",
+    "shaft failure",
+    "valve failure",
+    "weld failure",
+    "pipeline corrosion",
+    "bolt fatigue",
+    "sensor reliability",
+    "battery failure",
+    "power converter failure",
+    "structural crack"
+  ]
+}

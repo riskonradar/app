@@ -69,10 +69,43 @@ ENVIRONMENT_TERMS: tuple[KeywordTerm, ...] = (
     KeywordTerm("mining environment", ("mining", "deep mining", "roadway"), ClaimType.OPERATING_CONTEXT),
 )
 
+CORRECTIVE_ACTION_TERMS: tuple[KeywordTerm, ...] = (
+    KeywordTerm("replacement", ("replacement", "replaced", "replace the affected"), ClaimType.CORRECTIVE_ACTION),
+    KeywordTerm("mandatory modification", ("mandatory modification", "airworthiness directive", "required modification"), ClaimType.CORRECTIVE_ACTION),
+    KeywordTerm("repair", ("repair", "repaired", "weld repair"), ClaimType.CORRECTIVE_ACTION),
+    KeywordTerm("component removal", ("removal", "remove and replace", "part replacement"), ClaimType.CORRECTIVE_ACTION),
+)
+
+ANALYSIS_METHOD_TERMS: tuple[KeywordTerm, ...] = (
+    KeywordTerm("finite element analysis", ("finite element analysis", "finite element method", "fea", "fem", "finite element"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("scanning electron microscopy", ("scanning electron microscopy", "sem", "electron microscopy"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("probabilistic analysis", ("probabilistic analysis", "probabilistic fatigue", "reliability analysis", "monte carlo"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("machine learning", ("machine learning", "deep learning", "neural network", "random forest", "convolutional neural"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("experimental testing", ("experimental", "experiment", "laboratory test", "bench test"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("simulation", ("simulation", "numerical simulation", "computational simulation"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("analytical model", ("analytical model", "analytical solution", "mathematical model"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("fracture mechanics", ("fracture mechanics", "linear elastic fracture", "lefm", "stress intensity factor"), ClaimType.ANALYSIS_METHOD),
+    KeywordTerm("x-ray diffraction", ("x-ray diffraction", "xrd", "x-ray analysis"), ClaimType.ANALYSIS_METHOD),
+)
+
+APPLICATION_TERMS: tuple[KeywordTerm, ...] = (
+    KeywordTerm("aviation", ("aviation", "aircraft", "aerospace", "turbofan", "turboprop", "turboshaft", "aeroengine"), ClaimType.APPLICATION),
+    KeywordTerm("wind energy", ("wind turbine", "wind energy", "wind power", "offshore wind"), ClaimType.APPLICATION),
+    KeywordTerm("oil and gas", ("oil and gas", "pipeline", "offshore platform", "subsea", "petroleum"), ClaimType.APPLICATION),
+    KeywordTerm("automotive", ("automotive", "vehicle", "car", "powertrain", "drivetrain"), ClaimType.APPLICATION),
+    KeywordTerm("nuclear", ("nuclear", "nuclear power plant", "reactor"), ClaimType.APPLICATION),
+    KeywordTerm("marine", ("marine", "ship", "vessel", "propulsion"), ClaimType.APPLICATION),
+    KeywordTerm("power generation", ("power generation", "power plant", "gas turbine", "steam turbine"), ClaimType.APPLICATION),
+    KeywordTerm("mining", ("mining", "mine", "excavator", "drilling rig"), ClaimType.APPLICATION),
+)
+
 ALL_TERMS: tuple[KeywordTerm, ...] = (
     COMPONENT_TERMS
     + FAILURE_TERMS
     + CAUSE_TERMS
     + CONTROL_TERMS
     + ENVIRONMENT_TERMS
+    + CORRECTIVE_ACTION_TERMS
+    + ANALYSIS_METHOD_TERMS
+    + APPLICATION_TERMS
 )

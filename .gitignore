@@ -1,9 +1,11 @@
 # dependencies
 node_modules/
 
-# Next.js
+# Next.js / Cloudflare build output
 .next/
 out/
+.open-next/
+.wrangler/
 
 # production
 dist/

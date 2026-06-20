@@ -35,7 +35,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
         self.connection: psycopg.Connection[dict[str, Any]] | None = None
 
     def __enter__(self) -> "PostgresRepository":
-        self.connection = psycopg.connect(self.database_url, row_factory=dict_row)
+        self.connection = psycopg.connect(self.database_url, row_factory=dict_row, autocommit=True)
         return self
 
     def __exit__(self, *exc_info: object) -> None:
@@ -64,35 +64,94 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                     insert into papers_raw.paper_candidates (
                       discovery_run_id,
                       doi,
+                      canonical_doi,
                       title,
+                      title_fingerprint,
                       abstract,
+                      abstract_hash,
                       authors,
+                      first_author,
                       journal,
                       publication_year,
                       source_url,
                       source,
+                      external_ids,
+                      lifecycle_status,
+                      classification_status,
+                      first_seen_at,
+                      last_seen_at,
+                      stale_at,
+                      removed_at,
+                      discovery_score,
+                      discovery_metadata,
                       raw_payload
                     )
                     values (
                       %(discovery_run_id)s,
                       %(doi)s,
+                      nullif(
+                        lower(
+                          regexp_replace(
+                            regexp_replace(coalesce(%(doi)s, ''), '^https?://(dx\\.)?doi\\.org/', '', 'i'),
+                            '^doi:\\s*',
+                            '',
+                            'i'
+                          )
+                        ),
+                        ''
+                      ),
                       %(title)s,
+                      nullif(regexp_replace(extensions.unaccent(lower(%(title)s)), '[^a-z0-9]+', '', 'g'), ''),
                       %(abstract)s,
+                      case
+                        when %(abstract)s is null or trim(%(abstract)s) = '' then null
+                        else encode(sha256(convert_to(trim(regexp_replace(extensions.unaccent(lower(%(abstract)s)), '\\s+', ' ', 'g')), 'utf8')), 'hex')
+                      end,
                       %(authors)s::jsonb,
+                      nullif(trim(regexp_replace(extensions.unaccent(lower(%(authors)s::jsonb ->> 0)), '\\s+', ' ', 'g')), ''),
                       %(journal)s,
                       %(publication_year)s,
                       %(source_url)s,
                       'corpus',
+                      %(external_ids)s::jsonb,
+                      'pending_classification',
+                      'pending',
+                      now(),
+                      now(),
+                      null,
+                      null,
+                      0.75,
+                      '{"importer": "corpus_backfill"}'::jsonb,
                       %(raw_payload)s::jsonb
                     )
                     on conflict (doi) do update set
                       title = excluded.title,
+                      title_fingerprint = excluded.title_fingerprint,
                       abstract = excluded.abstract,
+                      abstract_hash = excluded.abstract_hash,
                       authors = excluded.authors,
+                      first_author = excluded.first_author,
                       journal = excluded.journal,
                       publication_year = excluded.publication_year,
                       source_url = excluded.source_url,
+                      external_ids = papers_raw.paper_candidates.external_ids || excluded.external_ids,
+                      last_seen_at = now(),
+                      stale_at = null,
+                      removed_at = null,
+                      discovery_score = greatest(coalesce(papers_raw.paper_candidates.discovery_score, 0), excluded.discovery_score),
+                      discovery_metadata = papers_raw.paper_candidates.discovery_metadata || excluded.discovery_metadata,
                       raw_payload = papers_raw.paper_candidates.raw_payload || excluded.raw_payload,
+                      lifecycle_status = case
+                        when papers_raw.paper_candidates.title is distinct from excluded.title
+                          or papers_raw.paper_candidates.abstract is distinct from excluded.abstract
+                        then 'pending_classification'
+                        when papers_raw.paper_candidates.lifecycle_status in ('stale', 'removed')
+                          and papers_raw.paper_candidates.classification_status = 'classified'
+                        then 'classified'
+                        when papers_raw.paper_candidates.lifecycle_status in ('stale', 'removed')
+                        then 'pending_classification'
+                        else papers_raw.paper_candidates.lifecycle_status
+                      end,
                       classification_status = case
                         when papers_raw.paper_candidates.title is distinct from excluded.title
                           or papers_raw.paper_candidates.abstract is distinct from excluded.abstract
@@ -109,6 +168,16 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                         "journal": paper.journal,
                         "publication_year": paper.year,
                         "source_url": paper.url,
+                        "external_ids": json.dumps(
+                            {
+                                key: value
+                                for key, value in {
+                                    "corpus": paper.id,
+                                    "openalex": paper.openalex_id,
+                                }.items()
+                                if value
+                            }
+                        ),
                         "raw_payload": json.dumps(
                             {
                                 "corpus_id": paper.id,
@@ -126,13 +195,16 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
             """
             select pc.id, pc.doi, pc.title, pc.abstract, pc.journal, pc.publication_year, pc.authors, pc.source_url, pc.source
             from papers_raw.paper_candidates pc
-            where pc.classification_status in ('pending', 'failed')
-              or not exists (
-                select 1
-                from knowledge.classification_jobs cj
-                where cj.paper_candidate_id = pc.id
-                  and cj.classifier_version = %(classifier_version)s
-                  and cj.status = 'completed'
+            where coalesce(pc.lifecycle_status, 'pending_classification') not in ('stale', 'removed')
+              and (
+                pc.classification_status in ('pending', 'failed')
+                or not exists (
+                  select 1
+                  from knowledge.classification_jobs cj
+                  where cj.paper_candidate_id = pc.id
+                    and cj.classifier_version = %(classifier_version)s
+                    and cj.status = 'completed'
+                )
               )
             order by pc.publication_year desc nulls last, pc.created_at asc
             limit %(limit)s
@@ -353,7 +425,10 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
             self._connection().execute(
                 """
                 update papers_raw.paper_candidates
-                set classification_status = 'classified'
+                set classification_status = 'classified',
+                    lifecycle_status = 'classified',
+                    stale_at = null,
+                    removed_at = null
                 where id = %(paper_candidate_id)s
                 """,
                 {"paper_candidate_id": candidate.id},
