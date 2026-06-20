@@ -1,0 +1,2892 @@
+{
+  "system": "Turbofan engine",
+  "sourceType": "Zotero RIS export processed with turbofan_ris_fmea_system_level.py",
+  "recordCount": 173,
+  "relevantRecordCount": 155,
+  "rowCount": 94,
+  "components": [
+    "Engine inlet / intake",
+    "Fan / fan blade",
+    "Fan case",
+    "Gearbox / accessory gearbox",
+    "Bearing",
+    "Low-pressure compressor",
+    "High-pressure compressor",
+    "Combustor",
+    "High-pressure turbine",
+    "Low-pressure turbine",
+    "Shaft"
+  ],
+  "rows": [
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Corrosion / pitting",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Excess thermal loading; Corrosive environment"
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Excess thermal loading; Corrosive environment"
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Erosion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Study of Sand Particle Trajectories and Erosion Into the First Fan Stage of a Turbofan",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22415",
+          "url": "https://dx.doi.org/10.1115/GT2010-22415"
+        }
+      ],
+      "effect": "Engine failure; Flow disturbance / distortion; Flow turbulence / disturbance; Loss of thrust",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        },
+        {
+          "title": "Fatigue strength reliability assessment of turbofan blades subjected to intake disturbances based on the improved Kriging model",
+          "year": "2025",
+          "doi": "10.17531/ein/194175",
+          "url": "http://yadda.icm.edu.pl/baztech/element/bwmeta1.element.baztech-2989f49c-f899-4271-8cfc-a8eec580eb71 https://yadda.icm.edu.pl/baztech/element/bwmeta1.element.baztech-2989f49c-f899-4271-8cfc-a8eec580eb71/c/ein_27_2_194175.pdf"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Excess thermal loading; Corrosive environment"
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Flow disturbance / distortion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 5,
+      "sources": [
+        {
+          "title": "Upstream-Propagating Potential Disturbances in the F109 Turbofan Engine Inlet Flow",
+          "year": "2001",
+          "doi": "10.2514/2.5772",
+          "url": "https://doi.org/10.2514/2.5772"
+        },
+        {
+          "title": "Study of Sand Particle Trajectories and Erosion Into the First Fan Stage of a Turbofan",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22415",
+          "url": "https://dx.doi.org/10.1115/GT2010-22415"
+        },
+        {
+          "title": "The Application of Low-Profile Vortex Generators in an Intermediate Turbine Diffuser",
+          "year": "2011",
+          "doi": "10.1115/1.4003718",
+          "url": "https://doi.org/10.1115/1.4003718"
+        },
+        {
+          "title": "Large Eddy Simulation of a scale-model turbofan for fan noise source diagnostic",
+          "year": "2019",
+          "doi": "10.1016/j.jsv.2019.01.005",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X19300112"
+        },
+        {
+          "title": "The design and performance evaluation of axial ventilator with honeycomb in the turbofan engine lubrication system",
+          "year": "2016",
+          "doi": "10.1177/0954410015611151",
+          "url": "https://doi.org/10.1177/0954410015611151"
+        }
+      ],
+      "effect": "Flow disturbance / distortion; Engine failure; Flow turbulence / disturbance; Loss of thrust; Abnormal noise; Fan noise / acoustic signature",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Foreign object damage (FOD)",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Study of Sand Particle Trajectories and Erosion Into the First Fan Stage of a Turbofan",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22415",
+          "url": "https://dx.doi.org/10.1115/GT2010-22415"
+        }
+      ],
+      "effect": "Engine failure; Flow disturbance / distortion; Flow turbulence / disturbance; Loss of thrust",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Overheating / overtemperature",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Excess thermal loading; Corrosive environment"
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Stall / surge",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "A Method to Control Turbofan Engine Starting by Varying Compressor Surge Valve Bleed",
+          "year": "2001",
+          "doi": "",
+          "url": "http://hdl.handle.net/10919/33098 https://vtechworks.lib.vt.edu/bitstreams/80aa85d2-a5ba-4fc9-83b9-af3319e1be47/download"
+        }
+      ],
+      "effect": "Stall / surge; Surge",
+      "cause": ""
+    },
+    {
+      "component": "Engine inlet / intake",
+      "failureMode": "Thermal shock",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "A Method to Control Turbofan Engine Starting by Varying Compressor Surge Valve Bleed",
+          "year": "2001",
+          "doi": "",
+          "url": "http://hdl.handle.net/10919/33098 https://vtechworks.lib.vt.edu/bitstreams/80aa85d2-a5ba-4fc9-83b9-af3319e1be47/download"
+        }
+      ],
+      "effect": "Stall / surge; Surge",
+      "cause": ""
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Blade vibration / flutter",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 10,
+      "sources": [
+        {
+          "title": "On the design and structural analysis of jet engine fan blade structures",
+          "year": "2013",
+          "doi": "10.1016/j.paerosci.2012.08.002",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0376042112000838"
+        },
+        {
+          "title": "Mechanical Design of a Variable Pitch Fan for Turbofan Engines",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22969",
+          "url": "https://dx.doi.org/10.1115/GT2010-22969"
+        },
+        {
+          "title": "Nonlinear Flutter in Fan Stator Vanes With Time Dependent Fixity",
+          "year": "2011",
+          "doi": "10.1115/1.4003253",
+          "url": "https://doi.org/10.1115/1.4003253"
+        },
+        {
+          "title": "Rain erosion protection for fan blades",
+          "year": "2018",
+          "doi": "",
+          "url": "https://eprints.soton.ac.uk/430350/ https://eprints.soton.ac.uk/430350/1/Dina_Ma_PhD_nCAST_11_March_2019.pdf"
+        },
+        {
+          "title": "Damping of flexural vibrations in turbofan blades using the acoustic black hole effect",
+          "year": "2014",
+          "doi": "10.1016/j.apacoust.2013.09.009",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0003682X13002259"
+        },
+        {
+          "title": "Turbofan Engine Blade Vibration Model Analysis and Design Parameters Effects",
+          "year": "2011",
+          "doi": "10.1109/icdma.2011.338",
+          "url": "https://ieeexplore.ieee.org/abstract/document/6052082 https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?tp=&arnumber=6052082&ref="
+        },
+        {
+          "title": "Experimental study of damping flexural vibrations in tapered turbofan blades",
+          "year": "2012",
+          "doi": "",
+          "url": "https://hal.science/hal-00810756 https://hal.science/hal-00810756v1/file/hal-00810756.pdf"
+        },
+        {
+          "title": "Active flow control to reduce fan blade vibration and noise",
+          "year": "nan",
+          "doi": "10.2514/6.1999-1806",
+          "url": "https://arc.aiaa.org/doi/abs/10.2514/6.1999-1806"
+        },
+        {
+          "title": "Flutter of turbofan rotors with mistuned blades",
+          "year": "nan",
+          "doi": "",
+          "url": "https://arc.aiaa.org/doi/10.2514/3.8827"
+        },
+        {
+          "title": "Flutter mitigation of turbofan blades using viscoelastic patches: Proceedings of ISMA 2022 - International Conference on Noise and Vibration Engineering and USD 2022 - International Conference on Uncertainty in Structural Dynamics",
+          "year": "2022",
+          "doi": "",
+          "url": ""
+        }
+      ],
+      "effect": "Flutter / aeroelastic instability; Stall / surge; High vibration; Abnormal noise",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 6,
+      "sources": [
+        {
+          "title": "Failure analysis of an aero-engine inter-shaft bearing due to clearance between the outer ring and its housing",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002522"
+        },
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "Modeling and Transient Reaction Force Analysis of the Turbofan Engine Mounts During Fan Blade Out Events",
+          "year": "2026",
+          "doi": "10.1007/978-981-95-3022-9_19",
+          "url": ""
+        },
+        {
+          "title": "Composite failure analysis of an aero-engine inter-shaft bearing inner ring",
+          "year": "2024",
+          "doi": "10.1016/j.engfailanal.2024.108707",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724007532"
+        },
+        {
+          "title": "Rain erosion protection for fan blades",
+          "year": "2018",
+          "doi": "",
+          "url": "https://eprints.soton.ac.uk/430350/ https://eprints.soton.ac.uk/430350/1/Dina_Ma_PhD_nCAST_11_March_2019.pdf"
+        },
+        {
+          "title": "Experimental and analytical investigation for fatigue crack growth characteristics of an aero-engine fan disc",
+          "year": "2021",
+          "doi": "10.1016/j.ijfatigue.2021.106252",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0142112321001122"
+        }
+      ],
+      "effect": "High vibration; Surge; Flutter / aeroelastic instability",
+      "cause": "Cyclic stress loading; Rotor imbalance; Particle/fluid erosion"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 6,
+      "sources": [
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        },
+        {
+          "title": "Design and Analysis of the Transmission System in Geared Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1115/msec2019-3062",
+          "url": "https://dx.doi.org/10.1115/MSEC2019-3062"
+        },
+        {
+          "title": "A Review on Leading-Edge Erosion Morphology and Performance Degradation of Aero-Engine Fan and Compressor Blades",
+          "year": "2023",
+          "doi": "10.3390/en16073068",
+          "url": "https://www.mdpi.com/1996-1073/16/7/3068 https://www.mdpi.com/1996-1073/16/7/3068/pdf?version=1679994445"
+        },
+        {
+          "title": "Development of a Generic Gas-Turbine Engine Fan Blade-Out Full-Fan Rig Model",
+          "year": "2015",
+          "doi": "10.21949/k25w-vn45",
+          "url": "https://rosap.ntl.bts.gov http://rosap.ntl.bts.gov/view/dot/79322/dot_79322_DS1.pdf"
+        },
+        {
+          "title": "Turbofan Engine Blade Vibration Model Analysis and Design Parameters Effects",
+          "year": "2011",
+          "doi": "10.1109/icdma.2011.338",
+          "url": "https://ieeexplore.ieee.org/abstract/document/6052082 https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?tp=&arnumber=6052082&ref="
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance; Particle/fluid erosion"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Deposits / blockage",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "Investigation of Flame Blow-Out in a Low Bypass Military Turbofan Engine",
+          "year": "2015",
+          "doi": "10.1007/s11668-015-9946-3",
+          "url": "https://doi.org/10.1007/s11668-015-9946-3 https://link.springer.com/content/pdf/10.1007%2Fs11668-015-9946-3.pdf"
+        }
+      ],
+      "effect": "Surge; Engine failure; Loss of thrust",
+      "cause": "Foreign object ingestion"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Erosion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "A Review on Leading-Edge Erosion Morphology and Performance Degradation of Aero-Engine Fan and Compressor Blades",
+          "year": "2023",
+          "doi": "10.3390/en16073068",
+          "url": "https://www.mdpi.com/1996-1073/16/7/3068 https://www.mdpi.com/1996-1073/16/7/3068/pdf?version=1679994445"
+        },
+        {
+          "title": "Study of Sand Particle Trajectories and Erosion Into the First Fan Stage of a Turbofan",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22415",
+          "url": "https://dx.doi.org/10.1115/GT2010-22415"
+        },
+        {
+          "title": "Predicting Erosion Damage in a Centrifugal Fan",
+          "year": "2024",
+          "doi": "10.3390/ijtpp9020023",
+          "url": "https://www.mdpi.com/2504-186X/9/2/23 https://www.mdpi.com/2504-186X/9/2/23/pdf?version=1719380936"
+        },
+        {
+          "title": "Rain erosion protection for fan blades",
+          "year": "2018",
+          "doi": "",
+          "url": "https://eprints.soton.ac.uk/430350/ https://eprints.soton.ac.uk/430350/1/Dina_Ma_PhD_nCAST_11_March_2019.pdf"
+        }
+      ],
+      "effect": "Engine failure; Flow disturbance / distortion; Flow turbulence / disturbance; Loss of thrust; Flutter / aeroelastic instability",
+      "cause": "Particle/fluid erosion; Contact wear"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Failure analysis of an aero-engine inter-shaft bearing due to clearance between the outer ring and its housing",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002522"
+        },
+        {
+          "title": "Composite failure analysis of an aero-engine inter-shaft bearing inner ring",
+          "year": "2024",
+          "doi": "10.1016/j.engfailanal.2024.108707",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724007532"
+        },
+        {
+          "title": "Nonlinear Dynamic Analysis on Planetary Gears-Rotor System in Geared Turbofan Engines",
+          "year": "2019",
+          "doi": "10.1142/s0218127419500767",
+          "url": "https://www.worldscientific.com/doi/abs/10.1142/S0218127419500767"
+        },
+        {
+          "title": "Experimental and analytical investigation for fatigue crack growth characteristics of an aero-engine fan disc",
+          "year": "2021",
+          "doi": "10.1016/j.ijfatigue.2021.106252",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0142112321001122"
+        }
+      ],
+      "effect": "High vibration; Abnormal noise",
+      "cause": "Cyclic stress loading"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Flexural deformation / vibration",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Damping of flexural vibrations in turbofan blades using the acoustic black hole effect",
+          "year": "2014",
+          "doi": "10.1016/j.apacoust.2013.09.009",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0003682X13002259"
+        },
+        {
+          "title": "Experimental study of damping flexural vibrations in tapered turbofan blades",
+          "year": "2012",
+          "doi": "",
+          "url": "https://hal.science/hal-00810756 https://hal.science/hal-00810756v1/file/hal-00810756.pdf"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Flow disturbance / distortion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Study of Sand Particle Trajectories and Erosion Into the First Fan Stage of a Turbofan",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22415",
+          "url": "https://dx.doi.org/10.1115/GT2010-22415"
+        },
+        {
+          "title": "Large Eddy Simulation of a scale-model turbofan for fan noise source diagnostic",
+          "year": "2019",
+          "doi": "10.1016/j.jsv.2019.01.005",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X19300112"
+        }
+      ],
+      "effect": "Engine failure; Flow disturbance / distortion; Flow turbulence / disturbance; Loss of thrust; Abnormal noise; Fan noise / acoustic signature",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Foreign object damage (FOD)",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 6,
+      "sources": [
+        {
+          "title": "Statistical Analysis of Aircraft-Bird Strikes Resulting in Engine Failure - Kivanc A. Avrenli, Barry J. Dempsey, 2014",
+          "year": "nan",
+          "doi": "",
+          "url": "https://journals.sagepub.com/doi/abs/10.3141/2449-02?casa_token=FmynUYJq2IkAAAAA:d1ujoUtEyNWLbf5yKaaAE5LVUyyioFnbGgVnpnC29UbsaJ5bprgIm7z3vHGkygig7nR5SVEeqaANRA"
+        },
+        {
+          "title": "A Foreign Object Damage Event Detector Data Fusion System for Turbofan Engines",
+          "year": "2005",
+          "doi": "10.2514/1.12348",
+          "url": "https://doi.org/10.2514/1.12348 https://ntrs.nasa.gov/api/citations/20040110831/downloads/20040110831.pdf"
+        },
+        {
+          "title": "Study of Sand Particle Trajectories and Erosion Into the First Fan Stage of a Turbofan",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22415",
+          "url": "https://dx.doi.org/10.1115/GT2010-22415"
+        },
+        {
+          "title": "Transient Vibratory Response of Turbofan Engine Rotor Impacted by Bird Strike",
+          "year": "2021",
+          "doi": "10.1061/(asce)as.1943-5525.0001250",
+          "url": "https://ascelibrary.org/doi/10.1061/%28ASCE%29AS.1943-5525.0001250"
+        },
+        {
+          "title": "Topology Optimization Method Research on Hollow Wide-chord Fan Blade of a High-bypass Turbofan Engine",
+          "year": "2015",
+          "doi": "10.1016/j.proeng.2014.12.652",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1877705814037692 https://pdf.sciencedirectassets.com/278653/1-s2.0-S1877705815X0004X/1-s2.0-S1877705814037692/main.pdf?X-Amz-Security-Token=IQoJb3JpZ2luX2VjEIf%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIQDash1Gy6tQ%2Fj7hYfn8lTWF%2FgQQkX9MlZ6yunf1ts2BzQIgPAggIYgD5OqFV8elRwgvdyHnlyhF0asOhEmGVXdFYCUqsgUIUBAFGgwwNTkwMDM1NDY4NjUiDAoxy8z765%2BnJbw2UiqPBSWYZoqh9Qa4fyr18B3vLWs%2FCn9jwTudAYdBweZ6WclMgvPlFirGEL3TLQimJLL%2FHUl%2BV9wSmoq8Kmpb3jMmBvTKAkiIHrF3wiBIQSGvNS96HXTCxN2dNslIDFZEmFpTxoe9hP2pGX5yNxsc%2FZSy1mL0faEDl7xDtD4Xa4VNWIPkWuwykThmvReBr7pGZSTQHY1NgMEAIPljsL5b3MHabfUkbuEKh6yYXDxMH8p2Js5qEC1fUbVDcL1qEsQC3DJEuBNUWBsQcti77gdOFOVI1OZAKb3seE0269ahJa5e2cN6Dk9xfR%2F0DUVGFF7REqjbkkCkOK0e4lpWecE0xNEVGhaJ%2FjraBSxJG6XJ2UTczGoAEL2PnFqklXXhfgyvYTaDraRGCXLkXTjGdjXZtgRELkkFiqp349jZIQZ1lM39WemwPOJ0H5wMM1YS70BEo4OgXVDF0JKM2OHRxG9q5G9i6%2ByS4HC9mzv%2BRk35WrNN9vdbhY06jcX20AxVTzprJFZ0ZiZxohqB8rUICygAMTAXHquXGdr6wNLfVIUO0Xi45cXdfoqKf71yh%2FRDDsx%2B%2B5U4NxyuDYJ9PsfeVPCpFag%2FbLZmR3OJUTPUE6w3nspNPeNfZpbeci553PFqeXuLpRxRcZ2IpaPS0BTU5DiwDOg%2BUJJR6J8phsandxIAKN0Qgw2CbewfheaKicNZdAQxb3FxlyKGetVVAI3ZjTq9DEI92f6QrJJv%2FBpgTVu4h6atS9Z8JRgI2eD2DgnFJ26s5HADSaLpYWnPyBe%2F0NdymZUAzimDmh4YgazPJOv0hjZwTGazI6kBt008I9wX%2BG4onm%2FH8qr%2FD5%2FN4HeEO3vSjkA6cj3J%2FxH8dSaDj%2FZNuLURLF0wysaE0QY6sQFEhtM0GoJtMJg2ZVk%2FzOvV5qXYhsvDjX9yotJqQPvJatA%2BVb%2FRW7dA9WCeqVO%2BBoGdgkKCsn%2F5TNVdnErvX7Dm9tm7%2B04u1IVIiSFesxotDEts8huJOIW7LFGBLAk1bx9yfv%2FZbtaqCWv5l5mCqN4lRv3shNZcjFjeUiW92rqAcc1KA7jZWDSc2bTiRIYdGPd8TQn%2BSTFuAT25s%2FYceiL4cTOn9HVCIkZqkwvH8VBYmxw%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260604T081502Z&X-Amz-SignedHeaders=host&X-Amz-Expires=300&X-Amz-Credential=ASIAQ3PHCVTYTX52EP42%2F20260604%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=baf32111e6c4927bba4e891de0ce39e38cd8f85ebf24e086096a0f5d0d1619f3&hash=bec4fc20f0cf0080a2c95bab516d0a0c4febec42e98633df9012a3355e5ac1b9&host=68042c943591013ac2b2430a89b270f6af2c76d8dfd086a07176afe7c76c2c61&pii=S1877705814037692&tid=spdf-e911a040-456b-4d1a-b5fd-1c2f5acde1ba&sid=7e41517869abd94a06791b9493a7cbc79208gxrqb&type=client&tsoh=d3d3LnNjaWVuY2VkaXJlY3QuY29t&rh=d3d3LnNjaWVuY2VkaXJlY3QuY29t&ua=080b055255535703015a&rr=a0657cc538d621d7&cc=nl"
+        },
+        {
+          "title": "Investigation of Flame Blow-Out in a Low Bypass Military Turbofan Engine",
+          "year": "2015",
+          "doi": "10.1007/s11668-015-9946-3",
+          "url": "https://doi.org/10.1007/s11668-015-9946-3 https://link.springer.com/content/pdf/10.1007%2Fs11668-015-9946-3.pdf"
+        }
+      ],
+      "effect": "Engine failure; Loss of thrust; Flow disturbance / distortion; Flow turbulence / disturbance; High vibration",
+      "cause": "Bird ingestion / impact; Foreign object ingestion; Particle/fluid erosion; Rotor imbalance"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Misalignment",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Compressive strength assessment of a CFRP aero-engine component - An approach based on measured fibre misalignment angles",
+          "year": "2020",
+          "doi": "10.1016/j.compstruct.2019.111632",
+          "url": "https://www.sciencedirect.com/science/article/pii/S026382231932447X"
+        }
+      ],
+      "effect": "",
+      "cause": "Rotor/shaft misalignment"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Overspeed",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Rotor imbalance",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 7,
+      "sources": [
+        {
+          "title": "Modeling and Transient Reaction Force Analysis of the Turbofan Engine Mounts During Fan Blade Out Events",
+          "year": "2026",
+          "doi": "10.1007/978-981-95-3022-9_19",
+          "url": ""
+        },
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        },
+        {
+          "title": "Certain Type Turbofan Engine Whole Vibration Model with Support Looseness Fault and Casing Response Characteristics",
+          "year": "2014",
+          "doi": "10.1155/2014/683469",
+          "url": "https://onlinelibrary.wiley.com/doi/abs/10.1155/2014/683469 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1155/2014/683469"
+        },
+        {
+          "title": "Analysis and Experimental Study on Vibration Isolation Performance of Full-scale Turbofan Engine Mounting",
+          "year": "2024",
+          "doi": "10.1088/1742-6596/2762/1/012021",
+          "url": "https://doi.org/10.1088/1742-6596/2762/1/012021 https://iopscience.iop.org/article/10.1088/1742-6596/2762/1/012021/pdf"
+        },
+        {
+          "title": "Transient Vibratory Response of Turbofan Engine Rotor Impacted by Bird Strike",
+          "year": "2021",
+          "doi": "10.1061/(asce)as.1943-5525.0001250",
+          "url": "https://ascelibrary.org/doi/10.1061/%28ASCE%29AS.1943-5525.0001250"
+        },
+        {
+          "title": "Dynamic modeling and vibration characteristics analysis of the aero-engine dual-rotor system with Fan blade out",
+          "year": "2018",
+          "doi": "10.1016/j.ymssp.2017.12.012",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327017306477"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "High vibration; Engine failure; Loss of thrust",
+      "cause": "Rotor imbalance; Rotor-stator rubbing; Bird ingestion / impact"
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Stall / surge",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "Mechanical Design of a Variable Pitch Fan for Turbofan Engines",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22969",
+          "url": "https://dx.doi.org/10.1115/GT2010-22969"
+        },
+        {
+          "title": "A Method to Control Turbofan Engine Starting by Varying Compressor Surge Valve Bleed",
+          "year": "2001",
+          "doi": "",
+          "url": "http://hdl.handle.net/10919/33098 https://vtechworks.lib.vt.edu/bitstreams/80aa85d2-a5ba-4fc9-83b9-af3319e1be47/download"
+        },
+        {
+          "title": "Nonlinear Flutter in Fan Stator Vanes With Time Dependent Fixity",
+          "year": "2011",
+          "doi": "10.1115/1.4003253",
+          "url": "https://doi.org/10.1115/1.4003253"
+        }
+      ],
+      "effect": "Surge; Flutter / aeroelastic instability; Stall / surge",
+      "cause": ""
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Thermal shock",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "A Method to Control Turbofan Engine Starting by Varying Compressor Surge Valve Bleed",
+          "year": "2001",
+          "doi": "",
+          "url": "http://hdl.handle.net/10919/33098 https://vtechworks.lib.vt.edu/bitstreams/80aa85d2-a5ba-4fc9-83b9-af3319e1be47/download"
+        }
+      ],
+      "effect": "Stall / surge; Surge",
+      "cause": ""
+    },
+    {
+      "component": "Fan / fan blade",
+      "failureMode": "Wear / rubbing",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Predicting Erosion Damage in a Centrifugal Fan",
+          "year": "2024",
+          "doi": "10.3390/ijtpp9020023",
+          "url": "https://www.mdpi.com/2504-186X/9/2/23 https://www.mdpi.com/2504-186X/9/2/23/pdf?version=1719380936"
+        },
+        {
+          "title": "Certain Type Turbofan Engine Whole Vibration Model with Support Looseness Fault and Casing Response Characteristics",
+          "year": "2014",
+          "doi": "10.1155/2014/683469",
+          "url": "https://onlinelibrary.wiley.com/doi/abs/10.1155/2014/683469 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1155/2014/683469"
+        },
+        {
+          "title": "Dynamic modeling and vibration characteristics analysis of the aero-engine dual-rotor system with Fan blade out",
+          "year": "2018",
+          "doi": "10.1016/j.ymssp.2017.12.012",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327017306477"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Particle/fluid erosion; Contact wear; Rotor-stator rubbing; Rotor imbalance"
+    },
+    {
+      "component": "Fan case",
+      "failureMode": "Blade vibration / flutter",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Mechanical Design of a Variable Pitch Fan for Turbofan Engines",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22969",
+          "url": "https://dx.doi.org/10.1115/GT2010-22969"
+        }
+      ],
+      "effect": "Flutter / aeroelastic instability; Stall / surge",
+      "cause": ""
+    },
+    {
+      "component": "Fan case",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Development of a Generic Gas-Turbine Engine Fan Blade-Out Full-Fan Rig Model",
+          "year": "2015",
+          "doi": "10.21949/k25w-vn45",
+          "url": "https://rosap.ntl.bts.gov http://rosap.ntl.bts.gov/view/dot/79322/dot_79322_DS1.pdf"
+        }
+      ],
+      "effect": "",
+      "cause": ""
+    },
+    {
+      "component": "Fan case",
+      "failureMode": "Stall / surge",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Mechanical Design of a Variable Pitch Fan for Turbofan Engines",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22969",
+          "url": "https://dx.doi.org/10.1115/GT2010-22969"
+        }
+      ],
+      "effect": "Flutter / aeroelastic instability; Stall / surge",
+      "cause": ""
+    },
+    {
+      "component": "Gearbox / accessory gearbox",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        },
+        {
+          "title": "Design and Analysis of the Transmission System in Geared Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1115/msec2019-3062",
+          "url": "https://dx.doi.org/10.1115/MSEC2019-3062"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance"
+    },
+    {
+      "component": "Gearbox / accessory gearbox",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Fatigue Failure of a Spiral Bevel Gear in a Typical Low-Bypass Turbofan Engine",
+          "year": "2020",
+          "doi": "10.1007/978-981-13-8767-8_54",
+          "url": "https://link.springer.com/content/pdf/10.1007%2F978-981-13-8767-8_54.pdf"
+        },
+        {
+          "title": "Investigation of Bearing Failure in a Turbo Shaft Engine",
+          "year": "2020",
+          "doi": "10.1007/s11668-020-00812-1",
+          "url": "https://doi.org/10.1007/s11668-020-00812-1 https://link.springer.com/content/pdf/10.1007%2Fs11668-020-00812-1.pdf"
+        },
+        {
+          "title": "Nonlinear Dynamic Analysis on Planetary Gears-Rotor System in Geared Turbofan Engines",
+          "year": "2019",
+          "doi": "10.1142/s0218127419500767",
+          "url": "https://www.worldscientific.com/doi/abs/10.1142/S0218127419500767"
+        }
+      ],
+      "effect": "Engine failure; Abnormal noise; High vibration",
+      "cause": "Manufacturing under-fill flaw; Near-surface manufacturing flaw; Progressive fatigue crack growth; Cyclic stress loading"
+    },
+    {
+      "component": "Gearbox / accessory gearbox",
+      "failureMode": "Rotor imbalance",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance"
+    },
+    {
+      "component": "Gearbox / accessory gearbox",
+      "failureMode": "Seizure",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Fatigue Failure of a Spiral Bevel Gear in a Typical Low-Bypass Turbofan Engine",
+          "year": "2020",
+          "doi": "10.1007/978-981-13-8767-8_54",
+          "url": "https://link.springer.com/content/pdf/10.1007%2F978-981-13-8767-8_54.pdf"
+        }
+      ],
+      "effect": "",
+      "cause": "Manufacturing under-fill flaw; Near-surface manufacturing flaw; Progressive fatigue crack growth; Cyclic stress loading"
+    },
+    {
+      "component": "Bearing",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Failure analysis of an aero-engine inter-shaft bearing due to clearance between the outer ring and its housing",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002522"
+        },
+        {
+          "title": "Composite failure analysis of an aero-engine inter-shaft bearing inner ring",
+          "year": "2024",
+          "doi": "10.1016/j.engfailanal.2024.108707",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724007532"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Cyclic stress loading"
+    },
+    {
+      "component": "Bearing",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        },
+        {
+          "title": "Design and Analysis of the Transmission System in Geared Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1115/msec2019-3062",
+          "url": "https://dx.doi.org/10.1115/MSEC2019-3062"
+        },
+        {
+          "title": "Development of a Generic Gas-Turbine Engine Fan Blade-Out Full-Fan Rig Model",
+          "year": "2015",
+          "doi": "10.21949/k25w-vn45",
+          "url": "https://rosap.ntl.bts.gov http://rosap.ntl.bts.gov/view/dot/79322/dot_79322_DS1.pdf"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance"
+    },
+    {
+      "component": "Bearing",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 6,
+      "sources": [
+        {
+          "title": "A fatigue failure investigation and improvement of a high-speed cylindrical roller bearing in a turbofan engine - Jing Liu, Xiaoyong Dang, Yuchen An, Chiye Yang, Guang Pan, 2023",
+          "year": "nan",
+          "doi": "",
+          "url": "https://journals.sagepub.com/doi/abs/10.1177/14644207221115328?casa_token=c9nPrjf9rn4AAAAA:qaKRNcCP-J7Ux34K533IS0U3NNHvfzga9yulkg4U4rXSacY5_iKu7-VxKmWsK-N1b0yQLdTPq9L62A&casa_token=P6bhQjEdsbQAAAAA:Ur6o8EazmKfEYFGfbA-0PA0JciFaApO4fUVBhC8ojsnEauL8yGwEQKVA9Dc83gNVwVBJ1dFbraUQFg"
+        },
+        {
+          "title": "Failure analysis of an aero-engine inter-shaft bearing due to clearance between the outer ring and its housing",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002522"
+        },
+        {
+          "title": "Investigation of Bearing Failure in a Turbo Shaft Engine",
+          "year": "2020",
+          "doi": "10.1007/s11668-020-00812-1",
+          "url": "https://doi.org/10.1007/s11668-020-00812-1 https://link.springer.com/content/pdf/10.1007%2Fs11668-020-00812-1.pdf"
+        },
+        {
+          "title": "A fatigue failure investigation and improvement of a high-speed cylindrical roller bearing in a turbofan engine",
+          "year": "2023",
+          "doi": "10.1177/14644207221115328",
+          "url": "https://doi.org/10.1177/14644207221115328"
+        },
+        {
+          "title": "Composite failure analysis of an aero-engine inter-shaft bearing inner ring",
+          "year": "2024",
+          "doi": "10.1016/j.engfailanal.2024.108707",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724007532"
+        },
+        {
+          "title": "Study on the vibration control method of a turboshaft engine rotor based on piezoelectric squeeze film damper oil film clearance",
+          "year": "2023",
+          "doi": "10.5194/ms-14-237-2023",
+          "url": "https://ms.copernicus.org/articles/14/237/2023/ https://ms.copernicus.org/articles/14/237/2023/ms-14-237-2023.pdf"
+        }
+      ],
+      "effect": "High vibration; Engine failure",
+      "cause": "Cyclic stress loading; Contact wear"
+    },
+    {
+      "component": "Bearing",
+      "failureMode": "Flexural deformation / vibration",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "",
+      "cause": "Rotor imbalance"
+    },
+    {
+      "component": "Bearing",
+      "failureMode": "Foreign object damage (FOD)",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Transient Vibratory Response of Turbofan Engine Rotor Impacted by Bird Strike",
+          "year": "2021",
+          "doi": "10.1061/(asce)as.1943-5525.0001250",
+          "url": "https://ascelibrary.org/doi/10.1061/%28ASCE%29AS.1943-5525.0001250"
+        },
+        {
+          "title": "Study on the vibration control method of a turboshaft engine rotor based on piezoelectric squeeze film damper oil film clearance",
+          "year": "2023",
+          "doi": "10.5194/ms-14-237-2023",
+          "url": "https://ms.copernicus.org/articles/14/237/2023/ https://ms.copernicus.org/articles/14/237/2023/ms-14-237-2023.pdf"
+        }
+      ],
+      "effect": "Engine failure; Loss of thrust; High vibration",
+      "cause": "Bird ingestion / impact; Rotor imbalance; Cyclic stress loading"
+    },
+    {
+      "component": "Bearing",
+      "failureMode": "Rotor imbalance",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        },
+        {
+          "title": "Transient Vibratory Response of Turbofan Engine Rotor Impacted by Bird Strike",
+          "year": "2021",
+          "doi": "10.1061/(asce)as.1943-5525.0001250",
+          "url": "https://ascelibrary.org/doi/10.1061/%28ASCE%29AS.1943-5525.0001250"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "High vibration; Engine failure; Loss of thrust",
+      "cause": "Rotor imbalance; Bird ingestion / impact"
+    },
+    {
+      "component": "Bearing",
+      "failureMode": "Wear / rubbing",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "A fatigue failure investigation and improvement of a high-speed cylindrical roller bearing in a turbofan engine",
+          "year": "2023",
+          "doi": "10.1177/14644207221115328",
+          "url": "https://doi.org/10.1177/14644207221115328"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Contact wear; Rotor imbalance"
+    },
+    {
+      "component": "Low-pressure compressor",
+      "failureMode": "Blade vibration / flutter",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Effect of Local Mistuning of Blade Vibration Frequencies on the Vibration Stress of Compressor and Turbine Disks of Aircraft Gas Turbine Engines",
+          "year": "2023",
+          "doi": "10.1007/s11223-023-00498-4",
+          "url": "https://doi.org/10.1007/s11223-023-00498-4 https://link.springer.com/content/pdf/10.1007%2Fs11223-023-00498-4.pdf"
+        }
+      ],
+      "effect": "Flutter / aeroelastic instability; High vibration",
+      "cause": ""
+    },
+    {
+      "component": "Low-pressure compressor",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Fatigue Failure of LP Compressor Blade in an Aero Gas Turbine Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9808-4",
+          "url": "https://doi.org/10.1007/s11668-014-9808-4 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9808-4.pdf"
+        },
+        {
+          "title": "Nonlinear Dynamic Analysis on Planetary Gears-Rotor System in Geared Turbofan Engines",
+          "year": "2019",
+          "doi": "10.1142/s0218127419500767",
+          "url": "https://www.worldscientific.com/doi/abs/10.1142/S0218127419500767"
+        }
+      ],
+      "effect": "Engine failure; Abnormal noise; High vibration",
+      "cause": "Cyclic stress loading"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Blade vibration / flutter",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Effect of Local Mistuning of Blade Vibration Frequencies on the Vibration Stress of Compressor and Turbine Disks of Aircraft Gas Turbine Engines",
+          "year": "2023",
+          "doi": "10.1007/s11223-023-00498-4",
+          "url": "https://doi.org/10.1007/s11223-023-00498-4 https://link.springer.com/content/pdf/10.1007%2Fs11223-023-00498-4.pdf"
+        },
+        {
+          "title": "Dynamic and fatigue compressor blade characteristics during fluid-structure interaction: Part I-Blade modelling and vibration analysis",
+          "year": "2017",
+          "doi": "10.1016/j.engfailanal.2017.02.002",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630716302886"
+        }
+      ],
+      "effect": "Flutter / aeroelastic instability; High vibration; Engine failure",
+      "cause": "Cyclic stress loading"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Corrosion / pitting",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Fouling and Corrosion in an Aero Gas Turbine Compressor",
+          "year": "2015",
+          "doi": "10.1007/s11668-015-0023-8",
+          "url": "https://doi.org/10.1007/s11668-015-0023-8 https://link.springer.com/content/pdf/10.1007%2Fs11668-015-0023-8.pdf"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Corrosive environment"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Advanced Materials and Technologies for Compressor Blades of Small Turbofan Engines",
+          "year": "2021",
+          "doi": "10.3390/aerospace8010001",
+          "url": "https://www.mdpi.com/2226-4310/8/1/1 https://www.mdpi.com/2226-4310/8/1/1/pdf?version=1609040853"
+        },
+        {
+          "title": "A Review on Leading-Edge Erosion Morphology and Performance Degradation of Aero-Engine Fan and Compressor Blades",
+          "year": "2023",
+          "doi": "10.3390/en16073068",
+          "url": "https://www.mdpi.com/1996-1073/16/7/3068 https://www.mdpi.com/1996-1073/16/7/3068/pdf?version=1679994445"
+        }
+      ],
+      "effect": "",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Deposits / blockage",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 5,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "Signatures of Compressor and Turbine Faults in Gas Turbine Performance Diagnostics: A Review",
+          "year": "2024",
+          "doi": "10.3390/en17143409",
+          "url": "https://www.mdpi.com/1996-1073/17/14/3409 https://www.mdpi.com/1996-1073/17/14/3409/pdf?version=1720689380"
+        },
+        {
+          "title": "Impacts of low-pressure (LP) compressors’ fouling of a turbofan upon operational-effectiveness of a military aircraft",
+          "year": "2008",
+          "doi": "10.1016/j.apenergy.2007.02.011",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0306261907000244"
+        },
+        {
+          "title": "Investigation of Performance Degradation in a Mixed Flow Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01590-2",
+          "url": "https://doi.org/10.1007/s11668-023-01590-2 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01590-2.pdf"
+        },
+        {
+          "title": "Fouling and Corrosion in an Aero Gas Turbine Compressor",
+          "year": "2015",
+          "doi": "10.1007/s11668-015-0023-8",
+          "url": "https://doi.org/10.1007/s11668-015-0023-8 https://link.springer.com/content/pdf/10.1007%2Fs11668-015-0023-8.pdf"
+        }
+      ],
+      "effect": "Surge; Engine failure; Loss of thrust; Reduced thrust / performance loss; Remaining useful life reduction",
+      "cause": "Foreign object ingestion; Particle/fluid erosion; Cyclic stress loading; Corrosive environment"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Erosion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Signatures of Compressor and Turbine Faults in Gas Turbine Performance Diagnostics: A Review",
+          "year": "2024",
+          "doi": "10.3390/en17143409",
+          "url": "https://www.mdpi.com/1996-1073/17/14/3409 https://www.mdpi.com/1996-1073/17/14/3409/pdf?version=1720689380"
+        },
+        {
+          "title": "A Review on Leading-Edge Erosion Morphology and Performance Degradation of Aero-Engine Fan and Compressor Blades",
+          "year": "2023",
+          "doi": "10.3390/en16073068",
+          "url": "https://www.mdpi.com/1996-1073/16/7/3068 https://www.mdpi.com/1996-1073/16/7/3068/pdf?version=1679994445"
+        },
+        {
+          "title": "Investigation of Performance Degradation in a Mixed Flow Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01590-2",
+          "url": "https://doi.org/10.1007/s11668-023-01590-2 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01590-2.pdf"
+        },
+        {
+          "title": "Erosion-damage-induced vibration response of aero-gas generator rotor system",
+          "year": "2023",
+          "doi": "10.1016/j.ymssp.2023.110298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327023002054"
+        }
+      ],
+      "effect": "Engine failure; Loss of thrust; Reduced thrust / performance loss; Remaining useful life reduction; High vibration",
+      "cause": "Foreign object ingestion; Particle/fluid erosion; Rotor imbalance; Contact wear"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 6,
+      "sources": [
+        {
+          "title": "Failure Analysis of High-Pressure Compressor Blade in an Aero Gas Turbine Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0425-5",
+          "url": "https://doi.org/10.1007/s11668-018-0425-5 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0425-5.pdf"
+        },
+        {
+          "title": "Fatigue Failure of LP Compressor Blade in an Aero Gas Turbine Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9808-4",
+          "url": "https://doi.org/10.1007/s11668-014-9808-4 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9808-4.pdf"
+        },
+        {
+          "title": "Fouling and Corrosion in an Aero Gas Turbine Compressor",
+          "year": "2015",
+          "doi": "10.1007/s11668-015-0023-8",
+          "url": "https://doi.org/10.1007/s11668-015-0023-8 https://link.springer.com/content/pdf/10.1007%2Fs11668-015-0023-8.pdf"
+        },
+        {
+          "title": "Study on the vibration control method of a turboshaft engine rotor based on piezoelectric squeeze film damper oil film clearance",
+          "year": "2023",
+          "doi": "10.5194/ms-14-237-2023",
+          "url": "https://ms.copernicus.org/articles/14/237/2023/ https://ms.copernicus.org/articles/14/237/2023/ms-14-237-2023.pdf"
+        },
+        {
+          "title": "Nonlinear Dynamic Analysis on Planetary Gears-Rotor System in Geared Turbofan Engines",
+          "year": "2019",
+          "doi": "10.1142/s0218127419500767",
+          "url": "https://www.worldscientific.com/doi/abs/10.1142/S0218127419500767"
+        },
+        {
+          "title": "Dynamic and fatigue compressor blade characteristics during fluid-structure interaction: Part I-Blade modelling and vibration analysis",
+          "year": "2017",
+          "doi": "10.1016/j.engfailanal.2017.02.002",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630716302886"
+        }
+      ],
+      "effect": "Engine failure; High vibration; Abnormal noise",
+      "cause": "Cyclic stress loading; Corrosive environment"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Flow disturbance / distortion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "An experimental investigation of potential -disturbance aerodynamic forcing in the F109 turbofan engine compressor - ProQuest",
+          "year": "nan",
+          "doi": "",
+          "url": "https://www.proquest.com/openview/992bc9924adbbec13d0001cc7b599f95/1?pq-origsite=gscholar&cbl=18750&diss=y"
+        }
+      ],
+      "effect": "Inlet/potential-flow disturbance",
+      "cause": ""
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Foreign object damage (FOD)",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Signatures of Compressor and Turbine Faults in Gas Turbine Performance Diagnostics: A Review",
+          "year": "2024",
+          "doi": "10.3390/en17143409",
+          "url": "https://www.mdpi.com/1996-1073/17/14/3409 https://www.mdpi.com/1996-1073/17/14/3409/pdf?version=1720689380"
+        },
+        {
+          "title": "Study on the vibration control method of a turboshaft engine rotor based on piezoelectric squeeze film damper oil film clearance",
+          "year": "2023",
+          "doi": "10.5194/ms-14-237-2023",
+          "url": "https://ms.copernicus.org/articles/14/237/2023/ https://ms.copernicus.org/articles/14/237/2023/ms-14-237-2023.pdf"
+        }
+      ],
+      "effect": "Engine failure; Loss of thrust; High vibration",
+      "cause": "Foreign object ingestion; Particle/fluid erosion; Cyclic stress loading"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Overspeed",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Rotor imbalance",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "A time-series turbofan engine successive fault diagnosis under both steady-state and dynamic conditions",
+          "year": "2023",
+          "doi": "10.1016/j.energy.2022.125848",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0360544222027347"
+        },
+        {
+          "title": "Erosion-damage-induced vibration response of aero-gas generator rotor system",
+          "year": "2023",
+          "doi": "10.1016/j.ymssp.2023.110298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327023002054"
+        }
+      ],
+      "effect": "Remaining useful life reduction; High vibration",
+      "cause": "Rotor imbalance; Varying operating conditions; Particle/fluid erosion; Contact wear"
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Stall / surge",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "A Method to Control Turbofan Engine Starting by Varying Compressor Surge Valve Bleed",
+          "year": "2001",
+          "doi": "",
+          "url": "http://hdl.handle.net/10919/33098 https://vtechworks.lib.vt.edu/bitstreams/80aa85d2-a5ba-4fc9-83b9-af3319e1be47/download"
+        },
+        {
+          "title": "Research progress on intelligent control technology for aerodynamic stability of axial compressors based on stall warning",
+          "year": "2025",
+          "doi": "10.1016/j.dt.2025.11.018",
+          "url": "https://www.sciencedirect.com/science/article/pii/S2214914725003848 https://pdf.sciencedirectassets.com/305758/AIP/1-s2.0-S2214914725003848/main.pdf?X-Amz-Security-Token=IQoJb3JpZ2luX2VjEKj%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJIMEYCIQDvWiyycihHWbjUCwEHRni%2Bp35LACcnflqCmttNwDpVeAIhAKdeqkZjI%2B7M1sC91mR96F0Vye0OBvYojNUEyWnBbNoKKrMFCHAQBRoMMDU5MDAzNTQ2ODY1Igw0a0hgyhqxWgNOZXgqkAXJc38ibj%2BZn%2F%2BYSOW3Snt5TxjuxMqdpMAz9vqya29shgJs7EK3KA3mymZioH19wwaa3x7AMAKxd1d3rfdyq0AOds%2BC7%2BQNMUpFrO72oVp66xygl5QV5WJmiDK%2F00hTyy2FsVpBxCbocgjq28ECGIgZDvIGlt07BPEGO6tvd4mUhQtwL%2BuPUt2EfMmPxPyAztE0eDyfKMt%2Bcr0Kavzdfq9xgrZ1C%2BU2AQS3tMQxDNkBLG%2BUyyADpywZMb8826M4pxGLdH%2BqkTvBfx7KaYnEa2xJmgpUlk%2FdEt68dyZP0S0sQVHpWKFPuE6gwrFUAov7o9nv0U%2FTQttV%2BRvz8Y82Zp6AHnqop8Pct0Be2sUSomwr4iWYm0B%2FQtn8num%2F%2BaBSMTCZsr5J36XPXPi6y%2F7txR0HHVw2qcbkOvwWpls%2Fj6uv7VqIYNgRN0ditcCWhkjxEU%2BiDhl5%2BGWbLXDjhPgzO%2FVUolmp%2FwHaizy3OYutl3O5t6JsZk36c%2BXSbqrvtiHloDIOvGvNd3K4Jlb%2BxdAWejQz4E60xqtqph3JKP1c82%2B%2BgYGyFejfTH7cd4%2BJXy%2F8NbzetVBMMTY69OvBBwKcgmM8LjFeKvt9UpSAQ0mC6XvpKccQhQBFJ9O7MTnSJZoCKzv2omOA16gJ6JMjhhVy7p3HVCQVZ0azL53RHxQ1Dsz0pzHoBcVz%2F2UPUfJ%2Fz60ou5wBYfjvHp0FzhTj8HH70GgjsxfMS6FBw0qHVKMGL%2FivWXXeOhOs0BmEWpudyLrKtdQl5hOUUScPlbShqOoEU%2BP5XJTa9Q44MGe5Yy%2FLL410iGELOAA4xIPvUV4LIbYIxbxh5YrjhO9iQQWoSzPUNtujN0qFL9mOuC87hLxZ6O%2FKhzDL0ovRBjqwAWJ6fqofLUXX68y6Wo%2FjckeC8MV8hXzTL7bP4ftQsPswV0oaZJBzFfimHoCy0NEVgN4tBrEwuqj%2FU8Gezwv0O%2FbZRNGSG64J68JDQqCwJPAsaTECbVSF57JUTqAF0eQ7VkoWAwlHVEFmeqGrCj9Dbpzx30RhAwmyk2OPwf9kJ8YxTIUvQeksKnd3KyavVHixQfNess5XIXNAQNetxNucH7FvogfFxiJVaqwls2SXNOyu&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260605T155601Z&X-Amz-SignedHeaders=host&X-Amz-Expires=299&X-Amz-Credential=ASIAQ3PHCVTYWYKVIHF6%2F20260605%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=7fa17c8721d360fb41a441999113a9caa6275766ec140b452c655c8c476f209c&hash=8641f9a5341929a6ab741dd9a6e19244a6e41d286bad2847209f34360a1e970e&host=68042c943591013ac2b2430a89b270f6af2c76d8dfd086a07176afe7c76c2c61&pii=S2214914725003848&tid=spdf-d3c673b2-6c9b-4453-b43a-0dc04f94295d&sid=e512e16b7b17014b514a11472381af100b36gxrqb&type=client&tsoh=d3d3LnNjaWVuY2VkaXJlY3QuY29t&rh=d3d3LnNjaWVuY2VkaXJlY3QuY29t&ua=080b055254565504540c&rr=a0705d6c9e55b927&cc=nl https://www.sciencedirect.com/science/article/pii/S2214914725003848"
+        }
+      ],
+      "effect": "Surge; Stall / surge; Fault code / warning indication",
+      "cause": ""
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Thermal shock",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "A Method to Control Turbofan Engine Starting by Varying Compressor Surge Valve Bleed",
+          "year": "2001",
+          "doi": "",
+          "url": "http://hdl.handle.net/10919/33098 https://vtechworks.lib.vt.edu/bitstreams/80aa85d2-a5ba-4fc9-83b9-af3319e1be47/download"
+        }
+      ],
+      "effect": "Stall / surge; Surge",
+      "cause": ""
+    },
+    {
+      "component": "High-pressure compressor",
+      "failureMode": "Wear / rubbing",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Erosion-damage-induced vibration response of aero-gas generator rotor system",
+          "year": "2023",
+          "doi": "10.1016/j.ymssp.2023.110298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327023002054"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance; Particle/fluid erosion; Contact wear"
+    },
+    {
+      "component": "Combustor",
+      "failureMode": "Combustion instability",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Material failure analysis and engine combustion instabilities of both air and non-air breathing engines",
+          "year": "2020",
+          "doi": "10.1016/j.matpr.2019.10.105",
+          "url": "https://www.sciencedirect.com/science/article/pii/S2214785319336144"
+        }
+      ],
+      "effect": "Abnormal noise; Combustion instability; High vibration",
+      "cause": ""
+    },
+    {
+      "component": "Combustor",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "Structural Analysis of Combustor Casing for Safe Operation of a Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01624-9",
+          "url": "https://doi.org/10.1007/s11668-023-01624-9 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01624-9.pdf"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "Combustor",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Structural Analysis of Combustor Casing for Safe Operation of a Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01624-9",
+          "url": "https://doi.org/10.1007/s11668-023-01624-9 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01624-9.pdf"
+        }
+      ],
+      "effect": "",
+      "cause": ""
+    },
+    {
+      "component": "Combustor",
+      "failureMode": "Deposits / blockage",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "Combustor",
+      "failureMode": "Leakage",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Material failure analysis and engine combustion instabilities of both air and non-air breathing engines",
+          "year": "2020",
+          "doi": "10.1016/j.matpr.2019.10.105",
+          "url": "https://www.sciencedirect.com/science/article/pii/S2214785319336144"
+        }
+      ],
+      "effect": "Abnormal noise; Combustion instability; High vibration",
+      "cause": ""
+    },
+    {
+      "component": "Combustor",
+      "failureMode": "Overspeed",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "Combustor",
+      "failureMode": "Stall / surge",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Blade vibration / flutter",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Effect of Local Mistuning of Blade Vibration Frequencies on the Vibration Stress of Compressor and Turbine Disks of Aircraft Gas Turbine Engines",
+          "year": "2023",
+          "doi": "10.1007/s11223-023-00498-4",
+          "url": "https://doi.org/10.1007/s11223-023-00498-4 https://link.springer.com/content/pdf/10.1007%2Fs11223-023-00498-4.pdf"
+        },
+        {
+          "title": "Vibration based damage detection of rotor blades in a gas turbine engine",
+          "year": "2014",
+          "doi": "10.1016/j.engfailanal.2014.07.021",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630714002465"
+        },
+        {
+          "title": "Dynamic and fatigue compressor blade characteristics during fluid-structure interaction: Part I-Blade modelling and vibration analysis",
+          "year": "2017",
+          "doi": "10.1016/j.engfailanal.2017.02.002",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630716302886"
+        }
+      ],
+      "effect": "Flutter / aeroelastic instability; High vibration; Engine failure",
+      "cause": "High-temperature oxidation; Cyclic stress loading"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Corrosion / pitting",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        },
+        {
+          "title": "Failure study of an aircraft engine high pressure turbine (HPT) first stage blade",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107251",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002054"
+        },
+        {
+          "title": "Investigation of temperature assisted corrosion failure of an aircraft turbine blade",
+          "year": "2025",
+          "doi": "10.1016/j.engfailanal.2024.108909",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724009555"
+        },
+        {
+          "title": "Failure analysis of a gas turbine blade: A review",
+          "year": "2021",
+          "doi": "10.1088/1757-899x/1034/1/012156",
+          "url": "https://doi.org/10.1088/1757-899X/1034/1/012156 https://iopscience.iop.org/article/10.1088/1757-899X/1034/1/012156/pdf"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Excess thermal loading; Corrosive environment; Particle/fluid erosion; High-temperature oxidation; High-temperature creep exposure"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 9,
+      "sources": [
+        {
+          "title": "Investigation of HP Turbine Blade Failure in a Military Turbofan Engine",
+          "year": "2017",
+          "doi": "10.1515/tjj-2015-0049",
+          "url": "https://www.degruyterbrill.com/document/doi/10.1515/tjj-2015-0049/html?lang=en https://www.degruyterbrill.com/document/doi/10.1515/tjj-2015-0049/pdf?licenseType=free"
+        },
+        {
+          "title": "Thermal Fatigue Failure of Low-Pressure Turbine Blade in a Low-Bypass Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1007/s11668-019-00622-0",
+          "url": "https://doi.org/10.1007/s11668-019-00622-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-019-00622-0.pdf"
+        },
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        },
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        },
+        {
+          "title": "Failure study of an aircraft engine high pressure turbine (HPT) first stage blade",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107251",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002054"
+        },
+        {
+          "title": "Investigation of temperature assisted corrosion failure of an aircraft turbine blade",
+          "year": "2025",
+          "doi": "10.1016/j.engfailanal.2024.108909",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724009555"
+        },
+        {
+          "title": "Thermomechanical fatigue experiment and failure analysis on a nickel-based superalloy turbine blade",
+          "year": "2019",
+          "doi": "10.1016/j.engfailanal.2019.04.023",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630717307197"
+        },
+        {
+          "title": "Creep Life Degradation and Microstructure Degeneration in a Low-Pressure Turbine Blade of a Military Aircraft Engine",
+          "year": "2017",
+          "doi": "10.1007/s11668-017-0271-x",
+          "url": "https://doi.org/10.1007/s11668-017-0271-x https://link.springer.com/content/pdf/10.1007%2Fs11668-017-0271-x.pdf"
+        }
+      ],
+      "effect": "Engine failure; Loss of engine control",
+      "cause": "Loss of protective coating; Inadequate oxidation protection; Substrate material aging; High-temperature oxidation; Surface oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure; Excess thermal loading; Corrosive environment; Particle/fluid erosion"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Creep",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 11,
+      "sources": [
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        },
+        {
+          "title": "Failure analysis of a gas turbine blade: A review",
+          "year": "2021",
+          "doi": "10.1088/1757-899x/1034/1/012156",
+          "url": "https://doi.org/10.1088/1757-899X/1034/1/012156 https://iopscience.iop.org/article/10.1088/1757-899X/1034/1/012156/pdf"
+        },
+        {
+          "title": "Thermomechanical fatigue experiment and failure analysis on a nickel-based superalloy turbine blade",
+          "year": "2019",
+          "doi": "10.1016/j.engfailanal.2019.04.023",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630717307197"
+        },
+        {
+          "title": "Thermodynamic Performance and Creep Life Assessment Comparing Hydrogen- and Jet-Fueled Turbofan Aero Engine",
+          "year": "2021",
+          "doi": "10.3390/app11093873",
+          "url": "https://www.mdpi.com/2076-3417/11/9/3873 https://www.mdpi.com/2076-3417/11/9/3873/pdf?version=1619336813"
+        },
+        {
+          "title": "Review on Creep Phenomenon and Its Model in Aircraft Engines",
+          "year": "2023",
+          "doi": "10.1155/2023/4465565",
+          "url": "https://onlinelibrary.wiley.com/doi/abs/10.1155/2023/4465565 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1155/2023/4465565"
+        },
+        {
+          "title": "Implications of a Military Turbofan's High-Pressure Turbine Erosion for Blade's Creep Life-Consumption",
+          "year": "2010",
+          "doi": "10.2514/1.38828",
+          "url": "https://arc.aiaa.org/doi/10.2514/1.38828 https://arc.aiaa.org/doi/pdf/10.2514/1.38828?casa_token=Whbj_7DigGQAAAAA:lAAQiO6MrIRWWHHK-wwBEmSt8Nlrwic13kQJlr9W5MletE_rIMyM5cIDQbS225lzr6ip6fq5tKY"
+        },
+        {
+          "title": "Aircraft maintenance and development of a performance-based creep life estimation for aero engine",
+          "year": "2012",
+          "doi": "",
+          "url": "http://dspace.lib.cranfield.ac.uk/handle/1826/7750 https://dspace.lib.cranfield.ac.uk/bitstreams/b5440cac-0351-4d07-8d3e-089a99004422/download"
+        },
+        {
+          "title": "Creep Life Degradation and Microstructure Degeneration in a Low-Pressure Turbine Blade of a Military Aircraft Engine",
+          "year": "2017",
+          "doi": "10.1007/s11668-017-0271-x",
+          "url": "https://doi.org/10.1007/s11668-017-0271-x https://link.springer.com/content/pdf/10.1007%2Fs11668-017-0271-x.pdf"
+        },
+        {
+          "title": "Impact of Operating and Health Conditions on Aero Gas Turbine: Hot Section Creep Life Using a Creep Factor Approach",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22332",
+          "url": "https://dx.doi.org/10.1115/GT2010-22332"
+        },
+        {
+          "title": "Implications of day temperature variation for an aero-engine's HP turbine-blade's creep life-consumption",
+          "year": "2009",
+          "doi": "10.1016/j.ast.2008.02.004",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1270963808000321"
+        }
+      ],
+      "effect": "Engine failure; Loss of engine control; Remaining useful life reduction",
+      "cause": "High-temperature oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure; Surface oxidation; Corrosive environment; Particle/fluid erosion; Varying operating conditions"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Review on Creep Phenomenon and Its Model in Aircraft Engines",
+          "year": "2023",
+          "doi": "10.1155/2023/4465565",
+          "url": "https://onlinelibrary.wiley.com/doi/abs/10.1155/2023/4465565 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1155/2023/4465565"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; High-temperature creep exposure"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Deposits / blockage",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Investigation of Performance Degradation in a Mixed Flow Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01590-2",
+          "url": "https://doi.org/10.1007/s11668-023-01590-2 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01590-2.pdf"
+        }
+      ],
+      "effect": "Reduced thrust / performance loss; Remaining useful life reduction",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Erosion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 6,
+      "sources": [
+        {
+          "title": "Erosion Due to Solid Particle Impact on the Turbine Blade: Experiment and Simulation",
+          "year": "2019",
+          "doi": "10.1007/s11668-019-00775-y",
+          "url": "https://doi.org/10.1007/s11668-019-00775-y https://link.springer.com/content/pdf/10.1007%2Fs11668-019-00775-y.pdf"
+        },
+        {
+          "title": "Investigation of Performance Degradation in a Mixed Flow Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01590-2",
+          "url": "https://doi.org/10.1007/s11668-023-01590-2 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01590-2.pdf"
+        },
+        {
+          "title": "Investigation of temperature assisted corrosion failure of an aircraft turbine blade",
+          "year": "2025",
+          "doi": "10.1016/j.engfailanal.2024.108909",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724009555"
+        },
+        {
+          "title": "Failure analysis of a gas turbine blade: A review",
+          "year": "2021",
+          "doi": "10.1088/1757-899x/1034/1/012156",
+          "url": "https://doi.org/10.1088/1757-899X/1034/1/012156 https://iopscience.iop.org/article/10.1088/1757-899X/1034/1/012156/pdf"
+        },
+        {
+          "title": "Erosion-damage-induced vibration response of aero-gas generator rotor system",
+          "year": "2023",
+          "doi": "10.1016/j.ymssp.2023.110298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327023002054"
+        },
+        {
+          "title": "Implications of a Military Turbofan's High-Pressure Turbine Erosion for Blade's Creep Life-Consumption",
+          "year": "2010",
+          "doi": "10.2514/1.38828",
+          "url": "https://arc.aiaa.org/doi/10.2514/1.38828 https://arc.aiaa.org/doi/pdf/10.2514/1.38828?casa_token=Whbj_7DigGQAAAAA:lAAQiO6MrIRWWHHK-wwBEmSt8Nlrwic13kQJlr9W5MletE_rIMyM5cIDQbS225lzr6ip6fq5tKY"
+        }
+      ],
+      "effect": "Reduced thrust / performance loss; Remaining useful life reduction; High vibration",
+      "cause": "Particle/fluid erosion; Corrosive environment; High-temperature oxidation; Cyclic stress loading; High-temperature creep exposure; Rotor imbalance; Contact wear"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 16,
+      "sources": [
+        {
+          "title": "Thermal Fatigue Failure of Low-Pressure Turbine Blade in a Low-Bypass Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1007/s11668-019-00622-0",
+          "url": "https://doi.org/10.1007/s11668-019-00622-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-019-00622-0.pdf"
+        },
+        {
+          "title": "Failure of Low-Pressure Turbine Blades in Military Turbofan Engines: Causes and Remedies",
+          "year": "2016",
+          "doi": "10.1007/s11668-016-0131-0",
+          "url": "https://doi.org/10.1007/s11668-016-0131-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-016-0131-0.pdf"
+        },
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        },
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        },
+        {
+          "title": "Failure study of an aircraft engine high pressure turbine (HPT) first stage blade",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107251",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002054"
+        },
+        {
+          "title": "Failure Analysis of High-Pressure Compressor Blade in an Aero Gas Turbine Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0425-5",
+          "url": "https://doi.org/10.1007/s11668-018-0425-5 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0425-5.pdf"
+        },
+        {
+          "title": "Failure analysis of a gas turbine blade: A review",
+          "year": "2021",
+          "doi": "10.1088/1757-899x/1034/1/012156",
+          "url": "https://doi.org/10.1088/1757-899X/1034/1/012156 https://iopscience.iop.org/article/10.1088/1757-899X/1034/1/012156/pdf"
+        },
+        {
+          "title": "Study on the vibration control method of a turboshaft engine rotor based on piezoelectric squeeze film damper oil film clearance",
+          "year": "2023",
+          "doi": "10.5194/ms-14-237-2023",
+          "url": "https://ms.copernicus.org/articles/14/237/2023/ https://ms.copernicus.org/articles/14/237/2023/ms-14-237-2023.pdf"
+        },
+        {
+          "title": "Vibration based damage detection of rotor blades in a gas turbine engine",
+          "year": "2014",
+          "doi": "10.1016/j.engfailanal.2014.07.021",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630714002465"
+        },
+        {
+          "title": "Dynamic and fatigue compressor blade characteristics during fluid-structure interaction: Part I-Blade modelling and vibration analysis",
+          "year": "2017",
+          "doi": "10.1016/j.engfailanal.2017.02.002",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630716302886"
+        },
+        {
+          "title": "Fatigue failure analysis of turbine blade in miniature short-life turbofan engine",
+          "year": "2012",
+          "doi": "",
+          "url": "https://research.buaa.edu.cn/zh/publications/fatigue-failure-analysis-of-turbine-blade-in-miniature-short-life/"
+        },
+        {
+          "title": "Thermomechanical fatigue experiment and failure analysis on a nickel-based superalloy turbine blade",
+          "year": "2019",
+          "doi": "10.1016/j.engfailanal.2019.04.023",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630717307197"
+        },
+        {
+          "title": "Review on Creep Phenomenon and Its Model in Aircraft Engines",
+          "year": "2023",
+          "doi": "10.1155/2023/4465565",
+          "url": "https://onlinelibrary.wiley.com/doi/abs/10.1155/2023/4465565 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1155/2023/4465565"
+        },
+        {
+          "title": "Implications of day temperature variation for an aero-engine's HP turbine-blade's creep life-consumption",
+          "year": "2009",
+          "doi": "10.1016/j.ast.2008.02.004",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1270963808000321"
+        },
+        {
+          "title": "Aero-engine turbine blade life assessment using the Neu/Sehitoglu damage model",
+          "year": "2014",
+          "doi": "10.1016/j.ijfatigue.2013.11.015",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0142112313003307"
+        }
+      ],
+      "effect": "Engine failure; Loss of engine control; High vibration",
+      "cause": "Surface oxidation; High-temperature oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure; Excess thermal loading; Corrosive environment; Particle/fluid erosion"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Flow disturbance / distortion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "The Application of Low-Profile Vortex Generators in an Intermediate Turbine Diffuser",
+          "year": "2011",
+          "doi": "10.1115/1.4003718",
+          "url": "https://doi.org/10.1115/1.4003718"
+        }
+      ],
+      "effect": "Flow disturbance / distortion",
+      "cause": ""
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Foreign object damage (FOD)",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Study on the vibration control method of a turboshaft engine rotor based on piezoelectric squeeze film damper oil film clearance",
+          "year": "2023",
+          "doi": "10.5194/ms-14-237-2023",
+          "url": "https://ms.copernicus.org/articles/14/237/2023/ https://ms.copernicus.org/articles/14/237/2023/ms-14-237-2023.pdf"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Cyclic stress loading"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Overheating / overtemperature",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Thermal degradation of turbine components in a military turbofan",
+          "year": "2022",
+          "doi": "10.1016/j.engfailanal.2022.106088",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630722000620"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; Excess thermal loading; Corrosive environment"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Oxidation",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 9,
+      "sources": [
+        {
+          "title": "Investigation of HP Turbine Blade Failure in a Military Turbofan Engine",
+          "year": "2017",
+          "doi": "10.1515/tjj-2015-0049",
+          "url": "https://www.degruyterbrill.com/document/doi/10.1515/tjj-2015-0049/html?lang=en https://www.degruyterbrill.com/document/doi/10.1515/tjj-2015-0049/pdf?licenseType=free"
+        },
+        {
+          "title": "Thermal Fatigue Failure of Low-Pressure Turbine Blade in a Low-Bypass Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1007/s11668-019-00622-0",
+          "url": "https://doi.org/10.1007/s11668-019-00622-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-019-00622-0.pdf"
+        },
+        {
+          "title": "Failure of Low-Pressure Turbine Blades in Military Turbofan Engines: Causes and Remedies",
+          "year": "2016",
+          "doi": "10.1007/s11668-016-0131-0",
+          "url": "https://doi.org/10.1007/s11668-016-0131-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-016-0131-0.pdf"
+        },
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        },
+        {
+          "title": "Failure analysis of a gas turbine blade: A review",
+          "year": "2021",
+          "doi": "10.1088/1757-899x/1034/1/012156",
+          "url": "https://doi.org/10.1088/1757-899X/1034/1/012156 https://iopscience.iop.org/article/10.1088/1757-899X/1034/1/012156/pdf"
+        },
+        {
+          "title": "Vibration based damage detection of rotor blades in a gas turbine engine",
+          "year": "2014",
+          "doi": "10.1016/j.engfailanal.2014.07.021",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630714002465"
+        },
+        {
+          "title": "Thermomechanical fatigue experiment and failure analysis on a nickel-based superalloy turbine blade",
+          "year": "2019",
+          "doi": "10.1016/j.engfailanal.2019.04.023",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630717307197"
+        },
+        {
+          "title": "Aero-engine turbine blade life assessment using the Neu/Sehitoglu damage model",
+          "year": "2014",
+          "doi": "10.1016/j.ijfatigue.2013.11.015",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0142112313003307"
+        }
+      ],
+      "effect": "Engine failure; Loss of engine control; High vibration",
+      "cause": "Loss of protective coating; Inadequate oxidation protection; Substrate material aging; High-temperature oxidation; Surface oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure; Corrosive environment; Particle/fluid erosion"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Rotor imbalance",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Dynamic Modeling and Vibration Characteristics for a High-Speed Aero-Engine Rotor with Blade Off",
+          "year": "2021",
+          "doi": "10.3390/app11209674",
+          "url": "https://www.mdpi.com/2076-3417/11/20/9674 https://www.mdpi.com/2076-3417/11/20/9674/pdf?version=1634639268"
+        },
+        {
+          "title": "Erosion-damage-induced vibration response of aero-gas generator rotor system",
+          "year": "2023",
+          "doi": "10.1016/j.ymssp.2023.110298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327023002054"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance; Particle/fluid erosion; Contact wear"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Spallation",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Investigation of HP Turbine Blade Failure in a Military Turbofan Engine",
+          "year": "2017",
+          "doi": "10.1515/tjj-2015-0049",
+          "url": "https://www.degruyterbrill.com/document/doi/10.1515/tjj-2015-0049/html?lang=en https://www.degruyterbrill.com/document/doi/10.1515/tjj-2015-0049/pdf?licenseType=free"
+        }
+      ],
+      "effect": "Engine failure",
+      "cause": "Loss of protective coating; Inadequate oxidation protection; Substrate material aging; High-temperature oxidation"
+    },
+    {
+      "component": "High-pressure turbine",
+      "failureMode": "Wear / rubbing",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Erosion-damage-induced vibration response of aero-gas generator rotor system",
+          "year": "2023",
+          "doi": "10.1016/j.ymssp.2023.110298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0888327023002054"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance; Particle/fluid erosion; Contact wear"
+    },
+    {
+      "component": "Low-pressure turbine",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Thermal Fatigue Failure of Low-Pressure Turbine Blade in a Low-Bypass Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1007/s11668-019-00622-0",
+          "url": "https://doi.org/10.1007/s11668-019-00622-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-019-00622-0.pdf"
+        },
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        },
+        {
+          "title": "Creep Life Degradation and Microstructure Degeneration in a Low-Pressure Turbine Blade of a Military Aircraft Engine",
+          "year": "2017",
+          "doi": "10.1007/s11668-017-0271-x",
+          "url": "https://doi.org/10.1007/s11668-017-0271-x https://link.springer.com/content/pdf/10.1007%2Fs11668-017-0271-x.pdf"
+        }
+      ],
+      "effect": "Engine failure; Loss of engine control",
+      "cause": "Surface oxidation; High-temperature oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure"
+    },
+    {
+      "component": "Low-pressure turbine",
+      "failureMode": "Creep",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        },
+        {
+          "title": "Creep Life Degradation and Microstructure Degeneration in a Low-Pressure Turbine Blade of a Military Aircraft Engine",
+          "year": "2017",
+          "doi": "10.1007/s11668-017-0271-x",
+          "url": "https://doi.org/10.1007/s11668-017-0271-x https://link.springer.com/content/pdf/10.1007%2Fs11668-017-0271-x.pdf"
+        }
+      ],
+      "effect": "Engine failure",
+      "cause": "High-temperature oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure; Surface oxidation"
+    },
+    {
+      "component": "Low-pressure turbine",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Thermal Fatigue Failure of Low-Pressure Turbine Blade in a Low-Bypass Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1007/s11668-019-00622-0",
+          "url": "https://doi.org/10.1007/s11668-019-00622-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-019-00622-0.pdf"
+        },
+        {
+          "title": "Failure of Low-Pressure Turbine Blades in Military Turbofan Engines: Causes and Remedies",
+          "year": "2016",
+          "doi": "10.1007/s11668-016-0131-0",
+          "url": "https://doi.org/10.1007/s11668-016-0131-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-016-0131-0.pdf"
+        },
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        }
+      ],
+      "effect": "Engine failure; Loss of engine control",
+      "cause": "Surface oxidation; High-temperature oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure"
+    },
+    {
+      "component": "Low-pressure turbine",
+      "failureMode": "Flow disturbance / distortion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "The Application of Low-Profile Vortex Generators in an Intermediate Turbine Diffuser",
+          "year": "2011",
+          "doi": "10.1115/1.4003718",
+          "url": "https://doi.org/10.1115/1.4003718"
+        }
+      ],
+      "effect": "Flow disturbance / distortion",
+      "cause": ""
+    },
+    {
+      "component": "Low-pressure turbine",
+      "failureMode": "Oxidation",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "Thermal Fatigue Failure of Low-Pressure Turbine Blade in a Low-Bypass Turbofan Engine",
+          "year": "2019",
+          "doi": "10.1007/s11668-019-00622-0",
+          "url": "https://doi.org/10.1007/s11668-019-00622-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-019-00622-0.pdf"
+        },
+        {
+          "title": "Failure of Low-Pressure Turbine Blades in Military Turbofan Engines: Causes and Remedies",
+          "year": "2016",
+          "doi": "10.1007/s11668-016-0131-0",
+          "url": "https://doi.org/10.1007/s11668-016-0131-0 https://link.springer.com/content/pdf/10.1007%2Fs11668-016-0131-0.pdf"
+        },
+        {
+          "title": "Investigation of LP Turbine Blade Failure in a Low Bypass Turbofan Engine",
+          "year": "2014",
+          "doi": "10.1007/s11668-014-9793-7",
+          "url": "https://doi.org/10.1007/s11668-014-9793-7 https://link.springer.com/content/pdf/10.1007%2Fs11668-014-9793-7.pdf"
+        },
+        {
+          "title": "Thermo-mechanical Fatigue Failure of a Low-Pressure Turbine Blade in a Turbofan Engine",
+          "year": "2018",
+          "doi": "10.1007/s11668-018-0408-6",
+          "url": "https://doi.org/10.1007/s11668-018-0408-6 https://link.springer.com/content/pdf/10.1007%2Fs11668-018-0408-6.pdf"
+        }
+      ],
+      "effect": "Engine failure; Loss of engine control",
+      "cause": "Surface oxidation; High-temperature oxidation; Thermal cycling; Cyclic stress loading; High-temperature creep exposure"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Crack / fracture",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Failure analysis of an aero-engine inter-shaft bearing due to clearance between the outer ring and its housing",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002522"
+        },
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "Composite failure analysis of an aero-engine inter-shaft bearing inner ring",
+          "year": "2024",
+          "doi": "10.1016/j.engfailanal.2024.108707",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724007532"
+        }
+      ],
+      "effect": "High vibration; Surge",
+      "cause": "Cyclic stress loading"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Creep",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Implications of engine deterioration for creep life",
+          "year": "1998",
+          "doi": "10.1016/s0306-2619(98)00028-2",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0306261998000282"
+        },
+        {
+          "title": "Impact of Operating and Health Conditions on Aero Gas Turbine: Hot Section Creep Life Using a Creep Factor Approach",
+          "year": "2010",
+          "doi": "10.1115/gt2010-22332",
+          "url": "https://dx.doi.org/10.1115/GT2010-22332"
+        },
+        {
+          "title": "Implications of day temperature variation for an aero-engine's HP turbine-blade's creep life-consumption",
+          "year": "2009",
+          "doi": "10.1016/j.ast.2008.02.004",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1270963808000321"
+        }
+      ],
+      "effect": "",
+      "cause": "Cyclic stress loading; High-temperature creep exposure; Varying operating conditions"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Deformation / buckling",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 3,
+      "sources": [
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        },
+        {
+          "title": "Development of a Generic Gas-Turbine Engine Fan Blade-Out Full-Fan Rig Model",
+          "year": "2015",
+          "doi": "10.21949/k25w-vn45",
+          "url": "https://rosap.ntl.bts.gov http://rosap.ntl.bts.gov/view/dot/79322/dot_79322_DS1.pdf"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "High vibration",
+      "cause": "Rotor imbalance"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Deposits / blockage",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 2,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        },
+        {
+          "title": "Investigation of Performance Degradation in a Mixed Flow Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01590-2",
+          "url": "https://doi.org/10.1007/s11668-023-01590-2 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01590-2.pdf"
+        }
+      ],
+      "effect": "Surge; Reduced thrust / performance loss; Remaining useful life reduction",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Erosion",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Investigation of Performance Degradation in a Mixed Flow Low Bypass Turbofan Engine",
+          "year": "2023",
+          "doi": "10.1007/s11668-023-01590-2",
+          "url": "https://doi.org/10.1007/s11668-023-01590-2 https://link.springer.com/content/pdf/10.1007%2Fs11668-023-01590-2.pdf"
+        }
+      ],
+      "effect": "Reduced thrust / performance loss; Remaining useful life reduction",
+      "cause": "Particle/fluid erosion"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Fatigue",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 6,
+      "sources": [
+        {
+          "title": "Fatigue Failure of a Spiral Bevel Gear in a Typical Low-Bypass Turbofan Engine",
+          "year": "2020",
+          "doi": "10.1007/978-981-13-8767-8_54",
+          "url": "https://link.springer.com/content/pdf/10.1007%2F978-981-13-8767-8_54.pdf"
+        },
+        {
+          "title": "Failure analysis of an aero-engine inter-shaft bearing due to clearance between the outer ring and its housing",
+          "year": "2023",
+          "doi": "10.1016/j.engfailanal.2023.107298",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630723002522"
+        },
+        {
+          "title": "Investigation of Bearing Failure in a Turbo Shaft Engine",
+          "year": "2020",
+          "doi": "10.1007/s11668-020-00812-1",
+          "url": "https://doi.org/10.1007/s11668-020-00812-1 https://link.springer.com/content/pdf/10.1007%2Fs11668-020-00812-1.pdf"
+        },
+        {
+          "title": "Composite failure analysis of an aero-engine inter-shaft bearing inner ring",
+          "year": "2024",
+          "doi": "10.1016/j.engfailanal.2024.108707",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1350630724007532"
+        },
+        {
+          "title": "Implications of engine deterioration for creep life",
+          "year": "1998",
+          "doi": "10.1016/s0306-2619(98)00028-2",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0306261998000282"
+        },
+        {
+          "title": "Implications of day temperature variation for an aero-engine's HP turbine-blade's creep life-consumption",
+          "year": "2009",
+          "doi": "10.1016/j.ast.2008.02.004",
+          "url": "https://www.sciencedirect.com/science/article/pii/S1270963808000321"
+        }
+      ],
+      "effect": "High vibration; Engine failure",
+      "cause": "Manufacturing under-fill flaw; Near-surface manufacturing flaw; Progressive fatigue crack growth; Cyclic stress loading; High-temperature creep exposure"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Flexural deformation / vibration",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "",
+      "cause": "Rotor imbalance"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Foreign object damage (FOD)",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Transient Vibratory Response of Turbofan Engine Rotor Impacted by Bird Strike",
+          "year": "2021",
+          "doi": "10.1061/(asce)as.1943-5525.0001250",
+          "url": "https://ascelibrary.org/doi/10.1061/%28ASCE%29AS.1943-5525.0001250"
+        }
+      ],
+      "effect": "Engine failure; Loss of thrust",
+      "cause": "Bird ingestion / impact; Rotor imbalance"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Overspeed",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Rotor imbalance",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 4,
+      "sources": [
+        {
+          "title": "A time-series turbofan engine successive fault diagnosis under both steady-state and dynamic conditions",
+          "year": "2023",
+          "doi": "10.1016/j.energy.2022.125848",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0360544222027347"
+        },
+        {
+          "title": "Study on Vibration Characteristics of Fan Shaft of Geared Turbofan Engine With Sudden Imbalance Caused by Blade Off",
+          "year": "2018",
+          "doi": "10.1115/1.4039246",
+          "url": "https://doi.org/10.1115/1.4039246"
+        },
+        {
+          "title": "Transient Vibratory Response of Turbofan Engine Rotor Impacted by Bird Strike",
+          "year": "2021",
+          "doi": "10.1061/(asce)as.1943-5525.0001250",
+          "url": "https://ascelibrary.org/doi/10.1061/%28ASCE%29AS.1943-5525.0001250"
+        },
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "Remaining useful life reduction; High vibration; Engine failure; Loss of thrust",
+      "cause": "Rotor imbalance; Varying operating conditions; Bird ingestion / impact"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Seizure",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Fatigue Failure of a Spiral Bevel Gear in a Typical Low-Bypass Turbofan Engine",
+          "year": "2020",
+          "doi": "10.1007/978-981-13-8767-8_54",
+          "url": "https://link.springer.com/content/pdf/10.1007%2F978-981-13-8767-8_54.pdf"
+        }
+      ],
+      "effect": "",
+      "cause": "Manufacturing under-fill flaw; Near-surface manufacturing flaw; Progressive fatigue crack growth; Cyclic stress loading"
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Stall / surge",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Dynamic Response of Turbofan Engine in the Event of Shaft Failure: Fan and Compressor Operating Points and Turbine Overspeed Analysis",
+          "year": "2025",
+          "doi": "10.1115/gt2025-151647",
+          "url": "https://dx.doi.org/10.1115/GT2025-151647"
+        }
+      ],
+      "effect": "Surge",
+      "cause": ""
+    },
+    {
+      "component": "Shaft",
+      "failureMode": "Wear / rubbing",
+      "severity": "",
+      "occurrence": "",
+      "detection": "",
+      "correctiveAction": "",
+      "rpn": "",
+      "evidenceCount": 1,
+      "sources": [
+        {
+          "title": "Rotordynamic analysis of asymmetric turbofan rotor due to fan blade-loss event with contact-impact rub loads",
+          "year": "2013",
+          "doi": "10.1016/j.jsv.2012.11.033",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0022460X12009467"
+        }
+      ],
+      "effect": "",
+      "cause": "Rotor imbalance"
+    }
+  ]
+}
