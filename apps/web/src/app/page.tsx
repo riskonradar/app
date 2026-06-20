@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
+
+import { AuthControls } from "@/components/auth/auth-controls";
 import fmeaData from "@/data/fmea-turbofan-data.json";
 
 type Source = {
@@ -110,17 +113,59 @@ export default function Home() {
   let previousComponent = "";
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="https://riskonradar.com/">
-          r<span>ı</span>sk on radar<span>.</span>
-        </a>
-        <nav className="topnav" aria-label="Product navigation">
-          <a href="#classifier">FMEA classifier</a>
-          <a href="#fmea-table">Worksheet</a>
-        </nav>
-      </header>
+    <div className="app-shell">
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
 
+      <nav className="nav" aria-label="Primary navigation">
+        <div className="nav-container">
+          <Link href="/" className="nav-brand">
+            <span className="wordmark">
+              r<span className="wm-i">ı</span>sk on radar
+              <span className="wm-dot">.</span>
+            </span>
+          </Link>
+
+          <div className="nav-actions">
+            <a className="nav-text-link" href="#classifier">
+              FMEA classifier
+            </a>
+            <a className="nav-text-link" href="#fmea-table">
+              Worksheet
+            </a>
+            <div className="language-selector">
+              <button
+                type="button"
+                className="language-button"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-label="Select language"
+                title="Select language"
+              >
+                <span className="language-flag" aria-hidden="true">
+                  EN
+                </span>
+                <span>EN</span>
+              </button>
+              <div className="language-menu" role="listbox" aria-label="Select language">
+                <button type="button" className="language-option" role="option" aria-selected="true">
+                  English
+                </button>
+                <button type="button" className="language-option" role="option" aria-selected="false">
+                  Nederlands
+                </button>
+                <button type="button" className="language-option" role="option" aria-selected="false">
+                  Deutsch
+                </button>
+              </div>
+            </div>
+            <AuthControls />
+          </div>
+        </div>
+      </nav>
+
+      <main id="main-content" className="workspace-main">
       <section id="classifier" className="workspace-shell">
         <div className="workspace-header">
           <p className="eyebrow">Evidence-backed FMEA classifier</p>
@@ -300,6 +345,41 @@ export default function Home() {
           </section>
         </div>
       )}
-    </main>
+
+      </main>
+
+      <footer className="footer">
+        <div className="container">
+          <div className="footer-inner">
+            <span className="wordmark wordmark-light">
+              r<span className="wm-i">ı</span>sk on radar
+              <span className="wm-dot">.</span>
+            </span>
+            <div className="footer-links">
+              <a
+                href="https://riskonradar.com/whitepaper.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                Whitepaper
+              </a>
+              <a
+                href="https://www.linkedin.com/company/riskonradar/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                LinkedIn
+              </a>
+              <a href="mailto:contact@riskonradar.com" className="footer-link">
+                contact@riskonradar.com
+              </a>
+            </div>
+            <p className="footer-copy">© 2026 Risk on Radar. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

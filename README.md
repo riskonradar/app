@@ -43,4 +43,10 @@ Next.js owns the app UI and lightweight app backend. The paper pipeline is split
 - `paper-discovery` continuously searches journal and publisher sources and stores raw candidate papers.
 - `paper-classifier` reads raw candidates, classifies title/abstract relevance with a small model pipeline, and writes structured reliability knowledge separately from raw paper data.
 
-SQLite is acceptable for early local prototyping, but the data model should be designed for a future Postgres migration.
+The MVP database is Supabase Postgres. The first migration defines three schemas:
+
+- `app`: Clerk user mirror and Mollie billing records.
+- `papers_raw`: discovery runs and raw paper candidates.
+- `knowledge`: classifications and evidence records.
+
+Clerk owns authentication. Mollie owns payments. Supabase Postgres owns application data.
