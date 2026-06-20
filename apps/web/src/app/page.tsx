@@ -110,8 +110,6 @@ export default function Home() {
       });
   }, [activeComponent, componentCounts, coverage, rows, systemMatches]);
 
-  let previousComponent = "";
-
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
@@ -290,9 +288,8 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row) => {
-                    const repeated = previousComponent === row.component;
-                    previousComponent = row.component;
+                  {filteredRows.map((row, index) => {
+                    const repeated = filteredRows[index - 1]?.component === row.component;
                     return (
                       <tr key={`${row.component}-${row.failureMode}`}>
                         <td className={repeated ? "component-repeat" : "component-start"}>

@@ -147,13 +147,13 @@ Backend direction:
 Database direction:
 
 - Use Supabase Postgres for the MVP rather than SQLite.
-- SQLite is acceptable only for throwaway local tests, not the main app data model.
+- SQLite is acceptable only for throwaway local tests and one-off corpus backfills, not the main app data model.
 - Keep raw paper candidate data separate from classified/validated reliability knowledge.
 - Current Supabase project URL: `https://rqzwdzhphxuayqwptqia.supabase.co`.
-- The initial database migration separates data into `app`, `papers_raw`, and `knowledge` schemas.
+- The initial database migrations separate data into `app`, `papers_raw`, and `knowledge` schemas.
 - `app` stores the local user/account mirror and billing records. Clerk remains the auth source of truth.
 - `papers_raw` stores discovery runs and raw paper candidates.
-- `knowledge` stores machine classifications and evidence records.
+- `knowledge` stores machine classifications, atomic evidence claims, evidence spans, claim relationships, and later reviewed reliability knowledge.
 
 Authentication direction:
 
@@ -169,5 +169,157 @@ Billing direction:
 - Store Mollie secrets in `.env.local` only. Never expose Mollie keys to browser code.
 - Mollie calls must run from server code only: route handlers, server actions, or backend services.
 - Store local payment state in `app.billing_payments`.
+
+## Supabase Database Context
+
+Agents working with persistence should assume Supabase Postgres is the product database. Do not create another general-purpose database or backend without explicit user approval.
+
+Access patterns:
+
+- Web app server code should use Supabase clients from `apps/web/src/lib/supabase/server.ts`.
+- Pipeline services should connect to Postgres with `DATABASE_URL` or `SUPABASE_DB_URL`.
+- Browser code must not receive service-role credentials or direct pipeline database URLs.
+- Local secrets belong in `.env.local` or service-local environment variables and must not be committed.
+- The Supabase Table Editor may default to the `public` schema. These product tables intentionally live outside `public`; switch the UI schema dropdown to `app`, `papers_raw`, or `knowledge`.
+- If using Supabase REST/PostgREST from application code, non-public schemas may need to be exposed in the Supabase API settings. Direct Postgres access can query them immediately with schema-qualified names.
+- Always schema-qualify product database queries, for example `papers_raw.paper_candidates` or `knowledge.evidence_claims`; do not assume tables are in `public`.
+- Row-level security is enabled on product tables. Server-side code should use appropriate server credentials/policies; an empty UI/API result can mean policy visibility, not missing data.
+
+Primary schemas:
+
+- `app`: product app metadata such as `user_accounts`, `billing_customers`, and `billing_payments`.
+- `papers_raw`: raw discovery/corpus input. This is the source-of-record for candidate papers before classification.
+- `knowledge`: machine-generated and reviewed reliability intelligence derived from raw papers.
+
+Raw paper tables:
+
+- `papers_raw.discovery_runs`: records each discovery or corpus backfill run, including source, query, status, timestamps, and metadata.
+- `papers_raw.paper_candidates`: raw paper metadata with DOI, title, abstract, authors, journal, publisher, publication year, source URL, source, raw payload, and `classification_status`.
+- `papers_raw.paper_candidates.classification_status` should be treated as a coarse queue state such as `pending`, `classified`, or `failed`.
+- Raw candidates are deduplicated by DOI in the current migration. If a source has no DOI, add an explicit dedupe strategy before broad ingestion.
+
+Knowledge tables:
+
+- `knowledge.paper_classifications`: legacy/coarse per-paper classification summary.
+- `knowledge.classification_jobs`: one auditable classifier run per paper input hash and classifier version/model.
+- `knowledge.evidence_claims`: atomic extracted or inferred claims. One row should represent one component, failure mode, cause, effect, control, operating context, detection method, maintenance action, material, or environment claim.
+- `knowledge.evidence_spans`: exact source text supporting a claim, including source field and optional character offsets.
+- `knowledge.claim_relationships`: machine-proposed links between claims from the same paper, such as component `has_failure_mode` failure mode, failure mode `caused_by` cause, failure mode `has_effect` effect, failure mode `mitigated_by` control, failure mode `detected_by` detection method, or failure mode `has_context` context.
+
+Current live corpus state:
+
+- The initial `riskonradar/corpus` SQLite corpus has been backfilled into Supabase.
+- The imported raw paper rows live in `papers_raw.paper_candidates` with `source='corpus'`.
+- Import verification on the linked Supabase project showed `2806` paper rows, `2755` with DOI, and `2769` with abstracts.
+- The original corpus contained `2807` rows; `2806` had usable non-empty titles and were imported.
+- The knowledge/classification tables exist but should not be assumed populated until the classifier has run.
+
+Core data relationships:
+
+```text
+papers_raw.discovery_runs
+  1 -> many papers_raw.paper_candidates
+
+papers_raw.paper_candidates
+  1 -> many knowledge.paper_classifications
+  1 -> many knowledge.classification_jobs
+  1 -> many knowledge.evidence_claims
+  1 -> many knowledge.claim_relationships
+
+knowledge.classification_jobs
+  1 -> many knowledge.evidence_claims
+  1 -> many knowledge.claim_relationships
+
+knowledge.evidence_claims
+  1 -> many knowledge.evidence_spans
+  many -> many knowledge.evidence_claims through knowledge.claim_relationships
+```
+
+Practical join paths:
+
+- To show source paper metadata for a claim:
+
+```sql
+select
+  pc.title,
+  pc.doi,
+  pc.journal,
+  pc.publication_year,
+  ec.claim_type,
+  ec.raw_value,
+  ec.normalized_value,
+  ec.support_type,
+  es.source_field,
+  es.text as evidence_text
+from knowledge.evidence_claims ec
+join papers_raw.paper_candidates pc on pc.id = ec.paper_candidate_id
+left join knowledge.evidence_spans es on es.evidence_claim_id = ec.id;
+```
+
+- To find failure modes for a component, use `knowledge.claim_relationships` from a component claim to a failure-mode claim:
+
+```sql
+select
+  component.normalized_value as component,
+  failure.normalized_value as failure_mode,
+  cr.confidence,
+  pc.title,
+  pc.doi
+from knowledge.claim_relationships cr
+join knowledge.evidence_claims component on component.id = cr.subject_claim_id
+join knowledge.evidence_claims failure on failure.id = cr.object_claim_id
+join papers_raw.paper_candidates pc on pc.id = cr.paper_candidate_id
+where cr.relationship_type = 'has_failure_mode'
+  and component.claim_type = 'component'
+  and failure.claim_type = 'failure_mode';
+```
+
+How to think about FMEA rows:
+
+- Do not treat one paper as one FMEA row.
+- A paper may only support one piece of a future FMEA row, such as a cause but not an effect.
+- A future FMEA suggestion should be assembled from multiple atomic claims, and each FMEA field should point back to one or more `knowledge.evidence_claims`.
+- If later adding FMEA suggestion tables, preserve field-level evidence mappings, for example `fmea_suggestion_evidence(fmea_suggestion_id, fmea_field, evidence_claim_id)`.
+
+Evidence and inference rules:
+
+- `support_type='direct_span'` means the claim value is directly present in source text.
+- `support_type='inferred_from_span'` means the claim is a model or rule inference from one or more source spans.
+- Inferred claims must include source evidence spans and an `inference_rationale`.
+- Unsupported LLM output should be dropped rather than stored.
+- Do not present `knowledge` records as validated engineering truth until `review_status` indicates human acceptance.
+
+Classifier service behavior:
+
+- The classifier lives in `services/paper-classifier`.
+- It assumes papers are already in `papers_raw.paper_candidates` for normal operation.
+- The SQLite `corpus.db` importer is only a backfill helper for the existing `riskonradar/corpus` data.
+- The normal production command shape is:
+
+```sh
+paper-classifier classify --mode incremental --limit 50 --extractor auto --watch --interval-seconds 60
+```
+
+- `--extractor auto` uses the configured LLM provider when available, otherwise the deterministic keyword/span extractor.
+- Supported LLM provider env vars:
+
+```sh
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash-lite
+
+LLM_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5.4-nano
+
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=...
+ANTHROPIC_MODEL=claude-haiku-4-5
+```
+
+- The classifier selects papers that are pending/failed or do not have a completed `knowledge.classification_jobs` row for the current classifier version/model.
+- Changing classifier version or model intentionally makes existing papers eligible for reprocessing.
+- If a paper candidate is deleted, related classifications, classifier jobs, evidence claims, evidence spans, and claim relationships should be removed by foreign-key cascades.
+- The frontend should generally query `knowledge` records for product workflows and use `papers_raw` only for source/citation drill-downs.
 
 Do not change this architecture without explicit user approval.
