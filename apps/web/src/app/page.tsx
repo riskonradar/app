@@ -4,7 +4,12 @@ export default function Home() {
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8">
         <header className="flex items-center justify-between border-b border-white/10 pb-5">
           <div>
-            <p className="text-sm font-medium text-cyan-300">Risk on Radar</p>
+            <a
+              className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200"
+              href="https://riskonradar.com/"
+            >
+              Risk on Radar
+            </a>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">
               Reliability intelligence workspace
             </h1>
