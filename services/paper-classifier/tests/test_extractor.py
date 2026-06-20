@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from paper_classifier.extractor import classify_paper
+from paper_classifier.llm import LlmConfig, _result_from_payload
 from paper_classifier.models import ClaimType, Paper, SupportType
 
 
@@ -54,6 +55,52 @@ class ExtractorTests(unittest.TestCase):
         self.assertEqual(len(inferred), 1)
         self.assertTrue(inferred[0].spans)
         self.assertIsNotNone(inferred[0].inference_rationale)
+
+    def test_llm_claim_requires_exact_source_span(self) -> None:
+        paper = Paper(
+            id="paper-3",
+            doi=None,
+            title="Failure analysis of cracked pump shaft",
+            abstract="The shaft failed after repeated loading.",
+            journal=None,
+            year=None,
+            authors=None,
+            url=None,
+            source="test",
+        )
+
+        result = _result_from_payload(
+            paper,
+            {
+                "relevance": "relevant",
+                "confidence": 0.8,
+                "claims": [
+                    {
+                        "claim_type": "failure_mode",
+                        "raw_value": "cracked shaft",
+                        "normalized_value": "shaft cracking",
+                        "support_type": "direct_span",
+                        "confidence": 0.9,
+                        "source_field": "title",
+                        "evidence_text": "cracked pump shaft",
+                    },
+                    {
+                        "claim_type": "cause",
+                        "raw_value": "unsupported hallucinated cause",
+                        "normalized_value": "unsupported hallucinated cause",
+                        "support_type": "direct_span",
+                        "confidence": 0.9,
+                        "source_field": "abstract",
+                        "evidence_text": "not actually in the abstract",
+                    },
+                ],
+                "relationships": [],
+            },
+            LlmConfig(provider="test", model="test", api_key="test"),
+        )
+
+        self.assertEqual(len(result.claims), 1)
+        self.assertEqual(result.claims[0].spans[0].text, "cracked pump shaft")
 
 
 if __name__ == "__main__":

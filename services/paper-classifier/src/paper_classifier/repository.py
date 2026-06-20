@@ -121,16 +121,23 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                 )
         return count
 
-    def pending_candidates(self, limit: int) -> list[CandidatePaper]:
+    def pending_candidates(self, limit: int, classifier_version: str) -> list[CandidatePaper]:
         rows = self._connection().execute(
             """
-            select id, doi, title, abstract, journal, publication_year, authors, source_url, source
-            from papers_raw.paper_candidates
-            where classification_status in ('pending', 'failed')
-            order by publication_year desc nulls last, created_at asc
+            select pc.id, pc.doi, pc.title, pc.abstract, pc.journal, pc.publication_year, pc.authors, pc.source_url, pc.source
+            from papers_raw.paper_candidates pc
+            where pc.classification_status in ('pending', 'failed')
+              or not exists (
+                select 1
+                from knowledge.classification_jobs cj
+                where cj.paper_candidate_id = pc.id
+                  and cj.classifier_version = %(classifier_version)s
+                  and cj.status = 'completed'
+              )
+            order by pc.publication_year desc nulls last, pc.created_at asc
             limit %(limit)s
             """,
-            {"limit": limit},
+            {"limit": limit, "classifier_version": classifier_version},
         ).fetchall()
         return [
             CandidatePaper(

@@ -40,6 +40,28 @@ SUPABASE_DB_URL=postgresql://...
 
 The service needs a database role that can read/write `papers_raw` and `knowledge`.
 
+Optional LLM extraction:
+
+```sh
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash-lite
+```
+
+Other supported providers:
+
+```sh
+LLM_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5.4-nano
+
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=...
+ANTHROPIC_MODEL=claude-haiku-4-5
+```
+
+If `LLM_PROVIDER` is unset or `none`, the service uses the deterministic keyword/span extractor.
+
 ## Commands
 
 Import the current SQLite corpus into Supabase:
@@ -51,18 +73,32 @@ paper-classifier import-corpus --corpus-db /path/to/corpus.db --limit 100
 Classify pending papers:
 
 ```sh
-paper-classifier classify --mode backfill --limit 100
+paper-classifier classify --mode backfill --limit 100 --extractor auto
+```
+
+Run continuously beside paper discovery:
+
+```sh
+paper-classifier classify --mode incremental --limit 50 --extractor auto --watch --interval-seconds 60
 ```
 
 Use `--dry-run` on either command to inspect behavior without writing.
 
+`classify` reads from `papers_raw.paper_candidates`; it does not need the SQLite corpus once papers are already in Supabase. It selects papers that are pending/failed, plus papers that do not have a completed `knowledge.classification_jobs` row for the current classifier version/model. Deleted paper candidates cascade-delete their classifier jobs, claims, spans, relationships, and legacy classification rows through foreign keys.
+
 ## Current Classifier
 
-The first implementation is a deterministic keyword/span preprocessor. It is intentionally conservative:
+The service supports two extractors:
+
+- `llm`: asks the configured provider to return structured JSON claims.
+- `keyword`: deterministic keyword/span preprocessor.
+- `auto`: uses `llm` when configured, otherwise `keyword`.
+
+The deterministic extractor is intentionally conservative:
 
 - finds known component, failure, cause, control, environment, and context terms;
 - stores exact spans for direct claims;
 - stores inferred claims separately with `support_type='inferred_from_span'`;
 - proposes low-confidence relationships for review.
 
-The later LLM extractor should write to the same tables rather than replacing the provenance model.
+The LLM extractor writes to the same tables. Direct LLM claims are accepted only when their `evidence_text` is found exactly in the title or abstract. Inferred LLM claims must still include source evidence text and an inference rationale.
