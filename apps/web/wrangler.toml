@@ -1,0 +1,20 @@
+name = "risk-on-radar"
+main = ".open-next/worker.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[vars]
+NEXT_PUBLIC_APP_URL = "https://risk-on-radar.kirill-rybkov-blog.workers.dev"
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_cmlnaHQtZmxlYS01OC5jbGVyay5hY2NvdW50cy5kZXYk"
+NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
+NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = "/"
+NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = "/"
+NEXT_PUBLIC_SUPABASE_URL = "https://rqzwdzhphxuayqwptqia.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_03GuXuHq1ZYpb7xigzcksA_3scfgkH1"
+MOLLIE_REDIRECT_URL = "https://risk-on-radar.kirill-rybkov-blog.workers.dev/billing/return"
+MOLLIE_WEBHOOK_URL = "https://risk-on-radar.kirill-rybkov-blog.workers.dev/api/billing/mollie-webhook"

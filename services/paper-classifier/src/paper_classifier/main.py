@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from paper_classifier.corpus import iter_corpus_papers
+from paper_classifier.easa_importer import import_easa_ads
 from paper_classifier.extractor import CLASSIFIER_VERSION as KEYWORD_CLASSIFIER_VERSION
 from paper_classifier.extractor import classify_paper
 from paper_classifier.fmea_ris_classifier import classify_ris
@@ -16,7 +18,7 @@ from paper_classifier.llm import (
     extract_with_llm,
     load_llm_config,
 )
-from paper_classifier.repository import PostgresRepository, paper_from_candidate
+from paper_classifier.repository import CandidatePaper, PostgresRepository, paper_from_candidate
 
 
 def main() -> None:
@@ -29,83 +31,46 @@ def main() -> None:
         "prototype-ris",
         help="Regenerate the prototype FMEA JSON from a RIS export.",
     )
-    prototype_parser.add_argument(
-        "--ris",
-        type=Path,
-        required=True,
-        help="Prototype RIS export to classify into FMEA knowledge rows.",
-    )
-    prototype_parser.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="Where to write classified FMEA JSON.",
-    )
+    prototype_parser.add_argument("--ris", type=Path, required=True)
+    prototype_parser.add_argument("--output", type=Path, required=True)
 
     import_parser = subparsers.add_parser(
         "import-corpus",
         help="Import the existing SQLite corpus into papers_raw.paper_candidates.",
     )
-    import_parser.add_argument(
-        "--corpus-db",
-        type=Path,
-        required=True,
-        help="Path to riskonradar/corpus corpus.db.",
+    import_parser.add_argument("--corpus-db", type=Path, required=True)
+    import_parser.add_argument("--limit", type=int, default=None)
+    import_parser.add_argument("--dry-run", action="store_true")
+
+    easa_parser = subparsers.add_parser(
+        "import-easa",
+        help="Import EASA ADs from public.easa_ads into papers_raw.paper_candidates.",
     )
-    import_parser.add_argument(
-        "--limit",
-        type=int,
-        default=None,
-        help="Maximum number of corpus papers to import.",
-    )
-    import_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Read and count corpus records without writing to Postgres.",
-    )
+    easa_parser.add_argument("--limit", type=int, default=None)
+    easa_parser.add_argument("--dry-run", action="store_true")
 
     classify_parser = subparsers.add_parser(
         "classify",
         help="Classify pending paper candidates into atomic evidence claims.",
     )
     classify_parser.add_argument(
-        "--limit",
-        type=int,
-        default=25,
+        "--limit", type=int, default=25,
         help="Maximum number of pending paper candidates to classify.",
     )
     classify_parser.add_argument(
-        "--mode",
-        choices=("backfill", "incremental"),
-        default="incremental",
-        help="Classification run mode for audit metadata.",
+        "--mode", choices=("backfill", "incremental"), default="incremental",
     )
+    classify_parser.add_argument("--classifier-version", default=None)
     classify_parser.add_argument(
-        "--classifier-version",
-        default=None,
-        help="Version label stored with classification jobs.",
+        "--extractor", choices=("auto", "llm", "keyword"), default="auto",
+        help="auto uses LLM when LLM_PROVIDER is configured, otherwise keyword.",
     )
+    classify_parser.add_argument("--dry-run", action="store_true")
+    classify_parser.add_argument("--watch", action="store_true")
+    classify_parser.add_argument("--interval-seconds", type=int, default=60)
     classify_parser.add_argument(
-        "--extractor",
-        choices=("auto", "llm", "keyword"),
-        default="auto",
-        help="Extractor to use. auto uses LLM when LLM_PROVIDER is configured, otherwise keyword.",
-    )
-    classify_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Classify and print a summary without writing to Postgres.",
-    )
-    classify_parser.add_argument(
-        "--watch",
-        action="store_true",
-        help="Continuously poll Supabase for newly eligible papers.",
-    )
-    classify_parser.add_argument(
-        "--interval-seconds",
-        type=int,
-        default=60,
-        help="Polling interval for --watch.",
+        "--workers", type=int, default=4,
+        help="Parallel API workers. Default 4. Increase for faster throughput.",
     )
 
     args = parser.parse_args()
@@ -114,6 +79,10 @@ def main() -> None:
         _classify_prototype_ris(args.ris, args.output)
     elif args.command == "import-corpus":
         _import_corpus(args.corpus_db, args.limit, args.dry_run)
+    elif args.command == "import-easa":
+        count = import_easa_ads(limit=args.limit, dry_run=args.dry_run)
+        action = "Would import" if args.dry_run else "Imported"
+        print(f"{action} {count} EASA ADs.")
     elif args.command == "classify":
         _classify_pending(
             args.limit,
@@ -123,6 +92,7 @@ def main() -> None:
             args.dry_run,
             args.watch,
             args.interval_seconds,
+            args.workers,
         )
 
 
@@ -136,16 +106,12 @@ def _classify_prototype_ris(ris: Path, output: Path) -> None:
 def _import_corpus(corpus_db: Path, limit: int | None, dry_run: bool) -> None:
     if not corpus_db.exists():
         raise SystemExit(f"Corpus database does not exist: {corpus_db}")
-
     if dry_run:
         count = sum(1 for _ in iter_corpus_papers(corpus_db, limit))
     else:
-        papers = iter_corpus_papers(corpus_db, limit)
         with PostgresRepository() as repository:
-            count = repository.upsert_corpus_papers(papers)
-
-    action = "Read" if dry_run else "Imported"
-    print(f"{action} {count} corpus papers.")
+            count = repository.upsert_corpus_papers(iter_corpus_papers(corpus_db, limit))
+    print(f"{'Read' if dry_run else 'Imported'} {count} corpus papers.")
 
 
 def _classify_pending(
@@ -156,6 +122,7 @@ def _classify_pending(
     dry_run: bool,
     watch: bool,
     interval_seconds: int,
+    workers: int,
 ) -> None:
     llm_config = None
     if extractor in {"auto", "llm"}:
@@ -170,7 +137,7 @@ def _classify_pending(
     )
 
     while True:
-        count = _classify_batch(limit, mode, effective_version, extractor, llm_config, dry_run)
+        count = _classify_batch(limit, mode, effective_version, extractor, llm_config, dry_run, workers)
         print(f"Classified {count} pending papers.")
         if not watch:
             break
@@ -184,33 +151,43 @@ def _classify_batch(
     extractor: str,
     llm_config: LlmConfig | None,
     dry_run: bool,
+    workers: int,
 ) -> int:
     with PostgresRepository() as repository:
         candidates = repository.pending_candidates(limit, classifier_version)
-        for candidate in candidates:
-            paper = paper_from_candidate(candidate)
-            if llm_config is not None:
-                try:
-                    result = extract_with_llm(paper, llm_config)
-                except LlmExtractorError as error:
-                    if extractor == "llm":
-                        raise
-                    print(f"{candidate.id}: LLM failed, falling back to keyword extractor: {error}")
-                    result = classify_paper(paper)
-            else:
+
+    if not candidates:
+        return 0
+
+    def process(candidate: CandidatePaper) -> int:
+        paper = paper_from_candidate(candidate)
+        if llm_config is not None:
+            try:
+                result = extract_with_llm(paper, llm_config)
+            except LlmExtractorError as error:
+                if extractor == "llm":
+                    raise
+                print(f"{candidate.id}: LLM failed, falling back to keyword: {error}")
                 result = classify_paper(paper)
-            repository.save_classification(
-                candidate,
-                result,
-                classifier_version=classifier_version,
-                mode=mode,
-                dry_run=dry_run,
-            )
-            print(
-                f"{candidate.id}: {result.relevance} "
-                f"claims={len(result.claims)} relationships={len(result.relationships)}"
-            )
-        return len(candidates)
+        else:
+            result = classify_paper(paper)
+
+        with PostgresRepository() as repo:
+            repo.save_classification(candidate, result, classifier_version, mode, dry_run)
+
+        print(f"{candidate.id}: {result.relevance} claims={len(result.claims)} relationships={len(result.relationships)}")
+        return 1
+
+    count = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(process, c): c for c in candidates}
+        for future in as_completed(futures):
+            candidate = futures[future]
+            try:
+                count += future.result()
+            except Exception as exc:
+                print(f"{candidate.id}: failed: {exc}")
+    return count
 
 
 if __name__ == "__main__":

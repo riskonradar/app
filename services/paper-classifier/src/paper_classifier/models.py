@@ -10,6 +10,9 @@ class ClaimType(StrEnum):
     CAUSE = "cause"
     EFFECT = "effect"
     CONTROL = "control"
+    CORRECTIVE_ACTION = "corrective_action"
+    ANALYSIS_METHOD = "analysis_method"
+    APPLICATION = "application"
     OPERATING_CONTEXT = "operating_context"
     DETECTION_METHOD = "detection_method"
     MAINTENANCE_ACTION = "maintenance_action"
@@ -27,7 +30,9 @@ class RelationshipType(StrEnum):
     CAUSED_BY = "caused_by"
     HAS_EFFECT = "has_effect"
     MITIGATED_BY = "mitigated_by"
+    CORRECTED_BY = "corrected_by"
     DETECTED_BY = "detected_by"
+    ANALYSED_BY = "analysed_by"
     HAS_CONTEXT = "has_context"
 
 

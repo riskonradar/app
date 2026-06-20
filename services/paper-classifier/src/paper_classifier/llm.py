@@ -18,7 +18,7 @@ from paper_classifier.models import (
     SupportType,
 )
 
-LLM_CLASSIFIER_VERSION = "llm-extractor-v1"
+LLM_CLASSIFIER_VERSION = "llm-extractor-v2"
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,9 @@ def load_llm_config() -> LlmConfig | None:
     if provider == "gemini":
         api_key = os.environ.get("GEMINI_API_KEY")
         model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    elif provider == "groq":
+        api_key = os.environ.get("GROQ_API_KEY")
+        model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
     elif provider == "openai":
         api_key = os.environ.get("OPENAI_API_KEY")
         model = os.environ.get("OPENAI_MODEL", "gpt-5.4-nano")
@@ -58,6 +61,8 @@ def extract_with_llm(paper: Paper, config: LlmConfig) -> ClassificationResult:
     prompt = _prompt_for(paper)
     if config.provider == "gemini":
         raw_text = _call_gemini(prompt, config)
+    elif config.provider == "groq":
+        raw_text = _call_groq(prompt, config)
     elif config.provider == "openai":
         raw_text = _call_openai(prompt, config)
     elif config.provider == "anthropic":
@@ -79,7 +84,7 @@ Return only valid JSON with this shape:
   "confidence": 0.0,
   "claims": [
     {{
-      "claim_type": "component" | "failure_mode" | "cause" | "effect" | "control" | "operating_context" | "detection_method" | "maintenance_action" | "material" | "environment",
+      "claim_type": "component" | "failure_mode" | "cause" | "effect" | "control" | "corrective_action" | "analysis_method" | "application" | "operating_context" | "detection_method" | "maintenance_action" | "material" | "environment",
       "raw_value": "short extracted or inferred phrase",
       "normalized_value": "canonical phrase or null",
       "support_type": "direct_span" | "inferred_from_span",
@@ -92,7 +97,7 @@ Return only valid JSON with this shape:
   "relationships": [
     {{
       "subject_claim_index": 0,
-      "relationship_type": "has_failure_mode" | "caused_by" | "has_effect" | "mitigated_by" | "detected_by" | "has_context",
+      "relationship_type": "has_failure_mode" | "caused_by" | "has_effect" | "mitigated_by" | "detected_by" | "has_context" | "corrected_by" | "analysed_by",
       "object_claim_index": 1,
       "support_type": "direct_span" | "inferred_from_span",
       "confidence": 0.0
@@ -100,13 +105,28 @@ Return only valid JSON with this shape:
   ]
 }}
 
+Claim type definitions:
+- component: a physical part or subsystem (bearing, blade, gearbox, valve, seal)
+- failure_mode: how something fails (fatigue fracture, corrosion, wear, delamination)
+- cause: root or contributing cause of the failure (cyclic loading, poor lubrication, manufacturing defect)
+- effect: consequence of failure (engine shutdown, structural collapse, oil loss, fire)
+- control: preventive measure or design control (inspection interval, protective coating, redesign)
+- corrective_action: reactive fix applied after a failure or unsafe condition was confirmed (replacement of affected components, mandatory modification, issued airworthiness directive)
+- analysis_method: how the failure was investigated (finite element analysis, scanning electron microscopy, probabilistic fatigue assessment, machine learning, experimental testing, simulation, analytical model, fracture mechanics)
+- application: operating industry or domain (commercial aviation, wind energy, oil and gas, automotive, nuclear, marine, mining)
+- operating_context: specific operating conditions (high temperature, cyclic loading, offshore environment, turbofan engine at cruise)
+- detection_method: how the failure was detected in service (visual inspection, vibration monitoring, ultrasonic testing, borescope)
+- maintenance_action: routine scheduled maintenance task (lubrication interval, overhaul schedule)
+- material: material involved (CFRP, titanium alloy, Inconel, hardened steel)
+- environment: environmental condition (marine atmosphere, high humidity, elevated temperature)
+
 Rules:
 - Extract only reliability/FMEA-relevant facts.
 - Do not invent unsupported claims.
 - Direct claims must use evidence_text copied exactly from the title or abstract.
-- Inferred claims must still cite evidence_text copied exactly from the title or abstract and include inference_rationale.
-- Prefer atomic claims: one component, failure mode, cause, effect, control, or context per claim.
-- If the paper is not relevant, return no claims.
+- Inferred claims must still cite evidence_text and include inference_rationale.
+- Prefer atomic claims: one fact per claim row.
+- If the paper has no failure analysis content, return not_relevant with no claims.
 
 Paper:
 DOI: {paper.doi or ""}
@@ -117,11 +137,42 @@ Year: {paper.year or ""}
 """.strip()
 
 
+_GROQ_REQUEST_DELAY = 3.5  # ~17 papers/min stays under 12k TPM free tier
+
+
+def _call_groq(prompt: str, config: LlmConfig) -> str:
+    import time
+    payload = {
+        "model": config.model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+    }
+    data = _post_json(
+        "https://api.groq.com/openai/v1/chat/completions",
+        payload,
+        headers={
+            "Authorization": f"Bearer {config.api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "riskonradar-classifier/1.0",
+        },
+    )
+    time.sleep(_GROQ_REQUEST_DELAY)
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise LlmExtractorError(f"Unexpected Groq response: {data}") from exc
+
+
 def _call_gemini(prompt: str, config: LlmConfig) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{config.model}:generateContent?key={config.api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
     }
     data = _post_json(url, payload, headers={"Content-Type": "application/json"})
     try:

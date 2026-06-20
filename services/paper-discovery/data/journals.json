@@ -1,0 +1,104 @@
+[
+  {
+    "name": "Engineering Failure Analysis",
+    "issn": "1350-6307",
+    "publisher": "Elsevier",
+    "notes": "Primary source — dedicated failure analysis journal"
+  },
+  {
+    "name": "Reliability Engineering & System Safety",
+    "issn": "0951-8320",
+    "publisher": "Elsevier",
+    "notes": "System-level reliability, FMEA, fault trees"
+  },
+  {
+    "name": "International Journal of Fatigue",
+    "issn": "0142-1123",
+    "publisher": "Elsevier",
+    "notes": "Fatigue failure mechanisms, fracture mechanics"
+  },
+  {
+    "name": "Wear",
+    "issn": "0043-1648",
+    "publisher": "Elsevier",
+    "notes": "Wear, tribology, surface degradation"
+  },
+  {
+    "name": "Tribology International",
+    "issn": "0301-679X",
+    "publisher": "Elsevier",
+    "notes": "Friction, wear, lubrication failure"
+  },
+  {
+    "name": "NDT & E International",
+    "issn": "0963-8695",
+    "publisher": "Elsevier",
+    "notes": "Non-destructive testing and evaluation"
+  },
+  {
+    "name": "Engineering Fracture Mechanics",
+    "issn": "0013-7944",
+    "publisher": "Elsevier",
+    "notes": "Crack propagation, fracture analysis"
+  },
+  {
+    "name": "Mechanical Systems and Signal Processing",
+    "issn": "0888-3270",
+    "publisher": "Elsevier",
+    "notes": "Condition monitoring, vibration-based fault detection"
+  },
+  {
+    "name": "Journal of Failure Analysis and Prevention",
+    "issn": "1547-7029",
+    "publisher": "Springer",
+    "notes": "Case studies, root cause analysis"
+  },
+  {
+    "name": "IEEE Transactions on Reliability",
+    "issn": "0018-9529",
+    "publisher": "IEEE",
+    "notes": "Reliability engineering, electronics and systems"
+  },
+  {
+    "name": "Quality and Reliability Engineering International",
+    "issn": "0748-8017",
+    "publisher": "Wiley",
+    "notes": "Reliability methods, quality engineering"
+  },
+  {
+    "name": "Maintenance and Reliability",
+    "issn": "1507-2711",
+    "publisher": "open",
+    "notes": "Maintenance engineering, reliability-centred maintenance"
+  },
+  {
+    "name": "International Journal of Pressure Vessels and Piping",
+    "issn": "0308-0161",
+    "publisher": "Elsevier",
+    "notes": "Pressure vessel and piping failures"
+  },
+  {
+    "name": "Fatigue and Fracture of Engineering Materials and Structures",
+    "issn": "8756-758X",
+    "publisher": "Wiley",
+    "notes": "Fatigue fracture in structural materials"
+  },
+  {
+    "name": "Journal of Quality in Maintenance Engineering",
+    "issn": "1355-2511",
+    "publisher": "Emerald",
+    "notes": "Maintenance quality and reliability"
+  },
+  {
+    "name": "Structural Safety",
+    "issn": "0167-4730",
+    "publisher": "Elsevier",
+    "notes": "Structural reliability, risk analysis"
+  },
+  {
+    "name": "International Journal of Mechanical Sciences",
+    "issn": "0020-7403",
+    "publisher": "Elsevier",
+    "notes": "Mechanical component behaviour and failure"
+  }
+]
