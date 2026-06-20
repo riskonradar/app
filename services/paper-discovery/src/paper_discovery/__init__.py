@@ -1,0 +1,1 @@
+"""Paper discovery service package."""

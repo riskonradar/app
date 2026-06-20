@@ -1,0 +1,13 @@
+[project]
+name = "riskonradar-paper-discovery"
+version = "0.1.0"
+description = "Lightweight paper discovery service for Risk on Radar."
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+paper-discovery = "paper_discovery.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

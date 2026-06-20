@@ -1,0 +1,13 @@
+[project]
+name = "riskonradar-paper-classifier"
+version = "0.1.0"
+description = "Paper classification and reliability knowledge extraction service for Risk on Radar."
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+paper-classifier = "paper_classifier.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
