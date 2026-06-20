@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppAuthProvider } from "@/components/auth/app-auth-provider";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.riskonradar.com"),
@@ -17,7 +18,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <AppAuthProvider>{children}</AppAuthProvider>
+      </body>
     </html>
   );
 }

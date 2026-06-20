@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { AuthControls } from "@/components/auth/auth-controls";
+
 export default function Home() {
   return (
     <div className="app-shell">
@@ -72,12 +74,7 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <a
-              href="https://riskonradar.com/#waitlist"
-              className="btn btn-primary btn-sm"
-            >
-              Join Waitlist
-            </a>
+            <AuthControls />
           </div>
         </div>
       </nav>
