@@ -165,6 +165,10 @@ Access patterns:
 - Pipeline services should connect to Postgres with `DATABASE_URL` or `SUPABASE_DB_URL`.
 - Browser code must not receive service-role credentials or direct pipeline database URLs.
 - Local secrets belong in `.env.local` or service-local environment variables and must not be committed.
+- The Supabase Table Editor may default to the `public` schema. These product tables intentionally live outside `public`; switch the UI schema dropdown to `app`, `papers_raw`, or `knowledge`.
+- If using Supabase REST/PostgREST from application code, non-public schemas may need to be exposed in the Supabase API settings. Direct Postgres access can query them immediately with schema-qualified names.
+- Always schema-qualify product database queries, for example `papers_raw.paper_candidates` or `knowledge.evidence_claims`; do not assume tables are in `public`.
+- Row-level security is enabled on product tables. Server-side code should use appropriate server credentials/policies; an empty UI/API result can mean policy visibility, not missing data.
 
 Primary schemas:
 
@@ -186,6 +190,81 @@ Knowledge tables:
 - `knowledge.evidence_claims`: atomic extracted or inferred claims. One row should represent one component, failure mode, cause, effect, control, operating context, detection method, maintenance action, material, or environment claim.
 - `knowledge.evidence_spans`: exact source text supporting a claim, including source field and optional character offsets.
 - `knowledge.claim_relationships`: machine-proposed links between claims from the same paper, such as component `has_failure_mode` failure mode, failure mode `caused_by` cause, failure mode `has_effect` effect, failure mode `mitigated_by` control, failure mode `detected_by` detection method, or failure mode `has_context` context.
+
+Current live corpus state:
+
+- The initial `riskonradar/corpus` SQLite corpus has been backfilled into Supabase.
+- The imported raw paper rows live in `papers_raw.paper_candidates` with `source='corpus'`.
+- Import verification on the linked Supabase project showed `2806` paper rows, `2755` with DOI, and `2769` with abstracts.
+- The original corpus contained `2807` rows; `2806` had usable non-empty titles and were imported.
+- The knowledge/classification tables exist but should not be assumed populated until the classifier has run.
+
+Core data relationships:
+
+```text
+papers_raw.discovery_runs
+  1 -> many papers_raw.paper_candidates
+
+papers_raw.paper_candidates
+  1 -> many knowledge.paper_classifications
+  1 -> many knowledge.classification_jobs
+  1 -> many knowledge.evidence_claims
+  1 -> many knowledge.claim_relationships
+
+knowledge.classification_jobs
+  1 -> many knowledge.evidence_claims
+  1 -> many knowledge.claim_relationships
+
+knowledge.evidence_claims
+  1 -> many knowledge.evidence_spans
+  many -> many knowledge.evidence_claims through knowledge.claim_relationships
+```
+
+Practical join paths:
+
+- To show source paper metadata for a claim:
+
+```sql
+select
+  pc.title,
+  pc.doi,
+  pc.journal,
+  pc.publication_year,
+  ec.claim_type,
+  ec.raw_value,
+  ec.normalized_value,
+  ec.support_type,
+  es.source_field,
+  es.text as evidence_text
+from knowledge.evidence_claims ec
+join papers_raw.paper_candidates pc on pc.id = ec.paper_candidate_id
+left join knowledge.evidence_spans es on es.evidence_claim_id = ec.id;
+```
+
+- To find failure modes for a component, use `knowledge.claim_relationships` from a component claim to a failure-mode claim:
+
+```sql
+select
+  component.normalized_value as component,
+  failure.normalized_value as failure_mode,
+  cr.confidence,
+  pc.title,
+  pc.doi
+from knowledge.claim_relationships cr
+join knowledge.evidence_claims component on component.id = cr.subject_claim_id
+join knowledge.evidence_claims failure on failure.id = cr.object_claim_id
+join papers_raw.paper_candidates pc on pc.id = cr.paper_candidate_id
+where cr.relationship_type = 'has_failure_mode'
+  and component.claim_type = 'component'
+  and failure.claim_type = 'failure_mode';
+```
+
+How to think about FMEA rows:
+
+- Do not treat one paper as one FMEA row.
+- A paper may only support one piece of a future FMEA row, such as a cause but not an effect.
+- A future FMEA suggestion should be assembled from multiple atomic claims, and each FMEA field should point back to one or more `knowledge.evidence_claims`.
+- If later adding FMEA suggestion tables, preserve field-level evidence mappings, for example `fmea_suggestion_evidence(fmea_suggestion_id, fmea_field, evidence_claim_id)`.
 
 Evidence and inference rules:
 
