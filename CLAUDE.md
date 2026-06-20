@@ -168,14 +168,68 @@ Avoid:
 
 ## Current Technical Status
 
-This repository is new and is being initialized as a small monorepo.
-
 Approved starting architecture:
 
-- `apps/web`: Next.js application for the product UI, authenticated workspace, lightweight app API routes/server actions, and normal database reads/writes.
-- `services/paper-discovery`: lightweight service that continuously searches journal/publisher sources by keywords and stores raw candidate papers in the database.
-- `services/paper-classifier`: heavier classification service that reads candidate paper titles/abstracts, uses a small LLM/classifier pipeline, and writes classified reliability knowledge into a separate classified knowledge store or schema.
-- `packages/shared`: optional shared types/schemas once contracts stabilize.
+- `apps/web`: Next.js 16 app (pnpm workspace). Product UI, authenticated workspace, lightweight API routes and server actions, normal DB reads/writes.
+- `services/paper-discovery`: Python 3.12+ service. Queries Crossref and OpenAlex APIs across trusted journal ISSNs, upserts raw paper candidates into `papers_raw.paper_candidates`.
+- `services/paper-classifier`: Python 3.12+ service. Reads pending paper candidates, extracts atomic evidence claims with a keyword/span extractor or LLM (Gemini, OpenAI, Anthropic), writes to `knowledge.*`.
+- `packages/shared`: optional shared types/schemas once contracts stabilize. Currently empty.
+
+Package manager: pnpm (workspace root at repo root, `pnpm-workspace.yaml` lists `apps/*`, `services/*`, `packages/*`).
+
+Frontend commands (run from repo root):
+
+```sh
+pnpm dev:web       # start Next.js dev server
+pnpm build:web     # production build
+pnpm lint:web      # ESLint
+```
+
+Paper discovery commands:
+
+```sh
+cd services/paper-discovery
+pip install -e .
+paper-discovery --help
+paper-discovery --source all --watch --interval-seconds 3600          # normal production run
+paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"  # targeted test
+```
+
+Paper classifier commands:
+
+```sh
+cd services/paper-classifier
+pip install -e .
+paper-classifier classify --mode incremental --limit 50 --extractor auto --watch --interval-seconds 60
+# --extractor auto: uses LLM if LLM_PROVIDER is set, otherwise keyword/span
+# --extractor llm: LLM only (fails if not configured)
+# --extractor keyword: deterministic keyword/span extractor only
+paper-classifier import-corpus --corpus-db path/to/corpus.db   # one-off backfill
+```
+
+Environment variables:
+
+```sh
+# Both services
+DATABASE_URL=postgres://...        # or SUPABASE_DB_URL
+# Paper discovery
+DISCOVERY_CONTACT_EMAIL=you@example.com   # polite pool priority with Crossref/OpenAlex
+# Paper classifier LLM (pick one provider)
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash-lite
+# LLM_PROVIDER=openai  OPENAI_API_KEY=...  OPENAI_MODEL=gpt-5.4-nano
+# LLM_PROVIDER=anthropic  ANTHROPIC_API_KEY=...  ANTHROPIC_MODEL=claude-haiku-4-5
+# Web app
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
+CLERK_SECRET_KEY=...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+MOLLIE_API_KEY=...
+```
 
 Backend direction:
 
@@ -210,17 +264,6 @@ Billing direction:
 - Store local payment state in `app.billing_payments`.
 
 Do not change this architecture without explicit user approval.
-
-When a stack is chosen, update this file with:
-
-- install command
-- dev command
-- test command
-- build command
-- lint/typecheck command
-- environment variables
-- deployment target
-- database and migration workflow
 
 ## First Build Target
 

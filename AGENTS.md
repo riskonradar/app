@@ -322,4 +322,47 @@ ANTHROPIC_MODEL=claude-haiku-4-5
 - If a paper candidate is deleted, related classifications, classifier jobs, evidence claims, evidence spans, and claim relationships should be removed by foreign-key cascades.
 - The frontend should generally query `knowledge` records for product workflows and use `papers_raw` only for source/citation drill-downs.
 
+Discovery service behavior:
+
+- The discovery service lives in `services/paper-discovery`.
+- It queries Crossref and OpenAlex APIs, filters results to trusted journal ISSNs, and upserts raw paper metadata into `papers_raw.paper_candidates`.
+- Each (source, journal, query) combination opens a `papers_raw.discovery_runs` row with `status='running'`, then sets it to `finished` or `failed`.
+- Papers are deduplicated by canonical DOI first, then normalized title fingerprint plus year, then abstract hash. DOI-less papers are allowed if the title fingerprint is strong.
+- Discovery stores `canonical_doi`, `title_fingerprint`, `abstract_hash`, `external_ids`, `first_author`, `first_seen_at`, `last_seen_at`, `discovery_score`, and lifecycle fields on `papers_raw.paper_candidates`.
+- Paper lifecycle is tracked with `lifecycle_status`: `discovered`, `pending_classification`, `classified`, `stale`, `removed`.
+- Discovery inserts normal papers as `pending_classification` because they are immediately eligible for the classifier; `discovered` is reserved for source-only staging/import flows.
+- Upserting a paper that already exists refreshes `last_seen_at`, clears stale/removed timestamps, and resets `classification_status='pending'` plus `lifecycle_status='pending_classification'` only when title/abstract content changed.
+- Do not hard-delete papers from discovery runs. Use stale/removed lifecycle states so downstream evidence remains auditable unless deletion is explicit.
+- The normal production command shape is:
+
+```sh
+paper-discovery --source all --limit 100 --watch --interval-seconds 3600
+```
+
+- `--source crossref|openalex|all` selects which APIs to query.
+- `--limit N` caps results per (source, journal, query) combination.
+- `--dry-run` fetches and prints counts without writing to the database.
+- `--watch` loops indefinitely; `--interval-seconds` controls the delay between full sweeps.
+- `--issn ISSN` and `--query QUERY` (both repeatable) override the built-in journal and query lists for targeted runs.
+- `--mark-stale-days N` marks papers stale after a run if `last_seen_at` is older than N days.
+- `--mark-removed-days N` marks stale papers removed after they have stayed stale for N days.
+- Required env vars: `DATABASE_URL` or `SUPABASE_DB_URL`.
+- Optional env vars: `DISCOVERY_CONTACT_EMAIL` (sent as `mailto=` to Crossref and OpenAlex polite pool for priority queue access).
+
+Trusted journal list:
+
+Journals are stored in `services/paper-discovery/data/journals.json`. Each entry has `name`, `issn`, `publisher`, and `notes`. Currently 17 journals covering reliability, fatigue, fracture, wear, tribology, NDT, pressure vessels, structural safety, and maintenance. To add a journal, append an entry to that JSON file — no Python changes needed.
+
+Search query list:
+
+Discovery queries are in `services/paper-discovery/data/queries.json`, split into `domain` and `component` groups. These are broad search strings sent to APIs, not extraction keywords (the classifier handles extraction). Currently 28 queries. Edit the JSON to add or remove queries.
+
+Install and run locally:
+
+```sh
+cd services/paper-discovery
+pip install -e .
+paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
+```
+
 Do not change this architecture without explicit user approval.
