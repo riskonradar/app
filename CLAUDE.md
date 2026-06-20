@@ -36,20 +36,6 @@ The product is a copilot, not an autopilot. Engineers remain responsible for rev
 
 Continuously structures fragmented failure knowledge from scientific literature, industrial reports, reliability studies, sensor technologies, NDT investigations, standards, and validated internal sources.
 
-Expected normalized records include:
-
-- component
-- failure mode
-- cause
-- effect
-- control
-- operating context
-- source DOI or citation
-- evidence text span
-- confidence
-- validation status
-- reviewer history
-
 ### System-Level Risk Analysis
 
 Models engineering assets as interconnected systems, not isolated parts. Future workflows should support subsystem dependencies, failure propagation, cascading risk, interface failure modes, and user-defined engineering systems.
@@ -60,31 +46,24 @@ Transfers reliability knowledge across domains by comparing component context, o
 
 ## Roadmap Context
 
-Phase 1 is the Failure Intelligence Engine:
-
-- Living knowledge graph from peer-reviewed failure papers.
-- Structured ingestion through sources such as Crossref, Elsevier TDM, and Springer Nature APIs.
-- Component to failure mode to cause to effect to control taxonomy.
-- DOI-linked citations, confidence scoring, evidence spans.
+Phase 1 — Failure Intelligence Engine (active):
+- Living knowledge graph from peer-reviewed failure papers and EASA airworthiness directives.
+- Structured ingestion through Crossref, OpenAlex, and regulatory sources.
+- Component → failure mode → cause → effect → control taxonomy.
+- DOI-linked citations, confidence scoring, evidence spans with character offsets.
 - Human-in-the-loop validation.
 
-Phase 2 is System-Level Risk Analysis:
-
+Phase 2 — System-Level Risk Analysis:
 - Graph-based failure propagation.
 - Cross-component dependency visualization.
 - Interface failure mode library.
-- Existing and user-defined engineering systems.
 
-Phase 3 is Cross-Domain Failure Intelligence:
-
+Phase 3 — Cross-Domain Failure Intelligence:
 - Multi-domain taxonomy alignment.
-- Cross-industry failure pattern detection.
 - Domain-adapted severity and occurrence tables.
-- Standards mappings such as ISO 26262, IEC 61508, and DO-178C.
+- Standards mappings: ISO 26262, IEC 61508, DO-178C.
 
 ## Users
-
-Design and implementation should serve:
 
 - reliability engineers
 - quality engineers
@@ -108,6 +87,9 @@ Use these terms consistently:
 - Cause: why a failure occurs.
 - Effect: local, subsystem, system, safety, operational, or financial consequence.
 - Control: prevention, detection, inspection, design, maintenance, or mitigation action.
+- Corrective action: reactive fix applied after a confirmed failure or unsafe condition.
+- Analysis method: technique used to investigate a failure (FEA, SEM, probabilistic, ML, experimental).
+- Application: operating industry or domain (aviation, wind energy, oil and gas).
 - Evidence: source-backed support for a reliability claim.
 - Citation: DOI, source URL, title, authors, publication metadata, and source trace.
 - Confidence: the app's assessment of extraction quality, relevance, source strength, and validation state.
@@ -128,7 +110,7 @@ Known methods and standards in product scope:
 - Root-cause analysis.
 - Predictive maintenance and asset reliability management.
 
-Do not claim a standard is supported unless the implementation actually supports it. Use explicit labels for planned, partial, draft, validated, and exported states.
+Do not claim a standard is supported unless the implementation actually supports it.
 
 ## AI and Evidence Rules
 
@@ -147,7 +129,6 @@ Evidence traceability is a core product requirement.
 Do not build marketing-style screens in this repo unless explicitly requested.
 
 Prefer:
-
 - searchable evidence tables
 - FMEA builder tables
 - split-pane review flows
@@ -159,7 +140,6 @@ Prefer:
 - review queues and audit history
 
 Avoid:
-
 - oversized hero sections
 - public waitlist flows
 - untraceable AI chat as the primary workflow
@@ -172,12 +152,12 @@ Approved starting architecture:
 
 - `apps/web`: Next.js 16 app (pnpm workspace). Product UI, authenticated workspace, lightweight API routes and server actions, normal DB reads/writes.
 - `services/paper-discovery`: Python 3.12+ service. Queries Crossref and OpenAlex APIs across trusted journal ISSNs, upserts raw paper candidates into `papers_raw.paper_candidates`.
-- `services/paper-classifier`: Python 3.12+ service. Reads pending paper candidates, extracts atomic evidence claims with a keyword/span extractor or LLM (Gemini, OpenAI, Anthropic), writes to `knowledge.*`.
+- `services/paper-classifier`: Python 3.12+ service. Reads pending paper candidates, extracts atomic evidence claims with a keyword/span extractor or LLM, writes to `knowledge.*`.
 - `packages/shared`: optional shared types/schemas once contracts stabilize. Currently empty.
 
 Package manager: pnpm (workspace root at repo root, `pnpm-workspace.yaml` lists `apps/*`, `services/*`, `packages/*`).
 
-Frontend commands (run from repo root):
+### Frontend commands (from repo root)
 
 ```sh
 pnpm dev:web       # start Next.js dev server
@@ -185,43 +165,60 @@ pnpm build:web     # production build
 pnpm lint:web      # ESLint
 ```
 
-Paper discovery commands:
+### Paper discovery commands
 
 ```sh
 cd services/paper-discovery
 pip install -e .
-paper-discovery --help
-paper-discovery --source all --watch --interval-seconds 3600          # normal production run
-paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"  # targeted test
+paper-discovery --source all --watch --interval-seconds 3600
+paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
 ```
 
-Paper classifier commands:
+Flags: `--source crossref|openalex|all`, `--limit N`, `--dry-run`, `--watch`, `--interval-seconds N`, `--issn ISSN` (repeatable), `--query QUERY` (repeatable).
+
+### Paper classifier commands
 
 ```sh
 cd services/paper-classifier
 pip install -e .
-paper-classifier classify --mode incremental --limit 50 --extractor auto --watch --interval-seconds 60
-# --extractor auto: uses LLM if LLM_PROVIDER is set, otherwise keyword/span
-# --extractor llm: LLM only (fails if not configured)
-# --extractor keyword: deterministic keyword/span extractor only
-paper-classifier import-corpus --corpus-db path/to/corpus.db   # one-off backfill
+paper-classifier classify --mode incremental --limit 200 --extractor auto --workers 8 --watch --interval-seconds 60
+paper-classifier import-easa                  # import from public.easa_ads
+paper-classifier import-easa --dry-run        # preview without writing
+paper-classifier import-corpus --corpus-db path/to/corpus.db
 ```
 
-Environment variables:
+Key flags for classify: `--extractor auto|llm|keyword`, `--workers N` (parallel API calls, default 4), `--limit N`, `--watch`, `--dry-run`.
+
+`--extractor auto` uses LLM if `LLM_PROVIDER` is set, otherwise keyword/span fallback.
+
+### Environment variables
 
 ```sh
-# Both services
-DATABASE_URL=postgres://...        # or SUPABASE_DB_URL
+# Both pipeline services
+DATABASE_URL=postgresql://postgres.PROJECT:PASSWORD@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+# or SUPABASE_DB_URL as alias
+
 # Paper discovery
-DISCOVERY_CONTACT_EMAIL=you@example.com   # polite pool priority with Crossref/OpenAlex
-# Paper classifier LLM (pick one provider)
+DISCOVERY_CONTACT_EMAIL=you@example.com   # polite pool priority for Crossref/OpenAlex
+
+# Paper classifier — active provider
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash-lite
-# LLM_PROVIDER=openai  OPENAI_API_KEY=...  OPENAI_MODEL=gpt-5.4-nano
-# LLM_PROVIDER=anthropic  ANTHROPIC_API_KEY=...  ANTHROPIC_MODEL=claude-haiku-4-5
+GEMINI_MODEL=gemini-flash-latest           # thinkingBudget=0 is set in code to disable thinking mode
+
+# Other supported providers
+# LLM_PROVIDER=groq
+# GROQ_API_KEY=...
+# GROQ_MODEL=llama-3.3-70b-versatile      # free tier: 100k tokens/day
+# LLM_PROVIDER=openai
+# OPENAI_API_KEY=...
+# OPENAI_MODEL=gpt-5.4-nano
+# LLM_PROVIDER=anthropic
+# ANTHROPIC_API_KEY=...
+# ANTHROPIC_MODEL=claude-haiku-4-5
+
 # Web app
-NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_URL=https://rqzwdzhphxuayqwptqia.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
@@ -231,50 +228,43 @@ NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 MOLLIE_API_KEY=...
 ```
 
-Backend direction:
+All secrets go in `.env.local` at the repo root. Never commit real keys. `.env.example` has the template.
 
-- Do not add a separate general-purpose backend service yet.
-- Use Next.js for the app backend unless the app API becomes too large or needs independent scaling.
-- Keep paper discovery and paper classification outside Next.js because they are background pipeline concerns.
+## Architecture Decisions
 
-Database direction:
+Backend: Use Next.js for the app backend. Do not add a separate general-purpose backend service yet. Keep paper discovery and classification outside Next.js — they are background pipeline concerns.
 
-- Use Supabase Postgres for the MVP rather than SQLite.
-- SQLite is acceptable only for throwaway local tests, not the main app data model.
-- Keep raw paper candidate data separate from classified/validated reliability knowledge.
-- Current Supabase project URL: `https://rqzwdzhphxuayqwptqia.supabase.co`.
-- The initial database migration separates data into `app`, `papers_raw`, and `knowledge` schemas.
-- `app` stores the local user/account mirror and billing records. Clerk remains the auth source of truth.
-- `papers_raw` stores discovery runs and raw paper candidates.
-- `knowledge` stores machine classifications and evidence records.
+Database: Supabase Postgres. Use the session pooler (port 5432, `aws-0-eu-west-1.pooler.supabase.com`) not the direct connection (IPv6 only on free tier).
 
-Authentication direction:
+Auth: Clerk. One account per person for MVP. No org/team management yet. Mirror minimum Clerk user metadata in `app.user_accounts`.
 
-- Use Clerk for MVP authentication.
-- MVP account model is one account per person.
-- Do not build organization/team management yet; revisit after the first product workflow stabilizes.
-- Store Clerk secrets in `.env.local` only. Never commit real Clerk keys.
-- Mirror only the minimum Clerk user metadata needed for application joins in `app.user_accounts`.
-
-Billing direction:
-
-- Use Mollie as the payment processor.
-- Store Mollie secrets in `.env.local` only. Never expose Mollie keys to browser code.
-- Mollie calls must run from server code only: route handlers, server actions, or backend services.
-- Store local payment state in `app.billing_payments`.
+Billing: Mollie. Server-side only. Secrets never reach browser code.
 
 Do not change this architecture without explicit user approval.
 
+## Live Database State (Supabase)
+
+Supabase project: `https://rqzwdzhphxuayqwptqia.supabase.co`
+
+Current corpus (as of June 2026):
+- **3,417** paper candidates: 3,098 peer-reviewed corpus papers + 319 EASA airworthiness directives
+- **3,413** classified, 4 pending (papers with no abstract)
+- **14,990** atomic evidence claims extracted
+- **20,365** evidence spans (exact source text with character offsets)
+- **3,729** claim relationships (FMEA-shaped typed links between claims)
+- Active classifier version: `llm-extractor-v2:gemini:gemini-flash-latest`
+
+The knowledge base covers failure modes, causes, effects, controls, corrective actions, analysis methods, and applications across bearings, gears, pumps, seals, blades, shafts, valves, welds, pipelines, sensors, batteries, converters, and structural components — predominantly in aviation, wind energy, oil and gas, and heavy industrial domains.
+
 ## First Build Target
 
-The first app milestone should be an evidence-backed FMEA workflow:
+The first app milestone is an evidence-backed FMEA workflow:
 
-1. Define typed domain models for evidence records, citations, failure suggestions, review states, and FMEA rows.
-2. Create a search and filtering interface for component/system/context queries.
-3. Display ranked failure suggestions with citations and confidence.
-4. Add accept, edit, reject, and annotate states.
-5. Generate traceable FMEA rows from reviewed suggestions.
-6. Add export or persistence only after the review model is clear.
+1. Search interface for component/system/context queries against the knowledge base.
+2. Display ranked failure suggestions with evidence spans, citations, and confidence.
+3. Accept, edit, reject, and annotate states backed by `review_status` on claims.
+4. Assemble traceable FMEA rows from reviewed claims (one FMEA field → one or more evidence claims).
+5. Export FMEA rows with full evidence lineage.
 
 Keep all implementation decisions aligned with auditability, engineering traceability, and human-in-the-loop review.
 
