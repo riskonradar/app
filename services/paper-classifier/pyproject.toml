@@ -3,10 +3,15 @@ name = "riskonradar-paper-classifier"
 version = "0.1.0"
 description = "Paper classification and reliability knowledge extraction service for Risk on Radar."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "psycopg[binary]>=3.2.0",
+]
 
 [project.scripts]
 paper-classifier = "paper_classifier.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/paper_classifier"]
 
 [build-system]
 requires = ["hatchling"]

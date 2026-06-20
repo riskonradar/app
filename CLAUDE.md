@@ -185,9 +185,29 @@ Backend direction:
 
 Database direction:
 
-- SQLite is acceptable for early local prototyping.
-- Design the domain model with an expected move to Postgres.
+- Use Supabase Postgres for the MVP rather than SQLite.
+- SQLite is acceptable only for throwaway local tests, not the main app data model.
 - Keep raw paper candidate data separate from classified/validated reliability knowledge.
+- Current Supabase project URL: `https://rqzwdzhphxuayqwptqia.supabase.co`.
+- The initial database migration separates data into `app`, `papers_raw`, and `knowledge` schemas.
+- `app` stores the local user/account mirror and billing records. Clerk remains the auth source of truth.
+- `papers_raw` stores discovery runs and raw paper candidates.
+- `knowledge` stores machine classifications and evidence records.
+
+Authentication direction:
+
+- Use Clerk for MVP authentication.
+- MVP account model is one account per person.
+- Do not build organization/team management yet; revisit after the first product workflow stabilizes.
+- Store Clerk secrets in `.env.local` only. Never commit real Clerk keys.
+- Mirror only the minimum Clerk user metadata needed for application joins in `app.user_accounts`.
+
+Billing direction:
+
+- Use Mollie as the payment processor.
+- Store Mollie secrets in `.env.local` only. Never expose Mollie keys to browser code.
+- Mollie calls must run from server code only: route handlers, server actions, or backend services.
+- Store local payment state in `app.billing_payments`.
 
 Do not change this architecture without explicit user approval.
 

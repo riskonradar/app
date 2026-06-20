@@ -2,12 +2,10 @@
   "name": "riskonradar-app",
   "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "apps/web"
-  ],
   "scripts": {
-    "dev:web": "npm run dev --workspace web",
-    "build:web": "npm run build --workspace web",
-    "lint:web": "npm run lint --workspace web"
-  }
+    "dev:web": "pnpm --filter web dev",
+    "build:web": "pnpm --filter web build",
+    "lint:web": "pnpm --filter web lint"
+  },
+  "packageManager": "pnpm@9.4.0"
 }
