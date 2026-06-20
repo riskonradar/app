@@ -1,89 +1,159 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8">
-        <header className="flex items-center justify-between border-b border-white/10 pb-5">
-          <div>
-            <p className="text-sm font-medium text-cyan-300">Risk on Radar</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-              Reliability intelligence workspace
-            </h1>
-          </div>
-          <a
-            className="rounded-md border border-white/15 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200"
-            href="https://riskonradar.com/"
-          >
-            Landing site
-          </a>
-        </header>
+    <div className="app-shell">
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
 
-        <div className="grid flex-1 gap-4 py-8 lg:grid-cols-[1.15fr_0.85fr]">
-          <section className="rounded-lg border border-white/10 bg-white/[0.04] p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Evidence-backed FMEA</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                  The first product loop will search failure evidence by
-                  component, system, or operating context, then help engineers
-                  review citations and create traceable FMEA rows.
-                </p>
-              </div>
-              <span className="rounded-md bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-200">
-                Scaffold
-              </span>
-            </div>
+      <nav className="nav" aria-label="Primary navigation">
+        <div className="nav-container">
+          <Link href="/" className="nav-brand">
+            <span className="wordmark">
+              r<span className="wm-i">ı</span>sk on radar
+              <span className="wm-dot">.</span>
+            </span>
+          </Link>
 
-            <div className="mt-8 grid gap-3">
-              {[
-                "Search candidate failure evidence",
-                "Review ranked failure modes with citations",
-                "Accept, edit, reject, or annotate suggestions",
-                "Promote reviewed suggestions into FMEA rows",
-              ].map((item, index) => (
-                <div
-                  className="flex items-center gap-3 rounded-md border border-white/10 bg-slate-900/80 p-4"
-                  key={item}
+          <div className="nav-actions">
+            <div className="language-selector">
+              <button
+                type="button"
+                className="language-button"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-label="Select language"
+                title="Select language"
+              >
+                <span className="language-flag" aria-hidden="true">
+                  🇬🇧
+                </span>
+                <span>EN</span>
+                <svg
+                  viewBox="0 0 12 8"
+                  fill="none"
+                  className="language-chevron"
+                  aria-hidden="true"
                 >
-                  <span className="flex size-7 items-center justify-center rounded-md bg-slate-800 text-sm font-semibold text-cyan-200">
-                    {index + 1}
-                  </span>
-                  <span className="text-sm text-slate-200">{item}</span>
-                </div>
-              ))}
+                  <path
+                    d="M1 1.5L6 6.5L11 1.5"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <div className="language-menu" role="listbox" aria-label="Select language">
+                <button
+                  type="button"
+                  className="language-option"
+                  role="option"
+                  aria-selected="true"
+                >
+                  🇬🇧 English
+                </button>
+                <button
+                  type="button"
+                  className="language-option"
+                  role="option"
+                  aria-selected="false"
+                >
+                  🇳🇱 Nederlands
+                </button>
+                <button
+                  type="button"
+                  className="language-option"
+                  role="option"
+                  aria-selected="false"
+                >
+                  🇩🇪 Deutsch
+                </button>
+              </div>
             </div>
-          </section>
-
-          <aside className="grid gap-4">
-            <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-              <h2 className="text-base font-semibold">Paper discovery</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Lightweight service for continuously finding raw candidate
-                papers from journal and publisher sources.
-              </p>
-            </section>
-
-            <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-              <h2 className="text-base font-semibold">Paper classifier</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Separate service for title/abstract classification and
-                structured reliability knowledge extraction.
-              </p>
-            </section>
-
-            <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-              <h2 className="text-base font-semibold">Database direction</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                SQLite is acceptable for the prototype, but the model should be
-                designed for a later Postgres move.
-              </p>
-            </section>
-          </aside>
+            <a
+              href="https://riskonradar.com/#waitlist"
+              className="btn btn-primary btn-sm"
+            >
+              Join Waitlist
+            </a>
+          </div>
         </div>
+      </nav>
 
-        <footer className="border-t border-white/10 pt-5 text-sm text-slate-400">
-          App scaffold for the Risk on Radar product repository.
-        </footer>
-      </section>
-    </main>
+      <main id="main-content" className="app-empty-main" />
+
+      <footer className="footer">
+        <div className="container">
+          <div className="footer-inner">
+            <span className="wordmark wordmark-light">
+              r<span className="wm-i">ı</span>sk on radar
+              <span className="wm-dot">.</span>
+            </span>
+            <div className="footer-links">
+              <a
+                href="https://riskonradar.com/whitepaper.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                <svg viewBox="0 0 16 16" fill="none" className="footer-link-icon">
+                  <path
+                    d="M9 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L9 2z"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M9 2v4h4M6 9h4M6 11.5h4"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                Whitepaper
+              </a>
+              <a
+                href="https://www.linkedin.com/company/riskonradar/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  className="footer-link-icon"
+                >
+                  <path d="M3.58 0C1.604 0 0 1.604 0 3.581v8.838C0 14.396 1.604 16 3.581 16h8.838C14.396 16 16 14.396 16 12.419V3.58C16 1.604 14.396 0 12.419 0H3.58zM5.2 6.4v6.4H3.2V6.4H5.2zm-1-3.2a1 1 0 110 2 1 1 0 010-2zM12.8 12.8h-2v-3.2c0-.8-.32-1.2-.96-1.2-.64 0-1.04.48-1.04 1.2v3.2h-2V6.4H8.8v.88c.32-.56.96-.88 1.68-.88C11.84 6.4 12.8 7.36 12.8 9.2v3.6z" />
+                </svg>
+                LinkedIn
+              </a>
+              <a href="mailto:contact@riskonradar.com" className="footer-link">
+                <svg viewBox="0 0 16 16" fill="none" className="footer-link-icon">
+                  <path
+                    d="M2.5 4h11v8h-11V4z"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M3 4.5L8 8l5-3.5"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                contact@riskonradar.com
+              </a>
+            </div>
+            <p className="footer-copy">
+              © 2026 Risk on Radar. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
