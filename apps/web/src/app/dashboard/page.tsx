@@ -2,63 +2,10 @@ import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
-import fmeaData from "@/data/fmea-turbofan-data.json";
+import { AnalysisList } from "@/components/fmea/analysis-list";
 import { getWorkspaceSummary } from "@/lib/account/server";
-import { getBillingPlan } from "@/lib/billing/plans";
 
 export const dynamic = "force-dynamic";
-
-const reviewQueues = [
-  {
-    label: "Evidence-backed FMEA rows",
-    value: fmeaData.rowCount,
-    detail: "Merged from current turbofan reliability evidence",
-  },
-  {
-    label: "Source records",
-    value: fmeaData.recordCount,
-    detail: "Papers and EASA directives in the prototype corpus",
-  },
-  {
-    label: "Components",
-    value: fmeaData.components.length,
-    detail: "Available in the preloaded system template",
-  },
-];
-
-const nextActions = [
-  {
-    title: "Create new FMEA",
-    description: "Start from a system, manual component set, or uploaded BOM.",
-    href: "/fmea?mode=new",
-    cta: "Create",
-  },
-  {
-    title: "Test Mollie checkout",
-    description: "Open the signed-in demo buying flow for one user.",
-    href: "/pricing",
-    cta: "Open checkout",
-  },
-  {
-    title: "Manage account",
-    description: "Confirm the signed-in personal demo workspace.",
-    href: "/account",
-    cta: "Open account",
-  },
-];
-
-function numericRpn(row: (typeof fmeaData.rows)[number]) {
-  const explicit = Number(row.rpn);
-  if (explicit) return explicit;
-  const severity = Number(row.severity);
-  const occurrence = Number(row.occurrence);
-  const detection = Number(row.detection);
-  return severity && occurrence && detection ? severity * occurrence * detection : 0;
-}
-
-const activeFmeaItems = [...fmeaData.rows]
-  .sort((a, b) => numericRpn(b) - numericRpn(a) || b.evidenceCount - a.evidenceCount)
-  .slice(0, 8);
 
 export default async function DashboardPage() {
   const user = await currentUser().catch(() => null);
@@ -66,7 +13,6 @@ export default async function DashboardPage() {
     console.error("Failed to load dashboard workspace summary:", error);
     return null;
   });
-  const plan = getBillingPlan(summary?.organization.plan_key);
   const workspaceName =
     summary?.organization.name ??
     (user ? `${user.firstName || user.emailAddresses[0]?.emailAddress || "Personal"} workspace` : "Not signed in");
@@ -76,81 +22,30 @@ export default async function DashboardPage() {
     <div className="app-shell">
       <AppNav />
       <main className="app-main dashboard-main">
-        <section className="dashboard-header">
+        <section className="dashboard-header dashboard-header-simple">
           <div className="page-heading">
-            <span className="metric-label">Dashboard</span>
-            <h1>Current FMEA work</h1>
+            <span className="metric-label">FMEA workspace</span>
+            <h1>Your FMEA analyses</h1>
             <p>
-              A list of the active FMEA rows currently being reviewed. Open the workspace to inspect
-              evidence, edit fields, and export the spreadsheet.
+              Edit saved FMEA tables, add components, review the highest RPN items, and export
+              the rows marked for the spreadsheet.
             </p>
+            <small className="dashboard-workspace-note">
+              {workspaceName} · {memberCount} member{memberCount === 1 ? "" : "s"}
+            </small>
           </div>
-          <div className="dashboard-header-side">
-            <Link href="/fmea?mode=new" className="dashboard-new-fmea" aria-label="Create new FMEA table">
-              <span aria-hidden="true">+</span>
-              New FMEA
-            </Link>
-            <div className="dashboard-context">
-              <span>Active workspace</span>
-              <strong>{workspaceName}</strong>
-              <small>
-                {plan?.name ?? (user ? "Demo checkout" : "No plan")} · {memberCount} member{memberCount === 1 ? "" : "s"}
-              </small>
-            </div>
-          </div>
+          <Link href="/fmea?mode=new" className="dashboard-new-fmea" aria-label="Create new FMEA table">
+            <span aria-hidden="true">+</span>
+            New FMEA
+          </Link>
         </section>
 
-        <section className="dashboard-metrics" aria-label="Workspace metrics">
-          {reviewQueues.map((item) => (
-            <article key={item.label} className="dashboard-metric">
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <p>{item.detail}</p>
-            </article>
-          ))}
-        </section>
-
-        <section className="dashboard-layout">
-          <div className="dashboard-panel">
-            <div className="section-heading">
-              <span className="metric-label">FMEA rows in progress</span>
-              <h2>Highest-priority review queue</h2>
-            </div>
-            <div className="fmea-work-list">
-              {activeFmeaItems.map((row) => (
-                <Link
-                  key={`${row.component}-${row.failureMode}-${row.effect}`}
-                  href={`/fmea?component=${encodeURIComponent(row.component)}`}
-                  className="fmea-work-row"
-                >
-                  <span>
-                    <strong>{row.component}</strong>
-                    <small>{row.failureMode}</small>
-                  </span>
-                  <span>{row.effect || "Effect needs review"}</span>
-                  <em>RPN {numericRpn(row) || "-"}</em>
-                </Link>
-              ))}
-            </div>
+        <section className="dashboard-panel dashboard-analysis-panel">
+          <div className="section-heading">
+            <span className="metric-label">Saved FMEA tables</span>
+            <h2>Open an analysis to continue editing</h2>
           </div>
-
-          <aside className="dashboard-panel dashboard-panel-muted">
-            <div className="section-heading">
-              <span className="metric-label">Demo flow</span>
-              <h2>Checkout and review</h2>
-            </div>
-            <div className="action-list">
-              {nextActions.map((action) => (
-                <Link key={action.title} href={action.href} className="action-row">
-                  <span>
-                    <strong>{action.title}</strong>
-                    <small>{action.description}</small>
-                  </span>
-                  <em>{action.cta}</em>
-                </Link>
-              ))}
-            </div>
-          </aside>
+          <AnalysisList />
         </section>
       </main>
     </div>

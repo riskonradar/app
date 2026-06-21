@@ -337,9 +337,7 @@ button:disabled {
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  background:
-    linear-gradient(135deg, rgba(232, 86, 52, 0.07), transparent 32%),
-    var(--color-surface-alt);
+  background: var(--color-surface-alt);
 }
 
 .workspace-start-layout {
@@ -354,9 +352,7 @@ button:disabled {
   justify-content: space-between;
   gap: var(--space-3xl);
   border-bottom: 1px solid var(--color-border);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 42%),
-    var(--color-deep);
+  background: var(--color-deep);
   padding: var(--space-2xl) var(--space-3xl);
 }
 
@@ -442,7 +438,7 @@ button:disabled {
 
 .choice-divider::before,
 .choice-divider::after {
-  flex: 0 0 28px;
+  flex: 0 0 42px;
   height: 1px;
   background: var(--color-border);
   content: "";
@@ -477,17 +473,15 @@ button:disabled {
 
 .workspace-start-panel {
   display: flex;
-  min-height: 240px;
+  min-height: 320px;
   flex-direction: column;
   gap: var(--space-lg);
 }
 
 .workspace-start-panel-primary {
   min-height: 320px;
-  border-color: rgba(232, 86, 52, 0.38);
-  background:
-    linear-gradient(180deg, rgba(232, 86, 52, 0.075), transparent),
-    var(--color-deep);
+  border-color: var(--color-border);
+  background: var(--color-deep);
 }
 
 .workspace-panel-heading {
@@ -531,12 +525,12 @@ button:disabled {
 
 .dropzone {
   display: grid;
-  min-height: 240px;
+  min-height: 320px;
   align-content: center;
   justify-items: start;
   gap: var(--space-md);
-  border-style: dashed;
-  border-color: var(--color-border-strong);
+  border-style: solid;
+  border-color: var(--color-border);
   color: var(--color-text);
   cursor: pointer;
   text-align: left;
@@ -549,10 +543,10 @@ button:disabled {
 
 .dropzone:hover,
 .dropzone:focus-visible {
-  border-color: var(--color-accent);
-  background: rgba(232, 86, 52, 0.045);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-  transform: translateY(-1px);
+  border-color: var(--color-border-strong);
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: none;
+  transform: none;
 }
 
 .dropzone span {
@@ -704,7 +698,7 @@ button:disabled {
 
 .worksheet-controls {
   display: grid;
-  grid-template-columns: minmax(260px, 1.5fr) repeat(2, minmax(150px, 0.75fr));
+  grid-template-columns: minmax(250px, 1.4fr) repeat(4, minmax(150px, 0.8fr));
   gap: var(--space-md);
   border-bottom: 1px solid var(--color-border);
   padding: var(--space-lg) var(--space-xl);
@@ -718,6 +712,20 @@ button:disabled {
 
 .control-field-wide {
   min-width: 250px;
+}
+
+.control-field-add {
+  min-width: 210px;
+}
+
+.add-component-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+}
+
+.add-component-control .btn {
+  min-height: 38px;
 }
 
 .control-button {
@@ -886,7 +894,7 @@ input[type="checkbox"]:focus {
 /* Table styling matching site design */
 .fmea-table {
   width: 100%;
-  min-width: 1816px;
+  min-width: 1342px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8rem;
@@ -1223,7 +1231,7 @@ input[type="checkbox"]:focus {
 
 @media (max-width: 640px) {
   .fmea-table {
-    min-width: 1816px;
+    min-width: 1342px;
     font-size: 0.76rem;
   }
 
@@ -1523,10 +1531,11 @@ input[type="checkbox"]:focus {
 .field-help-tooltip {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
   z-index: 120;
+  display: none;
   width: max-content;
-  max-width: min(260px, 70vw);
+  max-width: min(240px, 70vw);
   background: #080808;
   border: 1px solid var(--color-border-strong);
   color: var(--color-text);
@@ -1547,6 +1556,7 @@ input[type="checkbox"]:focus {
 
 .field-help:hover .field-help-tooltip,
 .field-help:focus-visible .field-help-tooltip {
+  display: block;
   opacity: 1;
 }
 
@@ -1719,20 +1729,47 @@ input[type="checkbox"]:focus {
   box-shadow: 0 0 0 2px rgba(232, 86, 52, 0.2);
 }
 
-.fmea-score-control,
-.status-control {
+.fmea-table td select.fmea-score-control,
+.fmea-table td select.status-control {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  min-height: 30px;
   min-width: 0;
-}
-
-.fmea-score-control {
-  padding-inline: 4px;
+  width: 100%;
   text-align: center;
-  font-variant-numeric: tabular-nums;
+  text-align-last: center;
 }
 
-.status-control {
-  padding-inline: 5px;
-  font-size: 0.72rem;
+.fmea-table td select.fmea-score-control::-ms-expand,
+.fmea-table td select.status-control::-ms-expand {
+  display: none;
+}
+
+.fmea-table td select.fmea-score-control {
+  padding: 0;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.fmea-table td select.status-control {
+  padding: 0;
+  font-size: 0.96rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.status-control.status-needs_review {
+  color: var(--color-text-muted);
+}
+
+.status-control.status-accepted {
+  color: var(--color-accent);
+}
+
+.status-control.status-rejected {
+  color: var(--color-danger);
 }
 
 .rpn-value {
@@ -1789,64 +1826,73 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table .col-included {
-  width: 76px;
-  min-width: 76px;
-  max-width: 76px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
   text-align: center;
 }
 
 .fmea-table .col-function {
-  width: 160px;
+  width: 142px;
 }
 
 .fmea-table .col-industry {
-  width: 118px;
+  width: 88px;
 }
 
 .fmea-table .col-failureMode {
-  width: 172px;
+  width: 150px;
 }
 
 .fmea-table .col-effect {
-  width: 190px;
+  width: 164px;
 }
 
 .fmea-table .col-cause {
-  width: 180px;
+  width: 164px;
 }
 
 .fmea-table .col-currentControl {
-  width: 184px;
+  width: 154px;
 }
 
 .fmea-table .col-correctiveAction {
-  width: 184px;
+  width: 150px;
 }
 
 .fmea-table .col-severity,
 .fmea-table .col-occurrence,
 .fmea-table .col-detection {
-  width: 50px;
-  min-width: 50px;
-  max-width: 50px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+}
+
+.fmea-table td.col-severity,
+.fmea-table td.col-occurrence,
+.fmea-table td.col-detection,
+.fmea-table td.col-status,
+.fmea-table td.col-included {
+  padding-right: 4px;
+  padding-left: 4px;
 }
 
 .fmea-table .col-rpn {
-  width: 60px;
-  min-width: 60px;
-  max-width: 60px;
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
 }
 
 .fmea-table .col-evidence {
-  width: 110px;
-  min-width: 110px;
-  max-width: 110px;
+  width: 82px;
+  min-width: 82px;
+  max-width: 82px;
 }
 
 .fmea-table .col-status {
-  width: 132px;
-  min-width: 132px;
-  max-width: 132px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
 }
 
 /* Component section row enhancement */
@@ -2116,6 +2162,17 @@ input[type="checkbox"]:focus {
   margin-bottom: var(--space-xl);
 }
 
+.dashboard-header-simple {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.dashboard-workspace-note {
+  display: block;
+  margin-top: var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
 .dashboard-header-side {
   display: grid;
   gap: var(--space-md);
@@ -2236,6 +2293,10 @@ input[type="checkbox"]:focus {
   padding: var(--space-xl);
 }
 
+.dashboard-analysis-panel {
+  margin-top: var(--space-xl);
+}
+
 .dashboard-panel-muted {
   background: var(--color-deep);
 }
@@ -2244,6 +2305,103 @@ input[type="checkbox"]:focus {
   display: grid;
   gap: var(--space-xs);
   margin-top: var(--space-lg);
+}
+
+.fmea-analysis-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.fmea-analysis-row {
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.fmea-analysis-row:hover {
+  border-color: var(--color-border-strong);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.fmea-analysis-main {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 0.45fr) auto;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.fmea-analysis-row span,
+.fmea-analysis-main span {
+  min-width: 0;
+}
+
+.fmea-analysis-main strong,
+.fmea-analysis-main small,
+.fmea-analysis-main > span:nth-child(2) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fmea-analysis-main small,
+.fmea-analysis-main > span:nth-child(2),
+.fmea-analysis-risks small {
+  color: var(--color-text-muted);
+}
+
+.fmea-analysis-main em,
+.fmea-analysis-risks em {
+  color: var(--color-accent);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.fmea-analysis-risks {
+  margin-top: var(--space-sm);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: var(--space-sm);
+}
+
+.fmea-analysis-risks summary {
+  width: max-content;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.fmea-analysis-risks div {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.fmea-analysis-risks p {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  margin: 0;
+}
+
+.fmea-analysis-risks strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.fmea-analysis-risks small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fmea-work-row {
@@ -2286,6 +2444,30 @@ input[type="checkbox"]:focus {
   font-style: normal;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.analysis-name-field {
+  display: block;
+  margin-top: var(--space-xs);
+}
+
+.analysis-name-field input {
+  width: min(680px, 100%);
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.05;
+}
+
+.analysis-name-field input:hover,
+.analysis-name-field input:focus {
+  border-bottom-color: var(--color-border-strong);
+  outline: none;
 }
 
 .section-heading h2 {
@@ -2640,8 +2822,22 @@ input[type="checkbox"]:focus {
 
   .dashboard-header,
   .dashboard-layout,
+  .dashboard-header-simple,
   .account-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-new-fmea {
+    justify-self: start;
+    min-width: 160px;
+  }
+
+  .fmea-analysis-main {
+    grid-template-columns: 1fr;
+  }
+
+  .fmea-analysis-main em {
+    justify-self: start;
   }
 
   .dashboard-metrics,

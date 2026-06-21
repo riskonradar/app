@@ -77,6 +77,8 @@ type FmeaDataset = {
 type SelectionStep = "initial" | "table";
 type EditableField =
   | "included"
+  | "function"
+  | "industry"
   | "failureMode"
   | "effect"
   | "severity"
@@ -88,6 +90,22 @@ type EditableField =
   | "status";
 
 type LoadingAction = "upload" | "system" | "export" | null;
+
+type SavedFmeaAnalysis = {
+  id: string;
+  name: string;
+  scope: string;
+  rowCount: number;
+  componentCount: number;
+  includedCount: number;
+  highestRpn: number;
+  updatedAt: string;
+  topRisks: Array<{
+    component: string;
+    failureMode: string;
+    rpn: number;
+  }>;
+};
 
 const systemTemplates: SystemTemplate[] = [
   {
@@ -150,6 +168,8 @@ const scoreOptions = Array.from({ length: 10 }, (_, index) => String(index + 1))
 const bundledTurbofanData = fmeaData as FmeaDataset;
 const editableFields: EditableField[] = [
   "included",
+  "function",
+  "industry",
   "failureMode",
   "effect",
   "severity",
@@ -179,20 +199,20 @@ const fieldHelp: Record<string, string> = {
 };
 
 const worksheetColumnSpecs = [
-  { id: "included", size: 76 },
-  { id: "function", size: 160 },
-  { id: "industry", size: 118 },
-  { id: "failureMode", size: 172 },
-  { id: "effect", size: 190 },
-  { id: "severity", size: 50 },
-  { id: "cause", size: 180 },
-  { id: "occurrence", size: 50 },
-  { id: "currentControl", size: 184 },
-  { id: "detection", size: 50 },
-  { id: "rpn", size: 60 },
-  { id: "correctiveAction", size: 184 },
-  { id: "evidence", size: 110 },
-  { id: "status", size: 132 },
+  { id: "included", size: 44 },
+  { id: "function", size: 142 },
+  { id: "industry", size: 88 },
+  { id: "failureMode", size: 150 },
+  { id: "effect", size: 164 },
+  { id: "severity", size: 36 },
+  { id: "cause", size: 164 },
+  { id: "occurrence", size: 36 },
+  { id: "currentControl", size: 154 },
+  { id: "detection", size: 36 },
+  { id: "rpn", size: 52 },
+  { id: "correctiveAction", size: 150 },
+  { id: "evidence", size: 82 },
+  { id: "status", size: 44 },
 ] as const;
 
 const helpFields = new Set(["included", "failureMode", "severity", "occurrence", "detection", "rpn", "evidence"]);
@@ -250,9 +270,9 @@ const failureModeFamilies: Array<[RegExp, string | null]> = [
   [/\b(low[- ]cycle fatigue|lcf|high[- ]cycle fatigue|hcf|very[- ]high[- ]cycle fatigue|vhcf|thermo[- ]mechanical fatigue|tmf|thermal fatigue|fretting fatigue|dwell fatigue|fatigue failure|fatigue life|fatigue crack)\b/i, "Fatigue"],
   [/\b(crack|cracks|cracking|fracture|rupture|burst|breakage|burned-through|burn-through)\b/i, "Crack / fracture"],
   [/\b(bird strike|impact damage|ingestion damage|ice ingestion|particle ingestion|sand ingestion|foreign object|fod)\b/i, "Foreign object damage (FOD)"],
-  [/\b(compressor stall|rotating stall|stall|surge)\b/i, "Stall / surge"],
   [/\b(flow turbulence|flow disturbance|flow distortion|potential-flow disturbance|potential flow disturbance|flow instability|swirl distortion)\b/i, "Flow disturbance / distortion"],
-  [/\b(blade flexural vibration|blade\/rotor flutter|blade flutter|rotor flutter|blade\/rotor vibration|aeroelastic|flutter|mistuning)\b/i, "Blade vibration / flutter"],
+  [/\b(stall flutter|blade flexural vibration|blade\/rotor flutter|blade flutter|rotor flutter|blade\/rotor vibration|aeroelastic|flutter|mistuning)\b/i, "Blade vibration / flutter"],
+  [/\b(compressor stall|rotating stall|stall|surge)\b/i, "Stall / surge"],
   [/\b(bending deformation|flexural deformation|flexural vibration|deformation|buckling|bulging)\b/i, "Deformation / buckling"],
   [/\b(bearing wear|abrasive wear|fretting wear|wear|rubbing|tip rub|scuffing|scuff)\b/i, "Wear / rubbing"],
   [/\b(hot corrosion|corrosion|rusting|rustiness|pitting)\b/i, "Corrosion / pitting"],
@@ -554,6 +574,44 @@ function rowRpn(row: FmeaRow) {
   return String(s * o * d);
 }
 
+function numericRowRpn(row: FmeaRow) {
+  return Number(rowRpn(row)) || 0;
+}
+
+function defaultAnalysisName(rows: FmeaRow[]) {
+  const componentNames = sortedComponentNames(Array.from(new Set(rows.map((row) => row.component))));
+  if (componentNames.length === 1) return `${componentNames[0]} FMEA`;
+  return "Turbofan reliability FMEA";
+}
+
+function analysisSummary(rows: FmeaRow[], name: string, updatedAt: string): SavedFmeaAnalysis {
+  const componentNames = sortedComponentNames(Array.from(new Set(rows.map((row) => row.component))));
+  const topRisks = [...rows]
+    .filter((row) => numericRowRpn(row) > 0)
+    .sort((a, b) => numericRowRpn(b) - numericRowRpn(a) || b.evidenceCount - a.evidenceCount)
+    .slice(0, 3)
+    .map((row) => ({
+      component: row.component,
+      failureMode: row.failureMode,
+      rpn: numericRowRpn(row),
+    }));
+
+  return {
+    id: "current-fmea",
+    name: name.trim() || defaultAnalysisName(rows),
+    scope:
+      componentNames.length === 1
+        ? componentNames[0]
+        : `${componentNames.length} components`,
+    rowCount: rows.length,
+    componentCount: componentNames.length,
+    includedCount: rows.filter((row) => row.included).length,
+    highestRpn: rows.reduce((max, row) => Math.max(max, numericRowRpn(row)), 0),
+    updatedAt,
+    topRisks,
+  };
+}
+
 function isComplete(row: FmeaRow) {
   if (!row.included) return true;
   return Boolean(
@@ -835,10 +893,13 @@ export default function Home() {
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("all");
   const [componentQuery, setComponentQuery] = useState("");
+  const [newComponentName, setNewComponentName] = useState("");
   const [selectedSystemId, setSelectedSystemId] = useState("turbofan");
   const [manualComponents, setManualComponents] = useState<string[]>([]);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
   const [notice, setNotice] = useState("Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.");
+  const [analysisName, setAnalysisName] = useState("Turbofan reliability FMEA");
+  const [sortMode, setSortMode] = useState<"component" | "rpn_desc" | "rpn_asc">("component");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
@@ -860,8 +921,8 @@ export default function Home() {
     [rows],
   );
   const visibleRows = useMemo(
-    () =>
-      rows.filter((row) => {
+    () => {
+      const filteredRows = rows.filter((row) => {
         const query = componentQuery.trim().toLowerCase();
         if (componentFilter !== "All" && row.component !== componentFilter) return false;
         if (
@@ -879,8 +940,17 @@ export default function Home() {
         if (rowFilter === "incomplete" && isComplete(row)) return false;
         if (rowFilter === "included" && !row.included) return false;
         return true;
-      }),
-    [componentFilter, componentQuery, rowFilter, rows],
+      });
+
+      if (sortMode === "rpn_desc") {
+        return [...filteredRows].sort((a, b) => numericRowRpn(b) - numericRowRpn(a) || b.evidenceCount - a.evidenceCount);
+      }
+      if (sortMode === "rpn_asc") {
+        return [...filteredRows].sort((a, b) => numericRowRpn(a) - numericRowRpn(b) || b.evidenceCount - a.evidenceCount);
+      }
+      return filteredRows;
+    },
+    [componentFilter, componentQuery, rowFilter, rows, sortMode],
   );
 
   const includedRows = rows.filter((row) => row.included);
@@ -964,6 +1034,8 @@ export default function Home() {
   function saveCellViewer(newValue: string) {
     if (!cellViewer) return;
     const fieldMap: Record<string, keyof FmeaRow> = {
+      "Function": "function",
+      "Industry": "industry",
       "Failure Mode": "failureMode",
       "Effect": "effect",
       "Cause": "cause",
@@ -1002,6 +1074,12 @@ export default function Home() {
           if (savedTime) {
             setLastSavedAt(savedTime);
           }
+          const savedName = localStorage.getItem("riskonradar-fmea-name");
+          if (savedName) {
+            setAnalysisName(savedName);
+          } else {
+            setAnalysisName(defaultAnalysisName(parsedRows));
+          }
           setHasUnsavedChanges(false);
         }
       }
@@ -1017,6 +1095,8 @@ export default function Home() {
         localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
         const now = new Date().toLocaleString();
         localStorage.setItem("riskonradar-fmea-saved-at", now);
+        localStorage.setItem("riskonradar-fmea-name", analysisName.trim() || defaultAnalysisName(rows));
+        localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify([analysisSummary(rows, analysisName, now)]));
         setLastSavedAt(now);
         setHasUnsavedChanges(false);
         setNotice("FMEA saved successfully.");
@@ -1031,7 +1111,7 @@ export default function Home() {
         setIsSaving(false);
       }
     }, 150);
-  }, [router, rows]);
+  }, [analysisName, router, rows]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1229,6 +1309,7 @@ export default function Home() {
       );
       const nextRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents(nextComponents);
       setRows(nextRows);
+      setAnalysisName(defaultAnalysisName(nextRows));
       setNotice(
         evidenceRows.length
           ? `Loaded ${nextRows.length} evidence-backed FMEA row${nextRows.length === 1 ? "" : "s"} for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
@@ -1238,6 +1319,7 @@ export default function Home() {
       const evidenceRows = rowsForSelectedComponents(bundledTurbofanData.rows, nextComponents);
       const nextRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents(nextComponents);
       setRows(nextRows);
+      setAnalysisName(defaultAnalysisName(nextRows));
       setNotice(
         evidenceRows.length
           ? `Loaded bundled evidence-backed FMEA rows for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
@@ -1261,6 +1343,76 @@ export default function Home() {
     return (await response.json()) as FmeaDataset;
   }
 
+  function rowsWithUniqueIds(nextRows: FmeaRow[], existingRows: FmeaRow[]) {
+    const usedIds = new Set(existingRows.map((row) => row.id));
+    return nextRows.map((row, index) => {
+      if (!usedIds.has(row.id)) {
+        usedIds.add(row.id);
+        return row;
+      }
+      const id = `${row.id}-added-${Date.now()}-${index}`;
+      usedIds.add(id);
+      return { ...row, id };
+    });
+  }
+
+  async function addTypedComponent() {
+    const rawComponent = newComponentName.trim();
+    if (!rawComponent) return;
+
+    const component = canonicalComponentName(rawComponent) ?? rawComponent;
+    const componentKey = component.toLowerCase();
+    const existingComponentKeys = new Set(
+      rows
+        .map((row) => canonicalComponentName(row.component)?.toLowerCase())
+        .filter(Boolean),
+    );
+
+    if (existingComponentKeys.has(componentKey)) {
+      setComponentFilter(component);
+      setExpandedComponents((current) => new Set([...current, component]));
+      setNotice(`${component} is already in this FMEA. Showing that component now.`);
+      setNewComponentName("");
+      return;
+    }
+
+    setLoadingAction("system");
+    try {
+      const liveDataset = await fetchLiveTurbofanDataset();
+      const evidenceRows = rowsForSelectedComponents(
+        [...liveDataset.rows, ...bundledTurbofanData.rows],
+        [component],
+      );
+      const generatedRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents([component]);
+      const rowsToAdd = rowsWithUniqueIds(generatedRows, rows);
+      setRows((currentRows) => [...currentRows, ...rowsToAdd]);
+      setComponentFilter("All");
+      setExpandedComponents((current) => new Set([...current, ...rowsToAdd.map((row) => row.component)]));
+      setNotice(
+        evidenceRows.length
+          ? `Added ${rowsToAdd.length} evidence-backed row${rowsToAdd.length === 1 ? "" : "s"} for ${component}.`
+          : `Added starter FMEA rows for ${component}.`,
+      );
+    } catch {
+      const evidenceRows = rowsForSelectedComponents(bundledTurbofanData.rows, [component]);
+      const generatedRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents([component]);
+      const rowsToAdd = rowsWithUniqueIds(generatedRows, rows);
+      setRows((currentRows) => [...currentRows, ...rowsToAdd]);
+      setComponentFilter("All");
+      setExpandedComponents((current) => new Set([...current, ...rowsToAdd.map((row) => row.component)]));
+      setNotice(
+        evidenceRows.length
+          ? `Added bundled evidence-backed rows for ${component}.`
+          : `Added starter FMEA rows for ${component}.`,
+      );
+    } finally {
+      setNewComponentName("");
+      setHasUnsavedChanges(true);
+      setSelectionStep("table");
+      setLoadingAction(null);
+    }
+  }
+
   async function loadSystem(systemId: string) {
     const nextSystem = systemTemplates.find((system) => system.id === systemId);
     if (!nextSystem) return;
@@ -1274,10 +1426,13 @@ export default function Home() {
         const nextRows = toFmeaRows(liveDataset.rows);
         setRowFilter("all");
         setRows(nextRows);
+        setAnalysisName(defaultAnalysisName(nextRows));
         setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${nextRows.length} merged FMEA rows.`);
       } else {
+        const nextRows = templateRowsForComponents(nextSystem.components);
         setRowFilter("all");
-        setRows(templateRowsForComponents(nextSystem.components));
+        setRows(nextRows);
+        setAnalysisName(`${nextSystem.name} FMEA`);
         setNotice(`Loaded ${nextSystem.name}. Edit the generated worksheet, then export when required fields are complete.`);
       }
       setSelectionStep("table");
@@ -1285,7 +1440,9 @@ export default function Home() {
     } catch {
       if (systemId === "turbofan") {
         setRowFilter("all");
-        setRows(toFmeaRows(bundledTurbofanData.rows));
+        const nextRows = toFmeaRows(bundledTurbofanData.rows);
+        setRows(nextRows);
+        setAnalysisName(defaultAnalysisName(nextRows));
         setSelectionStep("table");
         setNotice("Could not load live turbofan evidence. Using bundled worksheet snapshot.");
       } else {
@@ -1402,7 +1559,7 @@ export default function Home() {
   const columns: ColumnDef<FmeaRow>[] = [
       {
         id: "included",
-        header: () => <HeaderLabel field="included" label="Export" />,
+        header: () => <HeaderLabel field="included" label="Use" />,
         cell: ({ row }) => {
           const toggleIncluded = () => updateRow(row.original.id, { included: !row.original.included });
           return (
@@ -1437,7 +1594,7 @@ export default function Home() {
             />
           );
         },
-        size: 76,
+        size: 44,
       },
       {
         accessorKey: "component",
@@ -1448,26 +1605,26 @@ export default function Home() {
       {
         accessorKey: "function",
         header: () => <HeaderLabel field="function" label="Function" />,
-        cell: ({ row }) => <span>{row.original.function}</span>,
-        size: 120,
+        cell: ({ row }) => renderLongTextCell(row.original, "function", "Function", row.original.function),
+        size: 142,
       },
       {
         accessorKey: "industry",
         header: () => <HeaderLabel field="industry" label="Industry" />,
-        cell: ({ row }) => <span>{row.original.industry}</span>,
-        size: 92,
+        cell: ({ row }) => renderLongTextCell(row.original, "industry", "Industry", row.original.industry),
+        size: 88,
       },
       {
         accessorKey: "failureMode",
         header: () => <HeaderLabel field="failureMode" label="Failure Mode" />,
         cell: ({ row }) => renderLongTextCell(row.original, "failureMode", "Failure Mode", row.original.failureMode),
-        size: 130,
+        size: 150,
       },
       {
         accessorKey: "effect",
         header: () => <HeaderLabel field="effect" label="Effect" />,
         cell: ({ row }) => renderLongTextCell(row.original, "effect", "Effect", row.original.effect),
-        size: 120,
+        size: 164,
       },
       {
         accessorKey: "severity",
@@ -1479,6 +1636,7 @@ export default function Home() {
             onChange={(e) => updateRow(row.original.id, { severity: e.target.value })}
             className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "severity")}`}
             aria-label={`Severity score for ${row.original.component} - ${row.original.failureMode}`}
+            title={row.original.severity ? `Severity ${row.original.severity}` : "No severity score"}
             onFocus={() => setFocusedCellId(`${row.original.id}:severity`)}
             onBlur={() => setFocusedCellId(null)}
             onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "severity")}
@@ -1491,13 +1649,13 @@ export default function Home() {
             ))}
           </select>
         ),
-        size: 44,
+        size: 36,
       },
       {
         accessorKey: "cause",
         header: () => <HeaderLabel field="cause" label="Cause" />,
         cell: ({ row }) => renderLongTextCell(row.original, "cause", "Cause", row.original.cause),
-        size: 120,
+        size: 164,
       },
       {
         accessorKey: "occurrence",
@@ -1509,6 +1667,7 @@ export default function Home() {
             onChange={(e) => updateRow(row.original.id, { occurrence: e.target.value })}
             className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "occurrence")}`}
             aria-label={`Occurrence score for ${row.original.component} - ${row.original.failureMode}`}
+            title={row.original.occurrence ? `Occurrence ${row.original.occurrence}` : "No occurrence score"}
             onFocus={() => setFocusedCellId(`${row.original.id}:occurrence`)}
             onBlur={() => setFocusedCellId(null)}
             onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "occurrence")}
@@ -1521,13 +1680,13 @@ export default function Home() {
             ))}
           </select>
         ),
-        size: 44,
+        size: 36,
       },
       {
         accessorKey: "currentControl",
         header: () => <HeaderLabel field="currentControl" label="Controls" />,
         cell: ({ row }) => renderLongTextCell(row.original, "currentControl", "Controls", row.original.currentControl),
-        size: 120,
+        size: 154,
       },
       {
         accessorKey: "detection",
@@ -1539,6 +1698,7 @@ export default function Home() {
             onChange={(e) => updateRow(row.original.id, { detection: e.target.value })}
             className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "detection")}`}
             aria-label={`Detection score for ${row.original.component} - ${row.original.failureMode}`}
+            title={row.original.detection ? `Detection ${row.original.detection}` : "No detection score"}
             onFocus={() => setFocusedCellId(`${row.original.id}:detection`)}
             onBlur={() => setFocusedCellId(null)}
             onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "detection")}
@@ -1551,19 +1711,19 @@ export default function Home() {
             ))}
           </select>
         ),
-        size: 44,
+        size: 36,
       },
       {
         accessorKey: "rpn",
         header: () => <HeaderLabel field="rpn" label="RPN" />,
         cell: ({ row }) => <span className="rpn-value">{rowRpn(row.original) || "-"}</span>,
-        size: 54,
+        size: 52,
       },
       {
         accessorKey: "correctiveAction",
         header: () => <HeaderLabel field="correctiveAction" label="Action" />,
         cell: ({ row }) => renderLongTextCell(row.original, "correctiveAction", "Action", row.original.correctiveAction),
-        size: 120,
+        size: 150,
       },
       {
         id: "evidence",
@@ -1581,11 +1741,11 @@ export default function Home() {
             {row.original.evidenceCount || row.original.sources.length} sources
           </button>
         ),
-        size: 86,
+        size: 82,
       },
       {
         accessorKey: "status",
-        header: () => <HeaderLabel field="status" label="Status" />,
+        header: () => <HeaderLabel field="status" label="State" />,
         cell: ({ row }) => (
           <select
             ref={(element) => registerCell(row.original.id, "status", element)}
@@ -1593,18 +1753,19 @@ export default function Home() {
             onChange={(e) =>
               updateRow(row.original.id, { status: e.target.value as FmeaRow["status"] })
             }
-            className={`fmea-cell-control status-control ${editableCellClass(row.original.id, "status")}`}
+            className={`fmea-cell-control status-control status-${row.original.status} ${editableCellClass(row.original.id, "status")}`}
             aria-label={`Review status for ${row.original.component} - ${row.original.failureMode}`}
+            title={row.original.status.replace("_", " ")}
             onFocus={() => setFocusedCellId(`${row.original.id}:status`)}
             onBlur={() => setFocusedCellId(null)}
             onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "status")}
           >
-            <option value="needs_review">Needs Review</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
+            <option value="needs_review">!</option>
+            <option value="accepted">✓</option>
+            <option value="rejected">×</option>
           </select>
         ),
-        size: 104,
+        size: 44,
       },
     ];
 
@@ -1835,7 +1996,17 @@ export default function Home() {
                 Exit to dashboard
               </button>
               <span className="metric-label">FMEA Worksheet</span>
-              <h1 className="fmea-title">Edit reliability analysis</h1>
+              <label className="analysis-name-field">
+                <span className="visually-hidden">FMEA analysis name</span>
+                <input
+                  value={analysisName}
+                  onChange={(event) => {
+                    setAnalysisName(event.target.value);
+                    setHasUnsavedChanges(true);
+                  }}
+                  aria-label="FMEA analysis name"
+                />
+              </label>
             </div>
             <div className="fmea-header-actions">
               <button
@@ -1950,6 +2121,51 @@ export default function Home() {
                 <option value="evidence">Evidence-backed</option>
                 <option value="incomplete">Incomplete</option>
               </select>
+            </div>
+
+            <div className="control-field">
+              <label className="field-label" htmlFor="sort-mode">
+                Sort
+              </label>
+              <select
+                id="sort-mode"
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+              >
+                <option value="component">Component order</option>
+                <option value="rpn_desc">Highest RPN first</option>
+                <option value="rpn_asc">Lowest RPN first</option>
+              </select>
+            </div>
+
+            <div className="control-field control-field-add">
+              <label className="field-label" htmlFor="add-component">
+                Add component
+              </label>
+              <div className="add-component-control">
+                <input
+                  id="add-component"
+                  className="text-input"
+                  type="text"
+                  placeholder="Type component..."
+                  value={newComponentName}
+                  onChange={(event) => setNewComponentName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void addTypedComponent();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => void addTypedComponent()}
+                  disabled={!newComponentName.trim() || loadingAction === "system"}
+                >
+                  Add
+                </button>
+              </div>
             </div>
 
             <div className="control-field">
