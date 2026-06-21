@@ -79,6 +79,10 @@ def main() -> None:
         "--workers", type=int, default=4,
         help="Parallel API workers. Default 4. Increase for faster throughput.",
     )
+    classify_parser.add_argument(
+        "--topic", type=str, default=None,
+        help="Filter papers by topic keyword in title or abstract (e.g., 'turbofan').",
+    )
 
     args = parser.parse_args()
 
@@ -102,6 +106,7 @@ def main() -> None:
             args.watch,
             args.interval_seconds,
             args.workers,
+            args.topic,
         )
 
 
@@ -139,6 +144,7 @@ def _classify_pending(
     watch: bool,
     interval_seconds: int,
     workers: int,
+    topic_filter: str | None,
 ) -> None:
     llm_config = None
     if extractor in {"auto", "llm"}:
@@ -153,7 +159,7 @@ def _classify_pending(
     )
 
     while True:
-        count = _classify_batch(limit, mode, effective_version, extractor, llm_config, dry_run, workers)
+        count = _classify_batch(limit, mode, effective_version, extractor, llm_config, dry_run, workers, topic_filter)
         print(f"Classified {count} pending papers.")
         if not watch:
             break
@@ -168,9 +174,10 @@ def _classify_batch(
     llm_config: LlmConfig | None,
     dry_run: bool,
     workers: int,
+    topic_filter: str | None,
 ) -> int:
     with PostgresRepository() as repository:
-        candidates = repository.pending_candidates(limit, classifier_version)
+        candidates = repository.pending_candidates(limit, classifier_version, topic_filter)
 
     if not candidates:
         return 0

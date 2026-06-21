@@ -190,13 +190,10 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                 )
         return count
 
-    def pending_candidates(self, limit: int, classifier_version: str) -> list[CandidatePaper]:
-        rows = self._connection().execute(
-            """
-            select pc.id, pc.doi, pc.title, pc.abstract, pc.journal, pc.publication_year, pc.authors, pc.source_url, pc.source
-            from papers_raw.paper_candidates pc
-            where coalesce(pc.lifecycle_status, 'pending_classification') not in ('stale', 'removed')
-              and (
+    def pending_candidates(self, limit: int, classifier_version: str, topic_filter: str | None = None) -> list[CandidatePaper]:
+        where_clauses = [
+            "coalesce(pc.lifecycle_status, 'pending_classification') not in ('stale', 'removed')",
+            """(
                 pc.classification_status in ('pending', 'failed')
                 or not exists (
                   select 1
@@ -205,11 +202,29 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                     and cj.classifier_version = %(classifier_version)s
                     and cj.status = 'completed'
                 )
-              )
+              )"""
+        ]
+        
+        params = {"limit": limit, "classifier_version": classifier_version}
+        
+        if topic_filter:
+            where_clauses.append("""(
+                lower(pc.title) LIKE %(topic_filter)s
+                OR lower(pc.abstract) LIKE %(topic_filter)s
+            )""")
+            params["topic_filter"] = f"%{topic_filter.lower()}%"
+        
+        where_clause = " AND ".join(where_clauses)
+        
+        rows = self._connection().execute(
+            f"""
+            select pc.id, pc.doi, pc.title, pc.abstract, pc.journal, pc.publication_year, pc.authors, pc.source_url, pc.source
+            from papers_raw.paper_candidates pc
+            where {where_clause}
             order by pc.publication_year desc nulls last, pc.created_at asc
             limit %(limit)s
             """,
-            {"limit": limit, "classifier_version": classifier_version},
+            params,
         ).fetchall()
         return [
             CandidatePaper(
