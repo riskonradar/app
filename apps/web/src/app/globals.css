@@ -704,10 +704,7 @@ input[type="checkbox"]:focus {
 
 .fmea-table td {
   padding: var(--space-sm);
-  vertical-align: top;
-  white-space: normal;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+  vertical-align: middle;
 }
 
 .fmea-table td input,
@@ -722,6 +719,13 @@ input[type="checkbox"]:focus {
   transition: all 200ms ease;
   width: 100%;
   min-width: 100px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.fmea-table td input:focus,
+.fmea-table td select:focus {
   white-space: normal;
   word-wrap: break-word;
   overflow-wrap: break-word;
@@ -1124,8 +1128,9 @@ input[type="checkbox"]:focus {
   gap: var(--space-xs);
   min-width: 0;
   max-width: 100%;
-  white-space: normal;
-  word-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .field-help {
@@ -1210,8 +1215,7 @@ input[type="checkbox"]:focus {
 .table-scroll {
   position: relative;
   height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 .table-loading {
@@ -1241,9 +1245,10 @@ input[type="checkbox"]:focus {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0;
-  white-space: normal;
-  word-wrap: break-word;
-  vertical-align: bottom;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .fmea-table thead {
@@ -1383,8 +1388,10 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table .col-included {
-  min-width: 48px;
-  max-width: 60px;
+  width: 50px;
+  min-width: 50px;
+  max-width: 50px;
+  text-align: center;
 }
 
 .fmea-table .col-function {
