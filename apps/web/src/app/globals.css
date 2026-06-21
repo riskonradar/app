@@ -1413,7 +1413,7 @@ input[type="checkbox"]:focus {
 }
 
 .component-section-row td {
-  padding: 8px 12px;
+  padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--color-border-strong);
 }
 
@@ -1422,7 +1422,7 @@ input[type="checkbox"]:focus {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin-right: 8px;
+  margin-right: var(--space-sm);
 }
 
 .component-section-row span:last-child {
@@ -1432,7 +1432,7 @@ input[type="checkbox"]:focus {
 .component-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -1440,8 +1440,8 @@ input[type="checkbox"]:focus {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
   transition: background 150ms var(--ease-out);
 }
 
@@ -1462,16 +1462,16 @@ input[type="checkbox"]:focus {
 .component-name {
   color: var(--color-accent);
   font-weight: 600;
-  margin-left: 12px;
+  margin-left: var(--space-md);
 }
 
 .auth-page {
   display: grid;
   min-height: 100vh;
   place-items: center;
-  gap: 16px;
+  gap: var(--space-lg);
   background: var(--color-bg);
-  padding: 96px 24px;
+  padding: var(--space-4xl) var(--space-xl);
 }
 
 .auth-page h1 {
