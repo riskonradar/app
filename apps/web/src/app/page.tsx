@@ -220,24 +220,24 @@ const componentRank = new Map(turbofanComponents.map((component, index) => [comp
 const componentFamilies: Array<[RegExp, string | null]> = [
   [/\b(genx|tfe731|turbofan engine|turbo fan engine|aero engine|aero-engine)\b/i, null],
   [/\b(bearing|bearings)\b/i, "Bearing"],
-  [/\b(combustor|combustion chamber)\b/i, "Combustor"],
+  [/\b(combustor|combustion chamber|combustion outer liner)\b/i, "Combustor"],
   [/\b(inlet|intake|nose cowl|air intake|duct liner)\b/i, "Engine inlet / intake"],
-  [/\b(engine mount|mounts?)\b/i, "Engine mount"],
+  [/\b(engine mount|engine support|support looseness|mounts?)\b/i, "Engine mount"],
   [/\b(exhaust|thrust reverser|muffler|noise suppressor)\b/i, "Exhaust"],
-  [/\b(fan blade|fan blades|fan hub|fan rotor|fan disc|fan disk)\b/i, "Fan / fan blade"],
+  [/\b(fan blade|fan blades|turbofan blade|fan hub|engine fan hub|fan rotor|fan stage|fan stator|mistuned fan|variable pitch fan|fan disc|fan disk)\b/i, "Fan / fan blade"],
   [/\b(fan case|fan casing|fan containment|fan cowl)\b/i, "Fan case"],
   [/\b(gearbox|gear box|accessory gearbox|reduction gearbox|gear)\b/i, "Gearbox / accessory gearbox"],
   [/\b(high[- ]pressure compressor|hpc|compressor blade)\b/i, "High-pressure compressor"],
-  [/\b(high[- ]pressure turbine|hpt|hp turbine|turbine blade|turbine disk|turbine disc|disk posts?)\b/i, "High-pressure turbine"],
+  [/\b(high[- ]pressure turbine|hpt|hp turbine|turbine blade|turbine components?|turbine disk|turbine disc|disk posts?|firtree)\b/i, "High-pressure turbine"],
   [/\b(low[- ]pressure compressor|lpc)\b/i, "Low-pressure compressor"],
   [/\b(low[- ]pressure turbine|lpt|lp turbine)\b/i, "Low-pressure turbine"],
   [/\b(nacelle|cowling|cowl)\b/i, "Nacelle"],
   [/\b(fuel nozzle|fuel injector|injector|nozzle|fuel manifold|fuel metering)\b/i, "Nozzle / fuel injector"],
-  [/\b(oil system|lubrication|engine oil|oil filter)\b/i, "Oil system / lubrication"],
+  [/\b(oil system|lubrication|lubricant|engine oil|oil filter|oil strainer|air\/oil|heat exchanger)\b/i, "Oil system / lubrication"],
   [/\b(oil pump|fuel pump|scavenge pump|pump)\b/i, "Pump"],
   [/\b(air seal|sealing ring|seal|seals)\b/i, "Seal"],
-  [/\b(fadec|eec|electronic engine control|engine controls?|sensor|sensors|actuator|actuators|instrumentation)\b/i, "Sensor / instrumentation"],
-  [/\b(inter[- ]shaft|rotor shaft|compressor shaft|shaft|spool)\b/i, "Shaft"],
+  [/\b(fadec|eec|electronic engine control|engine controls?|sensor|sensors|actuator|actuators|variable geometry|instrumentation)\b/i, "Sensor / instrumentation"],
+  [/\b(inter[- ]shaft|rotor shaft|compressor shaft|dual-rotor|turbofan rotor|shaft|spool)\b/i, "Shaft"],
   [/\b(operability bleed valve|obv|bleed valve|valve|valves|bypass valve)\b/i, "Valve"],
 ];
 
@@ -998,9 +998,10 @@ export default function Home() {
     try {
       if (systemId === "turbofan") {
         const liveDataset = await fetchLiveTurbofanDataset();
+        const nextRows = toFmeaRows(liveDataset.rows);
         setRowFilter("all");
-        setRows(toFmeaRows(liveDataset.rows));
-        setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${liveDataset.rowCount} assembled FMEA rows.`);
+        setRows(nextRows);
+        setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${nextRows.length} merged FMEA rows.`);
       } else {
         setRowFilter("all");
         setRows(templateRowsForComponents(nextSystem.components));
