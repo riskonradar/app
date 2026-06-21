@@ -26,6 +26,17 @@
   --font-display: "Barlow Condensed", "Barlow-Condensed-Fallback", system-ui,
     -apple-system, sans-serif;
 
+  /* Spacing scale (4pt base) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+  --space-4xl: 64px;
+  --space-5xl: 96px;
+
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -331,16 +342,17 @@ button:disabled {
 
 .workspace-start-grid {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 18px;
   padding: 0 24px 32px;
-  max-width: 600px;
-  margin: 0 auto;
 }
 
 .workspace-start-panel,
 .dropzone {
   min-height: 226px;
+  flex: 1;
+  min-width: 280px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-deep);
