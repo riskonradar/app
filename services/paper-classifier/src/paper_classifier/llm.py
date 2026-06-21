@@ -115,7 +115,9 @@ Return only valid JSON with this shape:
       "relationship_type": "has_failure_mode" | "caused_by" | "has_effect" | "mitigated_by" | "detected_by" | "has_context" | "corrected_by" | "analysed_by",
       "object_claim_index": 1,
       "support_type": "direct_span" | "inferred_from_span",
-      "confidence": 0.0
+      "confidence": 0.0,
+      "relationship_evidence_text": "exact quote from title or abstract supporting this relationship",
+      "inference_rationale": "required only for inferred_from_span"
     }}
   ]
 }}
@@ -140,8 +142,24 @@ Rules:
 - Do not invent unsupported claims.
 - Direct claims must use evidence_text copied exactly from the title or abstract.
 - Inferred claims must still cite evidence_text and include inference_rationale.
+- Direct relationships must use relationship_evidence_text copied exactly from the title or abstract.
+- Inferred relationships must still cite relationship_evidence_text and include inference_rationale.
 - Prefer atomic claims: one fact per claim row.
 - If the paper has no failure analysis content, return not_relevant with no claims.
+- Return possibly_relevant, not relevant, for RUL/prognostics/model-only papers unless they name a concrete component failure mode, cause, effect, control, detection method, or maintenance action.
+- Return not_relevant for non-aviation wind turbine, power plant, steam turbine, natural gas pipeline, or generic compressor papers unless they explicitly discuss turbofan/aero/aircraft/jet engine applicability.
+
+Relationship direction rules:
+- component -> has_failure_mode -> failure_mode
+- failure_mode -> caused_by -> cause
+- failure_mode -> has_effect -> effect
+- failure_mode -> mitigated_by -> control
+- failure_mode -> detected_by -> detection_method
+- failure_mode -> corrected_by -> corrective_action
+- failure_mode -> analysed_by -> analysis_method
+- component or failure_mode -> has_context -> application, operating_context, material, or environment
+- Never reverse analysed_by: analysis_method is the object, not the subject.
+- Never use mitigation/control as the subject of mitigated_by; failure_mode is the subject.
 
 Paper:
 DOI: {paper.doi or ""}
@@ -305,7 +323,7 @@ def _result_from_payload(paper: Paper, payload: dict[str, Any], config: LlmConfi
 
     relationships: list[ClaimRelationship] = []
     for raw_relationship in payload.get("relationships", []):
-        relationship = _relationship_from_payload(raw_relationship, len(claims))
+        relationship = _relationship_from_payload(raw_relationship, claims)
         if relationship is not None:
             relationships.append(relationship)
 
@@ -364,7 +382,10 @@ def _claim_from_payload(paper: Paper, raw_claim: Any) -> EvidenceClaim | None:
     )
 
 
-def _relationship_from_payload(raw_relationship: Any, claim_count: int) -> ClaimRelationship | None:
+def _relationship_from_payload(
+    raw_relationship: Any,
+    claims: list[EvidenceClaim],
+) -> ClaimRelationship | None:
     if not isinstance(raw_relationship, dict):
         return None
     try:
@@ -374,16 +395,58 @@ def _relationship_from_payload(raw_relationship: Any, claim_count: int) -> Claim
         support_type = SupportType(raw_relationship.get("support_type"))
     except (TypeError, ValueError):
         return None
-    if not (0 <= subject_index < claim_count and 0 <= object_index < claim_count):
+    if not (0 <= subject_index < len(claims) and 0 <= object_index < len(claims)):
         return None
+    if not _relationship_direction_is_valid(
+        claims[subject_index].claim_type,
+        relationship_type,
+        claims[object_index].claim_type,
+    ):
+        return None
+    metadata = {"extractor": "llm"}
+    relationship_evidence_text = _clean_text(raw_relationship.get("relationship_evidence_text"))
+    inference_rationale = _clean_text(raw_relationship.get("inference_rationale"))
+    if relationship_evidence_text:
+        metadata["relationship_evidence_text"] = relationship_evidence_text
+    if inference_rationale:
+        metadata["inference_rationale"] = inference_rationale
     return ClaimRelationship(
         subject_index=subject_index,
         relationship_type=relationship_type,
         object_index=object_index,
         support_type=support_type,
         confidence=_bounded_float(raw_relationship.get("confidence"), default=0.4),
-        metadata={"extractor": "llm"},
+        metadata=metadata,
     )
+
+
+def _relationship_direction_is_valid(
+    subject_type: ClaimType,
+    relationship_type: RelationshipType,
+    object_type: ClaimType,
+) -> bool:
+    if relationship_type == RelationshipType.HAS_FAILURE_MODE:
+        return subject_type == ClaimType.COMPONENT and object_type == ClaimType.FAILURE_MODE
+    if relationship_type == RelationshipType.CAUSED_BY:
+        return subject_type == ClaimType.FAILURE_MODE and object_type == ClaimType.CAUSE
+    if relationship_type == RelationshipType.HAS_EFFECT:
+        return subject_type == ClaimType.FAILURE_MODE and object_type == ClaimType.EFFECT
+    if relationship_type == RelationshipType.MITIGATED_BY:
+        return subject_type == ClaimType.FAILURE_MODE and object_type == ClaimType.CONTROL
+    if relationship_type == RelationshipType.DETECTED_BY:
+        return subject_type == ClaimType.FAILURE_MODE and object_type == ClaimType.DETECTION_METHOD
+    if relationship_type == RelationshipType.CORRECTED_BY:
+        return subject_type == ClaimType.FAILURE_MODE and object_type == ClaimType.CORRECTIVE_ACTION
+    if relationship_type == RelationshipType.ANALYSED_BY:
+        return subject_type == ClaimType.FAILURE_MODE and object_type == ClaimType.ANALYSIS_METHOD
+    if relationship_type == RelationshipType.HAS_CONTEXT:
+        return subject_type in {ClaimType.COMPONENT, ClaimType.FAILURE_MODE} and object_type in {
+            ClaimType.APPLICATION,
+            ClaimType.OPERATING_CONTEXT,
+            ClaimType.MATERIAL,
+            ClaimType.ENVIRONMENT,
+        }
+    return False
 
 
 def _bounded_float(value: Any, default: float) -> float:
@@ -397,7 +460,12 @@ def _bounded_float(value: Any, default: float) -> float:
 def _clean_text(value: Any) -> str | None:
     if value is None:
         return None
-    text = str(value).strip()
+    text = str(value).replace("\x00", "")
+    text = "".join(
+        character
+        for character in text
+        if character in {"\n", "\r", "\t"} or ord(character) >= 32
+    ).strip()
     if text.lower() == "null":
         return None
     return text or None
