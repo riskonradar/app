@@ -1,12 +1,14 @@
-import { getCurrentClerkUserId } from "@/lib/auth/server";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { ensureCurrentWorkspace } from "@/lib/account/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 const VALID_STATUSES = ["accepted", "rejected", "edited", "needs_review"] as const;
 type ReviewStatus = (typeof VALID_STATUSES)[number];
 
 export async function POST(request: Request) {
-  const userId = await getCurrentClerkUserId();
-  if (!userId) {
+  const workspace = await ensureCurrentWorkspace();
+  if (!workspace) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -25,14 +27,20 @@ export async function POST(request: Request) {
   }
 
   const supabase = getSupabaseServiceClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase.rpc as any)("update_evidence_review_status", {
-    p_claim_id: claimId,
-    p_status: status,
-  });
+  const { error } = await (supabase as any).schema("app")
+    .from("evidence_claim_reviews")
+    .upsert(
+      {
+        organization_id: workspace.organization.id,
+        evidence_claim_id: claimId,
+        reviewer_user_account_id: workspace.userAccount.id,
+        review_status: status,
+      },
+      { onConflict: "organization_id,evidence_claim_id" },
+    );
 
   if (error) {
-    console.error("update_evidence_review_status error:", error);
+    console.error("evidence_claim_reviews upsert error:", error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 

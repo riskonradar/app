@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { AppNav } from "@/components/app-nav";
 
-export default function BillingReturnPage() {
+function BillingReturnContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -83,9 +84,9 @@ export default function BillingReturnPage() {
             <>
               <p className="notice success">{message}</p>
               <div className="page-actions">
-                <a href="/dashboard" className="btn btn-primary btn-sm">
+                <Link href="/dashboard" className="btn btn-primary btn-sm">
                   Go to Dashboard
-                </a>
+                </Link>
               </div>
             </>
           )}
@@ -94,17 +95,36 @@ export default function BillingReturnPage() {
             <>
               <p className="notice error">{message}</p>
               <div className="page-actions">
-                <a href="/pricing" className="btn btn-primary btn-sm">
+                <Link href="/pricing" className="btn btn-primary btn-sm">
                   Try Again
-                </a>
-                <a href="/" className="btn btn-secondary btn-sm">
+                </Link>
+                <Link href="/" className="btn btn-secondary btn-sm">
                   Back to Home
-                </a>
+                </Link>
               </div>
             </>
           )}
         </section>
       </main>
     </div>
+  );
+}
+
+export default function BillingReturnPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="app-shell">
+          <AppNav />
+          <main className="app-main">
+            <section className="page-card">
+              <p className="notice">Loading payment status...</p>
+            </section>
+          </main>
+        </div>
+      }
+    >
+      <BillingReturnContent />
+    </Suspense>
   );
 }

@@ -7,11 +7,15 @@ import {
   type ColumnDef,
   flexRender,
 } from "@tanstack/react-table";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
+import detectionReference from "@/data/fmea-detection-reference.json";
+import occurrenceReference from "@/data/fmea-occurrence-reference.json";
+import severityReference from "@/data/fmea-severity-reference.json";
+import propagationPaths from "@/data/turbofan-propagation-paths.json";
 
 type Source = {
   title: string;
@@ -171,6 +175,23 @@ const fieldHelp: Record<string, string> = {
   status: "Human review state for this row.",
 };
 
+const worksheetColumnSpecs = [
+  { id: "included", size: 38 },
+  { id: "function", size: 120 },
+  { id: "requirement", size: 135 },
+  { id: "failureMode", size: 130 },
+  { id: "effect", size: 120 },
+  { id: "severity", size: 44 },
+  { id: "cause", size: 120 },
+  { id: "occurrence", size: 44 },
+  { id: "currentControl", size: 120 },
+  { id: "detection", size: 44 },
+  { id: "rpn", size: 54 },
+  { id: "correctiveAction", size: 120 },
+  { id: "evidence", size: 86 },
+  { id: "status", size: 104 },
+] as const;
+
 function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
   return `${row.component}-${row.failureMode}-${index}`
     .toLowerCase()
@@ -245,16 +266,6 @@ function templateRowsForComponents(components: string[]): FmeaRow[] {
   );
 }
 
-function normalizeComponentList(components: string[]) {
-  return Array.from(
-    new Set(
-      components
-        .map((component) => component.trim())
-        .filter(Boolean),
-    ),
-  );
-}
-
 function parseBom(text: string) {
   return Array.from(
     new Set(
@@ -313,6 +324,7 @@ function rowRpn(row: FmeaRow) {
   const s = Number(row.severity);
   const o = Number(row.occurrence);
   const d = Number(row.detection);
+  if (row.rpn) return row.rpn;
   if (!s || !o || !d) return "";
   return String(s * o * d);
 }
@@ -446,17 +458,14 @@ export default function Home() {
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [selectionStep, setSelectionStep] = useState<SelectionStep>("initial");
   const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(bundledTurbofanData.rows));
-  const [turbofanDataset, setTurbofanDataset] = useState<FmeaDataset>(bundledTurbofanData);
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("all");
   const [componentQuery, setComponentQuery] = useState("");
   const [selectedSystemId, setSelectedSystemId] = useState("turbofan");
-  const [manualComponent, setManualComponent] = useState("");
   const [manualComponents, setManualComponents] = useState<string[]>([]);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
   const [notice, setNotice] = useState("Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
@@ -469,18 +478,12 @@ export default function Home() {
   const [componentDropdownOpen, setComponentDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const rowsPerPage = 20;
   const [cellViewer, setCellViewer] = useState<{ rowId: string; field: string; value: string } | null>(null);
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
   );
-  const selectedSystem = systemTemplates.find((system) => system.id === selectedSystemId);
-  const selectedSystemSource =
-    selectedSystemId === "turbofan"
-      ? `${turbofanDataset.recordCount} classified turbofan records; ${turbofanDataset.relevantRecordCount ?? 0} records with FMEA links; ${turbofanDataset.rowCount} assembled rows`
-      : selectedSystem?.source;
-
   const visibleRows = useMemo(
     () =>
       rows.filter((row) => {
@@ -518,9 +521,6 @@ export default function Home() {
   useEffect(() => {
     setCurrentPage(1);
   }, [componentFilter, componentQuery, rowFilter]);
-
-  // Group visible rows by component for tree structure
-  const groupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
 
   // Initialize all components as expanded
   useEffect(() => {
@@ -564,10 +564,6 @@ export default function Home() {
     setCellViewer({ rowId, field, value });
   }
 
-  function closeCellViewer() {
-    setCellViewer(null);
-  }
-
   function saveCellViewer(newValue: string) {
     if (!cellViewer) return;
     const fieldMap: Record<string, keyof FmeaRow> = {
@@ -585,7 +581,7 @@ export default function Home() {
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: globalThis.MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setComponentDropdownOpen(false);
       }
@@ -616,19 +612,25 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    let ignore = false;
-    fetchLiveTurbofanDataset()
-      .then((dataset) => {
-        if (!ignore) setTurbofanDataset(dataset);
-      })
-      .catch(() => {
-        // The bundled snapshot remains available when Supabase is unreachable.
-      });
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  const saveFmea = useCallback(() => {
+    setIsSaving(true);
+    window.setTimeout(() => {
+      try {
+        localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
+        const now = new Date().toLocaleString();
+        localStorage.setItem("riskonradar-fmea-saved-at", now);
+        setLastSavedAt(now);
+        setHasUnsavedChanges(false);
+        setNotice("FMEA saved successfully.");
+        setTimeout(() => setNotice(""), 3000);
+      } catch {
+        setNotice("Failed to save FMEA data.");
+        setTimeout(() => setNotice(""), 3000);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 150);
+  }, [rows]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -663,7 +665,7 @@ export default function Home() {
       // Ctrl+A to select all visible rows
       if ((event.ctrlKey || event.metaKey) && event.key === "a") {
         event.preventDefault();
-        const newSelection = new Set(visibleRows.map(row => row.id));
+        const newSelection = new Set(visibleRows.map((row) => row.id));
         setSelectedRowIds(newSelection);
       }
 
@@ -672,7 +674,7 @@ export default function Home() {
         if ((event.target as HTMLElement | null)?.closest("input, textarea, select")) return;
         event.preventDefault();
         if (confirm(`Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? "" : "s"}?`)) {
-          setRows(currentRows => currentRows.filter(row => !selectedRowIds.has(row.id)));
+          setRows((currentRows) => currentRows.filter((row) => !selectedRowIds.has(row.id)));
           setSelectedRowIds(new Set());
           setHasUnsavedChanges(true);
         }
@@ -681,12 +683,12 @@ export default function Home() {
       // Ctrl+D to toggle include on selected rows
       if ((event.ctrlKey || event.metaKey) && event.key === "d") {
         event.preventDefault();
-        setRows(currentRows => 
-          currentRows.map(row => 
-            selectedRowIds.has(row.id) 
+        setRows((currentRows) =>
+          currentRows.map((row) =>
+            selectedRowIds.has(row.id)
               ? { ...row, included: !row.included }
-              : row
-          )
+              : row,
+          ),
         );
         setHasUnsavedChanges(true);
       }
@@ -696,7 +698,7 @@ export default function Home() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedSourceRow, showExportDropdown, visibleRows, selectedRowIds, focusedCellId, showHelpModal, rows, cellViewer]);
+  }, [selectedSourceRow, showExportDropdown, visibleRows, selectedRowIds, focusedCellId, showHelpModal, cellViewer, saveFmea]);
 
   const isLoading = loadingAction !== null;
 
@@ -716,16 +718,16 @@ export default function Home() {
     }
   }
 
-  function focusCell(rowId: string, field: EditableField) {
+  const focusCell = useCallback((rowId: string, field: EditableField) => {
     const target = cellRefs.current.get(`${rowId}:${field}`);
     target?.focus();
-  }
+  }, []);
 
-  function handleTableCellKeyDown(
+  const handleTableCellKeyDown = useCallback((
     event: ReactKeyboardEvent<HTMLElement>,
     rowId: string,
     field: EditableField,
-  ) {
+  ) => {
     if (event.key !== "Tab") return;
     const rowIndex = visibleRows.findIndex((row) => row.id === rowId);
     const fieldIndex = editableFields.indexOf(field);
@@ -739,11 +741,11 @@ export default function Home() {
     const nextRow = visibleRows[Math.floor(clampedIndex / editableFields.length)];
     const nextField = editableFields[clampedIndex % editableFields.length];
     if (nextRow && nextField) focusCell(nextRow.id, nextField);
-  }
+  }, [focusCell, visibleRows]);
 
-  function editableCellClass(rowId: string, field: EditableField) {
+  const editableCellClass = useCallback((rowId: string, field: EditableField) => {
     return focusedCellId === `${rowId}:${field}` ? "cell-focused" : "";
-  }
+  }, [focusedCellId]);
 
   function toggleRowSelection(rowId: string, event: MouseEvent | ReactKeyboardEvent) {
     if (event.ctrlKey || event.metaKey) {
@@ -798,12 +800,6 @@ export default function Home() {
     importBomFile(file);
   }
 
-  function handleManualComponentChange(component: string) {
-    if (!component) return;
-    setManualComponent(component);
-    setManualComponents((current) => normalizeComponentList([...current, component]));
-  }
-
   function startManualWorksheet() {
     const nextComponents = manualComponents.length ? manualComponents : components.slice(0, 5);
     setRows(templateRowsForComponents(nextComponents));
@@ -835,7 +831,6 @@ export default function Home() {
     try {
       if (systemId === "turbofan") {
         const liveDataset = await fetchLiveTurbofanDataset();
-        setTurbofanDataset(liveDataset);
         setRowFilter("all");
         setRows(toFmeaRows(liveDataset.rows));
         setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${liveDataset.rowCount} assembled FMEA rows.`);
@@ -846,7 +841,7 @@ export default function Home() {
       }
       setSelectionStep("table");
       setHasUnsavedChanges(true);
-    } catch (error) {
+    } catch {
       if (systemId === "turbofan") {
         setRowFilter("all");
         setRows(toFmeaRows(bundledTurbofanData.rows));
@@ -892,37 +887,18 @@ export default function Home() {
     }, 100);
   }
 
-  function saveFmea() {
-    setIsSaving(true);
-    window.setTimeout(() => {
-      try {
-        localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
-        const now = new Date().toLocaleString();
-        localStorage.setItem("riskonradar-fmea-saved-at", now);
-        setLastSavedAt(now);
-        setHasUnsavedChanges(false);
-        setNotice("FMEA saved successfully.");
-        setTimeout(() => setNotice(""), 3000);
-      } catch (error) {
-        setNotice("Failed to save FMEA data.");
-        setTimeout(() => setNotice(""), 3000);
-      } finally {
-        setIsSaving(false);
-      }
-    }, 150);
-  }
-
   function HeaderLabel({ field, label }: { field: string; label: string }) {
     return (
       <span className="header-label">
         {label}
-        <span
+        <button
+          type="button"
           className="field-help"
-          title={fieldHelp[field]}
+          aria-label={`${label}: ${fieldHelp[field]}`}
           data-tooltip={fieldHelp[field]}
         >
           ?
-        </span>
+        </button>
       </span>
     );
   }
@@ -946,31 +922,31 @@ export default function Home() {
             onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "included")}
           />
         ),
-        size: 50,
+        size: 38,
       },
       {
         accessorKey: "component",
         header: () => <HeaderLabel field="component" label="Component" />,
         cell: ({ row }) => <span className="visually-hidden">{row.original.component}</span>,
-        size: 200,
+        size: 120,
       },
       {
         accessorKey: "function",
         header: () => <HeaderLabel field="function" label="Function" />,
         cell: ({ row }) => <span>{row.original.function}</span>,
-        size: 250,
+        size: 120,
       },
       {
         accessorKey: "requirement",
         header: () => <HeaderLabel field="requirement" label="Requirement" />,
         cell: ({ row }) => <span>{row.original.requirement}</span>,
-        size: 300,
+        size: 135,
       },
       {
         accessorKey: "failureMode",
         header: () => <HeaderLabel field="failureMode" label="Failure Mode" />,
         cell: ({ row }) => <span>{row.original.failureMode}</span>,
-        size: 200,
+        size: 130,
       },
       {
         accessorKey: "effect",
@@ -987,7 +963,7 @@ export default function Home() {
             title={row.original.effect || "Click to edit"}
           />
         ),
-        size: 250,
+        size: 120,
       },
       {
         accessorKey: "severity",
@@ -1011,7 +987,7 @@ export default function Home() {
             ))}
           </select>
         ),
-        size: 60,
+        size: 44,
       },
       {
         accessorKey: "cause",
@@ -1028,7 +1004,7 @@ export default function Home() {
             title={row.original.cause || "Click to edit"}
           />
         ),
-        size: 250,
+        size: 120,
       },
       {
         accessorKey: "occurrence",
@@ -1052,7 +1028,7 @@ export default function Home() {
             ))}
           </select>
         ),
-        size: 60,
+        size: 44,
       },
       {
         accessorKey: "currentControl",
@@ -1069,7 +1045,7 @@ export default function Home() {
             title={row.original.currentControl || "Click to edit"}
           />
         ),
-        size: 250,
+        size: 120,
       },
       {
         accessorKey: "detection",
@@ -1093,13 +1069,13 @@ export default function Home() {
             ))}
           </select>
         ),
-        size: 60,
+        size: 44,
       },
       {
         accessorKey: "rpn",
         header: () => <HeaderLabel field="rpn" label="RPN" />,
-        cell: ({ row }) => <span className="rpn-value">{rowRpn(row.original)}</span>,
-        size: 80,
+        cell: ({ row }) => <span className="rpn-value">{rowRpn(row.original) || "-"}</span>,
+        size: 54,
       },
       {
         accessorKey: "correctiveAction",
@@ -1116,7 +1092,7 @@ export default function Home() {
             title={row.original.correctiveAction || "Click to edit"}
           />
         ),
-        size: 250,
+        size: 120,
       },
       {
         id: "evidence",
@@ -1134,7 +1110,7 @@ export default function Home() {
             {row.original.evidenceCount || row.original.sources.length} sources
           </button>
         ),
-        size: 120,
+        size: 86,
       },
       {
         accessorKey: "status",
@@ -1157,14 +1133,15 @@ export default function Home() {
             <option value="rejected">Rejected</option>
           </select>
         ),
-        size: 120,
+        size: 104,
       },
     ],
-    [focusedCellId, visibleRows],
+    [editableCellClass, handleTableCellKeyDown],
   );
 
   const visibleColumnCount = columns.length - 1;
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: visibleRows,
     columns,
@@ -1184,11 +1161,7 @@ export default function Home() {
         <main id="main-content" className="app-main">
           <section className="workflow-card">
             <div className="page-heading workspace-start-heading">
-              <span className="metric-label">FMEA Workspace</span>
-              <h1>Start your reliability analysis</h1>
-              <p>
-                Upload a component file, select a known system, or pick components manually.
-              </p>
+              <h1>Select a system, BOM, or components for analysis</h1>
             </div>
 
             <div className="workspace-start-grid">
@@ -1207,12 +1180,6 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
-                <p>
-                  {selectedSystem?.description}
-                </p>
-                <span>
-                  {selectedSystemSource}
-                </span>
                 <button
                   className="btn btn-primary btn-full"
                   type="button"
@@ -1234,6 +1201,8 @@ export default function Home() {
                     className="text-input"
                     style={{ textAlign: "left", cursor: "pointer" }}
                     onClick={() => setComponentDropdownOpen(!componentDropdownOpen)}
+                    aria-expanded={componentDropdownOpen}
+                    aria-controls="manual-component-list"
                   >
                     {manualComponents.length > 0
                       ? `${manualComponents.length} component${manualComponents.length === 1 ? "" : "s"} selected`
@@ -1242,7 +1211,7 @@ export default function Home() {
                     <span style={{ float: "right", fontSize: "0.8rem" }}>▼</span>
                   </button>
                   {componentDropdownOpen && (
-                    <div className="component-dropdown">
+                    <div id="manual-component-list" className="component-dropdown" role="group" aria-label="Available components">
                       {components.map((component) => (
                         <label key={component} className="dropdown-option">
                           <input
@@ -1270,7 +1239,6 @@ export default function Home() {
                       </button>
                     </span>
                   ))}
-                  {manualComponents.length === 0 && <span>No components selected yet</span>}
                 </div>
                 <button
                   className="btn btn-secondary btn-full"
@@ -1290,7 +1258,6 @@ export default function Home() {
                 disabled={isLoading}
               >
                 <strong>{isLoading ? "Processing..." : "Drop BOM or component list here"}</strong>
-                <span>CSV, TSV, or text. The first column is treated as component name.</span>
               </button>
 
               <input
@@ -1380,18 +1347,28 @@ export default function Home() {
                   onClick={() => setShowExportDropdown(!showExportDropdown)}
                   className="btn btn-primary btn-sm"
                   type="button"
-                  disabled={isExporting}
+                  disabled={isExporting || !canExport}
+                  aria-describedby={!canExport ? "export-disabled-reason" : undefined}
                 >
                   {isExporting ? "Exporting..." : "Export"}
                 </button>
+                {!canExport && (
+                  <span id="export-disabled-reason" className="visually-hidden">
+                    Complete required fields for included rows before exporting.
+                  </span>
+                )}
                 {showExportDropdown && (
-                  <div className="export-dropdown">
+                  <div className="export-dropdown" role="menu" aria-label="Export formats">
                     <button
+                      type="button"
+                      role="menuitem"
                       onClick={() => exportData("excel")}
                     >
                       Export as Excel
                     </button>
                     <button
+                      type="button"
+                      role="menuitem"
                       onClick={() => exportData("csv")}
                     >
                       Export as CSV
@@ -1401,13 +1378,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-          {/* Validation Error */}
-          {validationError && (
-            <div className="validation-error">
-              {validationError}
-            </div>
-          )}
 
           {/* Worksheet Controls */}
           <div className="worksheet-controls">
@@ -1485,7 +1455,7 @@ export default function Home() {
 
           {/* Notice */}
           {notice && (
-            <p className="notice">{notice}</p>
+            <p className="notice" role="status" aria-live="polite">{notice}</p>
           )}
 
           {/* Table */}
@@ -1499,6 +1469,15 @@ export default function Home() {
                 </div>
               )}
               <table className={`fmea-table ${focusedCellId ? "focus-mode" : ""}`}>
+                <colgroup>
+                  {worksheetColumnSpecs.map((column) => (
+                    <col
+                      key={column.id}
+                      className={`col-${column.id}`}
+                      style={{ width: `${column.size}px` }}
+                    />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr className="column-group-row">
                     <th colSpan={4}>Component details</th>
@@ -1609,6 +1588,125 @@ export default function Home() {
               </div>
             )}
           </div>
+        </section>
+
+        <section className="reference-section" aria-label="Scoring references">
+          <details className="reference-disclosure">
+            <summary>Severity scoring guide</summary>
+            <div className="reference-table-wrap">
+              <table className="reference-table severity-guide-table">
+                <thead>
+                  <tr>
+                    <th>S</th>
+                    <th>Class</th>
+                    <th>System effect</th>
+                    <th>Guidance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {severityReference.map((item) => (
+                    <tr key={item.score}>
+                      <td>{item.score}</td>
+                      <td>{item.classification}</td>
+                      <td>{item.systemEffect}</td>
+                      <td>{item.scoringGuidance}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details className="reference-disclosure">
+            <summary>Occurrence scoring guide</summary>
+            <p className="reference-description">
+              Proposed O uses weighted evidence count plus a cause modifier. EASA AD records count as
+              2 evidence points, journal papers count as 1. Recurring degradation causes can add 1;
+              event-dependent causes such as bird strike, FOD, or maintenance error can subtract 1.
+            </p>
+            <div className="reference-table-wrap">
+              <table className="reference-table occurrence-guide-table">
+                <thead>
+                  <tr>
+                    <th>O</th>
+                    <th>Likelihood</th>
+                    <th>Weighted evidence</th>
+                    <th>Guidance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {occurrenceReference.map((item) => (
+                    <tr key={item.score}>
+                      <td>{item.score}</td>
+                      <td>{item.likelihood}</td>
+                      <td>{item.weightedEvidence}</td>
+                      <td>{item.scoringGuidance}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details className="reference-disclosure">
+            <summary>Detection scoring guide</summary>
+            <p className="reference-description">
+              Proposed D starts at 6. Clear inspection or monitoring terms subtract 2. EASA source
+              titles with inspection, check, test, or replacement subtract 1. Internal or latent
+              causes add 1. Sudden, event-dependent, or hard-to-predict failures add 2. The final
+              value is clamped from 1 to 10.
+            </p>
+            <div className="reference-table-wrap">
+              <table className="reference-table detection-guide-table">
+                <thead>
+                  <tr>
+                    <th>D</th>
+                    <th>Detectability</th>
+                    <th>Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detectionReference.map((item) => (
+                    <tr key={item.score}>
+                      <td>{item.score}</td>
+                      <td>{item.detectability}</td>
+                      <td>{item.meaning}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details className="reference-disclosure">
+            <summary>Severity propagation paths</summary>
+            <div className="reference-table-wrap">
+              <table className="reference-table propagation-table">
+                <thead>
+                  <tr>
+                    <th>Cause</th>
+                    <th>Component failure</th>
+                    <th>Local effect</th>
+                    <th>Engine effect</th>
+                    <th>Mission consequence</th>
+                    <th>S</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {propagationPaths.map((path) => (
+                    <tr key={`${path.cause}-${path.componentFailure}`}>
+                      <td>{path.cause}</td>
+                      <td>{path.componentFailure}</td>
+                      <td>{path.localEffect}</td>
+                      <td>{path.engineEffect}</td>
+                      <td>{path.aircraftMissionConsequence}</td>
+                      <td>{path.suggestedSeverity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </section>
       </main>
 

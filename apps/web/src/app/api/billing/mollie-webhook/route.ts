@@ -1,54 +1,49 @@
+import { persistMolliePayment, resolvePaymentUserAccountId } from "@/lib/billing/server";
 import { getMollieClient } from "@/lib/mollie/server";
-import { getSupabaseServiceClient } from "@/lib/supabase/server";
+
+function hasValidWebhookToken(request: Request) {
+  const secret = process.env.MOLLIE_WEBHOOK_SECRET;
+  if (!secret) {
+    return true;
+  }
+
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token") ?? request.headers.get("x-mollie-webhook-secret");
+  return token === secret;
+}
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
+  if (!hasValidWebhookToken(request)) {
+    return Response.json({ error: "Invalid webhook token." }, { status: 401 });
+  }
+
+  const formData = await request.formData().catch(() => null);
+  if (!formData) {
+    return Response.json({ error: "Expected Mollie form payload." }, { status: 400 });
+  }
+
   const paymentId = formData.get("id");
 
   if (!paymentId || typeof paymentId !== "string") {
     return Response.json({ error: "Missing Mollie payment id." }, { status: 400 });
   }
 
-  const payment = await getMollieClient().payments.get(paymentId);
-  const supabase = getSupabaseServiceClient();
-
-  // Extract metadata from payment
-  const metadata = payment.metadata as any;
-  const clerkUserId = metadata?.clerkUserId;
-  
-  if (!clerkUserId) {
-    return Response.json({ error: "Missing clerkUserId in payment metadata." }, { status: 400 });
+  let payment;
+  try {
+    payment = await getMollieClient().payments.get(paymentId);
+  } catch (error) {
+    console.error("Failed to fetch Mollie payment for webhook:", error);
+    return Response.json({ error: "Could not verify Mollie payment." }, { status: 502 });
   }
 
-  // Find user account by clerk user ID
-  const { data: userAccount, error: userError } = await supabase
-    .from("user_accounts")
-    .select("id")
-    .eq("clerk_user_id", clerkUserId)
-    .single() as any;
-
-  if (userError || !userAccount) {
-    return Response.json({ error: "User account not found." }, { status: 404 });
+  const userAccountId = await resolvePaymentUserAccountId(payment);
+  if (!userAccountId) {
+    return Response.json({ error: "Payment metadata does not reference a known user." }, { status: 202 });
   }
 
-  // Persist payment status to database
-  const { error: paymentError } = await supabase
-    .from("billing_payments")
-    .upsert({
-      user_account_id: userAccount.id,
-      mollie_payment_id: payment.id,
-      status: payment.status,
-      amount_value: parseFloat(payment.amount?.value || "0"),
-      amount_currency: payment.amount?.currency || "EUR",
-      checkout_url: payment._links.checkout?.href,
-      metadata: metadata || {},
-      updated_at: new Date().toISOString(),
-    }, {
-      onConflict: "mollie_payment_id",
-    });
-
-  if (paymentError) {
-    console.error("Failed to persist payment status:", paymentError);
+  const error = await persistMolliePayment(payment, userAccountId);
+  if (error) {
+    console.error("Failed to persist Mollie payment webhook:", error);
     return Response.json({ error: "Failed to persist payment status." }, { status: 500 });
   }
 

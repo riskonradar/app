@@ -5,29 +5,32 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { AppNav } from "@/components/app-nav";
+import { type BillingPlanKey, billingPlans } from "@/lib/billing/plans";
 
 export default function PricingPage() {
   const { isLoaded, isSignedIn } = useUser();
   const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
-  const [message, setMessage] = useState("Sign in to purchase the paid plan with Mollie.");
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey | null>(null);
+  const [message, setMessage] = useState(
+    "Individual is for pilots. Team is the default workspace plan for B2B engineering teams.",
+  );
 
-  async function upgradePlan() {
+  async function startCheckout(planKey: BillingPlanKey) {
     if (!isSignedIn) {
       setPaymentState("error");
+      setSelectedPlan(planKey);
       setMessage("Please sign in before opening Mollie checkout.");
       return;
     }
 
     setPaymentState("loading");
+    setSelectedPlan(planKey);
     setMessage("Opening Mollie checkout...");
     try {
       const response = await fetch("/api/billing/create-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amountValue: "49.00",
-          description: "Risk on Radar paid workspace",
-        }),
+        body: JSON.stringify({ planKey }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
         checkoutUrl?: string;
@@ -36,7 +39,7 @@ export default function PricingPage() {
       if (!response.ok || !payload.checkoutUrl) {
         throw new Error(payload.error || "Payment checkout is not available yet.");
       }
-      window.location.href = payload.checkoutUrl;
+      window.location.assign(payload.checkoutUrl);
     } catch (error) {
       setPaymentState("error");
       setMessage(error instanceof Error ? error.message : "Could not open Mollie checkout.");
@@ -46,29 +49,56 @@ export default function PricingPage() {
   return (
     <div className="app-shell">
       <AppNav />
-      <main className="app-main">
-        <section className="page-card pricing-card">
+      <main className="app-main pricing-main">
+        <section className="page-card pricing-card pricing-card-wide">
           <div className="page-heading">
             <span className="metric-label">Pricing</span>
-            <h1>Paid reliability workspace</h1>
+            <h1>Workspace plans for reliability teams</h1>
             <p>
-              Purchase access for saved FMEA projects, export workflows, review history, and future
-              team collaboration features.
+              Price around the reviewed engineering workflow, not paper counts or AI calls. Use
+              Individual for pilots, Team for shared FMEA review, and Enterprise when procurement
+              requires SSO or custom terms.
             </p>
           </div>
 
-          <div className="pricing-panel">
-            <div>
-              <span className="metric-label">Monthly</span>
-              <strong>EUR 49</strong>
-              <p>For engineering teams validating evidence-backed FMEA worksheets.</p>
-            </div>
-            <ul>
-              <li>Saved reliability projects</li>
-              <li>Evidence-linked FMEA exports</li>
-              <li>Review state and audit history</li>
-              <li>Dashboard project tracking</li>
-            </ul>
+          <div className="pricing-grid">
+            {billingPlans.map((plan) => (
+              <article key={plan.key} className={`pricing-plan ${plan.key === "team" ? "primary" : ""}`}>
+                <div>
+                  <span className="metric-label">{plan.name}</span>
+                  <strong>{plan.priceLabel}</strong>
+                  {plan.includedSeats ? (
+                    <small>{plan.includedSeats} included named seat{plan.includedSeats === 1 ? "" : "s"}</small>
+                  ) : (
+                    <small>Annual agreement</small>
+                  )}
+                  <p>{plan.description}</p>
+                </div>
+                <ul>
+                  {plan.features.map((feature) => (
+                    <li key={feature}>{feature}</li>
+                  ))}
+                </ul>
+                {plan.amountValue ? (
+                  <button
+                    className="btn btn-primary btn-sm btn-full"
+                    type="button"
+                    onClick={() => startCheckout(plan.key)}
+                    disabled={paymentState === "loading" && selectedPlan === plan.key}
+                  >
+                    {paymentState === "loading" && selectedPlan === plan.key
+                      ? "Opening checkout"
+                      : plan.key === "team"
+                        ? "Buy team plan"
+                        : "Buy individual"}
+                  </button>
+                ) : (
+                  <Link href="/account" className="btn btn-secondary btn-sm btn-full">
+                    Prepare enterprise setup
+                  </Link>
+                )}
+              </article>
+            ))}
           </div>
 
           <p className={`notice standalone ${paymentState === "error" ? "error" : ""}`}>
@@ -76,24 +106,18 @@ export default function PricingPage() {
           </p>
 
           <div className="page-actions">
-            {isSignedIn ? (
-              <button
-                className="btn btn-primary btn-sm"
-                type="button"
-                onClick={upgradePlan}
-                disabled={paymentState === "loading"}
-              >
-                {paymentState === "loading" ? "Opening checkout" : "Buy with Mollie"}
-              </button>
-            ) : (
+            {!isSignedIn && (
               <SignInButton mode="modal">
                 <button className="btn btn-primary btn-sm" type="button">
                   Sign in to buy
                 </button>
               </SignInButton>
             )}
-            <Link href="/" className="btn btn-secondary btn-sm">
-              Back to home
+            <Link href="/account" className="btn btn-secondary btn-sm">
+              Manage account
+            </Link>
+            <Link href="/dashboard" className="btn btn-secondary btn-sm">
+              Back to dashboard
             </Link>
           </div>
         </section>

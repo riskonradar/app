@@ -337,26 +337,28 @@ button:disabled {
 }
 
 .workspace-start-heading {
-  padding: var(--space-2xl) var(--space-xl) var(--space-lg);
+  padding: var(--space-xl) var(--space-xl) var(--space-md);
+}
+
+.workspace-start-heading h1 {
+  margin: 0;
 }
 
 .workspace-start-grid {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-xl);
-  padding: 0 var(--space-xl) var(--space-2xl);
+  padding: 0 var(--space-xl) var(--space-xl);
 }
 
 .workspace-start-panel,
 .dropzone {
-  min-height: 226px;
-  flex: 1;
-  min-width: 280px;
+  min-height: 190px;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-deep);
-  padding: var(--space-xl);
+  padding: var(--space-lg);
 }
 
 .workspace-start-panel {
@@ -367,8 +369,7 @@ button:disabled {
 }
 
 .workspace-start-panel p,
-.workspace-start-panel span,
-.dropzone span {
+.workspace-start-panel span {
   color: var(--color-text-muted);
   font-size: 0.9rem;
   line-height: 1.45;
@@ -384,7 +385,6 @@ button:disabled {
 }
 
 .dropzone {
-  grid-column: 1 / -1;
   display: grid;
   place-items: center;
   gap: var(--space-sm);
@@ -681,10 +681,11 @@ input[type="checkbox"]:focus {
 /* Table styling matching site design */
 .fmea-table {
   width: 100%;
+  min-width: 1279px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.875rem;
-  table-layout: auto;
+  font-size: 0.8rem;
+  table-layout: fixed;
 }
 
 .fmea-table th {
@@ -705,6 +706,17 @@ input[type="checkbox"]:focus {
 .fmea-table td {
   padding: var(--space-sm);
   vertical-align: middle;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fmea-table td > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fmea-table td input,
@@ -718,7 +730,8 @@ input[type="checkbox"]:focus {
   padding: var(--space-xs) var(--space-sm);
   transition: all 200ms ease;
   width: 100%;
-  min-width: 100px;
+  min-width: 0;
+  max-width: 100%;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -726,10 +739,8 @@ input[type="checkbox"]:focus {
 
 .fmea-table td input:focus,
 .fmea-table td select:focus {
-  white-space: normal;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  overflow: visible;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .fmea-table td input:hover,
@@ -781,20 +792,21 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-data-row td {
-  padding: var(--space-sm) var(--space-md);
+  padding: 7px 6px;
   color: var(--color-text);
   vertical-align: top;
 }
 
 .evidence-button {
   min-height: 30px;
+  width: 100%;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   background: rgba(232, 86, 52, 0.08);
   color: var(--color-accent);
   cursor: pointer;
-  padding: 0 var(--space-sm);
-  font-size: 0.78rem;
+  padding: 0 6px;
+  font-size: 0.72rem;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
@@ -908,6 +920,7 @@ input[type="checkbox"]:focus {
   min-width: 560px;
   border-collapse: collapse;
   font-size: 0.78rem;
+  table-layout: fixed;
 }
 
 .propagation-table {
@@ -945,11 +958,68 @@ input[type="checkbox"]:focus {
 .reference-table td {
   color: var(--color-text-muted);
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .reference-table td:first-child {
   color: var(--color-text);
   font-weight: 800;
+  width: 52px;
+}
+
+.reference-table th:first-child {
+  width: 52px;
+}
+
+@media (max-width: 900px) {
+  .grid-shell {
+    height: min(68vh, 640px);
+    min-height: 380px;
+    border-radius: var(--radius-md);
+  }
+
+  .fmea-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+  }
+
+  .fmea-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .table-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+  }
+
+  .pagination-controls {
+    margin-left: 0;
+  }
+
+  .reference-section {
+    padding-inline: var(--space-md);
+  }
+}
+
+@media (max-width: 640px) {
+  .fmea-table {
+    min-width: 1180px;
+    font-size: 0.76rem;
+  }
+
+  .component-name {
+    max-width: calc(100vw - 150px);
+    margin-left: var(--space-xs);
+  }
+
+  .reference-table {
+    min-width: 620px;
+  }
 }
 
 .source-dialog-backdrop {
@@ -1150,6 +1220,7 @@ input[type="checkbox"]:focus {
   font-size: 0.68rem;
   font-weight: 800;
   line-height: 1;
+  padding: 0;
   cursor: help;
   user-select: none;
   position: relative;
@@ -1175,7 +1246,8 @@ input[type="checkbox"]:focus {
   transition: opacity 150ms var(--ease-out);
 }
 
-.field-help:hover::after {
+.field-help:hover::after,
+.field-help:focus-visible::after {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1219,8 +1291,9 @@ input[type="checkbox"]:focus {
 .table-scroll {
   position: relative;
   height: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .table-loading {
@@ -1242,7 +1315,7 @@ input[type="checkbox"]:focus {
   top: 0;
   background: var(--color-deep);
   z-index: 5;
-  padding: var(--space-sm) var(--space-sm);
+  padding: 8px 6px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text-muted);
@@ -1315,8 +1388,7 @@ input[type="checkbox"]:focus {
 .fmea-table input:focus,
 .fmea-table select:focus,
 .fmea-table textarea:focus {
-  transform: scale(1.02);
-  transition: transform 150ms var(--ease-out);
+  transition: border-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
 }
 
 /* Dim other cells when one is focused */
@@ -1341,13 +1413,28 @@ input[type="checkbox"]:focus {
 
 .fmea-score-control,
 .status-control {
-  min-width: 54px;
+  min-width: 0;
+}
+
+.fmea-score-control {
+  padding-inline: 4px;
+  text-align: center;
+}
+
+.status-control {
+  padding-inline: 5px;
+  font-size: 0.72rem;
 }
 
 .rpn-value {
+  display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .selection-count {
@@ -1393,51 +1480,55 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table .col-included {
-  width: 50px;
-  min-width: 50px;
-  max-width: 50px;
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
   text-align: center;
 }
 
 .fmea-table .col-function {
-  min-width: 150px;
+  width: 120px;
 }
 
 .fmea-table .col-requirement {
-  min-width: 160px;
+  width: 135px;
 }
 
 .fmea-table .col-failureMode {
-  min-width: 140px;
+  width: 130px;
 }
 
 .fmea-table .col-effect,
 .fmea-table .col-cause,
 .fmea-table .col-currentControl,
 .fmea-table .col-correctiveAction {
-  min-width: 140px;
+  width: 120px;
 }
 
 .fmea-table .col-severity,
 .fmea-table .col-occurrence,
 .fmea-table .col-detection {
-  min-width: 54px;
-  max-width: 62px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
 }
 
 .fmea-table .col-rpn {
-  min-width: 60px;
-  max-width: 78px;
+  width: 54px;
+  min-width: 54px;
+  max-width: 54px;
 }
 
 .fmea-table .col-evidence {
-  min-width: 90px;
-  max-width: 110px;
+  width: 86px;
+  min-width: 86px;
+  max-width: 86px;
 }
 
 .fmea-table .col-status {
-  min-width: 110px;
-  max-width: 132px;
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
 }
 
 /* Component section row enhancement */
@@ -1449,6 +1540,8 @@ input[type="checkbox"]:focus {
 .component-section-row td {
   padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--color-border-strong);
+  max-width: none;
+  overflow: visible;
 }
 
 .component-section-row span:first-child {
@@ -1494,9 +1587,15 @@ input[type="checkbox"]:focus {
 }
 
 .component-name {
+  display: inline-block;
+  max-width: min(760px, calc(100vw - 240px));
   color: var(--color-accent);
   font-weight: 600;
   margin-left: var(--space-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .cell-viewer-textarea {
@@ -1619,6 +1718,10 @@ input[type="checkbox"]:focus {
   max-width: 820px;
 }
 
+.pricing-card-wide {
+  max-width: 1120px;
+}
+
 .pricing-panel {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1fr);
@@ -1655,6 +1758,305 @@ input[type="checkbox"]:focus {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-deep);
+}
+
+.dashboard-main,
+.account-main,
+.pricing-main {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 110px var(--px) var(--space-4xl);
+}
+
+.dashboard-main,
+.account-main,
+.pricing-main {
+  padding-top: 110px;
+}
+
+.dashboard-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: var(--space-xl);
+  align-items: end;
+  margin-bottom: var(--space-xl);
+}
+
+.dashboard-context,
+.dashboard-metric,
+.dashboard-panel,
+.account-panel,
+.summary-tile,
+.pricing-plan,
+.plan-strip-item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+
+.dashboard-context {
+  padding: var(--space-lg);
+}
+
+.dashboard-context span,
+.dashboard-context small,
+.summary-tile span,
+.summary-tile small,
+.dashboard-metric span,
+.dashboard-metric p,
+.pricing-plan small,
+.pricing-plan p,
+.pricing-plan li,
+.plan-strip-item span,
+.plan-strip-item p,
+.account-panel p,
+.readiness-list li,
+.action-row small {
+  color: var(--color-text-muted);
+}
+
+.dashboard-context strong,
+.summary-tile strong,
+.dashboard-metric strong,
+.pricing-plan strong,
+.plan-strip-item strong,
+.account-panel h2,
+.dashboard-panel h2,
+.section-heading h2 {
+  display: block;
+  color: var(--color-text);
+}
+
+.dashboard-context strong {
+  margin-top: var(--space-xs);
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.dashboard-metrics,
+.account-summary-grid,
+.pricing-grid,
+.plan-strip {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.dashboard-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: var(--space-xl);
+}
+
+.dashboard-metric {
+  padding: var(--space-lg);
+}
+
+.dashboard-metric strong {
+  margin-top: var(--space-sm);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.dashboard-metric p {
+  margin-top: var(--space-sm);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  gap: var(--space-xl);
+}
+
+.dashboard-panel,
+.account-panel {
+  padding: var(--space-xl);
+}
+
+.dashboard-panel-muted {
+  background: var(--color-deep);
+}
+
+.section-heading h2 {
+  margin-top: var(--space-xs);
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.action-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-deep);
+  padding: var(--space-md);
+}
+
+.action-row:hover {
+  border-color: var(--color-border-strong);
+}
+
+.action-row strong,
+.action-row small {
+  display: block;
+}
+
+.action-row em {
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.readiness-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  list-style: none;
+}
+
+.readiness-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.92rem;
+}
+
+.readiness-list li::before {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--color-warning);
+  content: "";
+}
+
+.readiness-list li[data-state="complete"]::before {
+  background: var(--color-ok);
+}
+
+.account-hero,
+.account-pricing-summary {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 var(--space-xl);
+}
+
+.account-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--space-xl);
+}
+
+.summary-tile {
+  padding: var(--space-md);
+}
+
+.summary-tile strong {
+  margin-top: var(--space-xs);
+  overflow: hidden;
+  font-size: 1.15rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-tile small {
+  display: block;
+  margin-top: var(--space-xs);
+  text-transform: capitalize;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xl);
+  margin-bottom: var(--space-xl);
+}
+
+.account-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.account-panel-compact {
+  width: min(720px, 100%);
+  margin-bottom: var(--space-xl);
+}
+
+.clerk-control-frame,
+.clerk-embedded-frame {
+  margin-top: var(--space-lg);
+}
+
+.clerk-embedded-frame {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-deep);
+  padding: var(--space-md);
+}
+
+.pricing-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: var(--space-xl);
+}
+
+.pricing-plan {
+  display: grid;
+  min-height: 440px;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.pricing-plan.primary {
+  border-color: rgba(232, 86, 52, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(232, 86, 52, 0.12);
+}
+
+.pricing-plan strong {
+  margin-top: var(--space-sm);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pricing-plan small {
+  display: block;
+  margin-top: var(--space-sm);
+  font-size: 0.8rem;
+}
+
+.pricing-plan p {
+  margin-top: var(--space-md);
+  line-height: 1.4;
+}
+
+.pricing-plan ul {
+  display: grid;
+  gap: var(--space-sm);
+  padding-left: 18px;
+}
+
+.plan-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: var(--space-lg);
+}
+
+.plan-strip-item {
+  padding: var(--space-md);
+}
+
+.plan-strip-item strong {
+  margin-top: var(--space-xs);
 }
 
 .footer {
@@ -1702,6 +2104,10 @@ input[type="checkbox"]:focus {
   .worksheet-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .workspace-start-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 820px) {
@@ -1722,6 +2128,7 @@ input[type="checkbox"]:focus {
   }
 
   .workspace-start-grid {
+    grid-template-columns: 1fr;
     max-width: 100%;
     padding-right: 24px;
     padding-left: 24px;
@@ -1757,6 +2164,29 @@ input[type="checkbox"]:focus {
   .project-row,
   .pricing-panel {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-header,
+  .dashboard-layout,
+  .account-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-metrics,
+  .account-summary-grid,
+  .pricing-grid,
+  .plan-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-main,
+  .account-main,
+  .pricing-main {
+    padding-top: 96px;
+  }
+
+  .pricing-plan {
+    min-height: auto;
   }
 }
 
@@ -1804,5 +2234,26 @@ input[type="checkbox"]:focus {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible,
+  .field-help:focus-visible,
+  .fmea-cell-control.cell-focused,
+  .fmea-checkbox.cell-focused {
+    outline: 2px solid CanvasText;
+    outline-offset: 3px;
+  }
+
+  .btn,
+  .text-input,
+  select,
+  .fmea-table th,
+  .fmea-table td,
+  .source-dialog,
+  .component-dropdown,
+  .export-dropdown {
+    border-color: CanvasText;
   }
 }

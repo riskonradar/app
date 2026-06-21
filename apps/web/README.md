@@ -44,17 +44,30 @@ Required for full integration:
 
 The local `.env.local` is intentionally ignored by git. Never commit real Clerk, Supabase service-role, or Mollie secrets.
 
-## Auth
+## Auth and Organizations
 
-The MVP uses Clerk with one account per person. Organizations are intentionally out of scope for now.
+The app uses Clerk for identity, user sessions, organization switching, invitations, and member
+management. Supabase remains the product source of truth for tenant ownership, billing linkage,
+review audit records, and joins to product data.
+
+The account model is B2B-ready:
+
+- `app.user_accounts` mirrors Clerk users.
+- `app.organizations` mirrors Clerk organizations and also represents personal workspaces.
+- `app.organization_memberships` stores app roles and tenant membership.
+- `app.workspace_invitations` stores invite history mirrored from Clerk events.
+- Product data should be scoped by `organization_id`; `user_account_id` is the actor/creator.
 
 Files:
 
 - `src/components/auth/app-auth-provider.tsx`
 - `src/components/auth/auth-controls.tsx`
+- `src/components/auth/workspace-controls.tsx`
 - `src/proxy.ts`
+- `src/lib/account/server.ts`
 - `src/app/sign-in/[[...sign-in]]/page.tsx`
 - `src/app/sign-up/[[...sign-up]]/page.tsx`
+- `src/app/account/page.tsx`
 
 The scaffold does not crash if Clerk keys are missing. Without keys, the nav falls back to the landing waitlist button.
 
@@ -72,15 +85,24 @@ Use the migration in `../../supabase/migrations/` as the schema starting point. 
 
 ## Billing
 
-Mollie is scaffolded for payments.
+Mollie is scaffolded for payments. The browser sends a plan key; server code resolves the amount
+from `src/lib/billing/plans.ts` and stores payment metadata with the app user and organization IDs.
+Team purchases require an active organization workspace.
 
 Files:
 
+- `src/lib/billing/plans.ts`
 - `src/lib/mollie/server.ts`
 - `src/app/api/billing/create-payment/route.ts`
 - `src/app/api/billing/mollie-webhook/route.ts`
 
 Mollie must only be called from server-side code. The browser must never receive `MOLLIE_API_KEY`.
+
+Current packaging direction:
+
+- Individual: self-serve pilot plan for one named user.
+- Team: default B2B workspace plan with invitations and shared review.
+- Enterprise: sales-led setup for SSO/SAML/OIDC, procurement terms, and future SCIM/domain controls.
 
 ## Integration Health
 
