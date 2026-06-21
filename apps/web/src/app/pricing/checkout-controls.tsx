@@ -2,7 +2,7 @@
 
 import { SignInButton, useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { BillingPlanKey } from "@/lib/billing/plans";
 
@@ -16,16 +16,20 @@ export function PricingCheckoutButton({ amountValue, planKey }: PricingCheckoutB
   const { getToken } = useAuth();
   const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState("");
+  const checkoutInFlight = useRef(false);
 
   async function startCheckout() {
+    if (checkoutInFlight.current) return;
+
     if (!isSignedIn) {
       setPaymentState("error");
       setMessage("Please sign in before opening Mollie checkout.");
       return;
     }
 
+    checkoutInFlight.current = true;
     setPaymentState("loading");
-    setMessage("Opening Mollie checkout...");
+    setMessage("");
     try {
       const token = await getToken();
       const response = await fetch("/api/billing/create-payment", {
@@ -55,6 +59,7 @@ export function PricingCheckoutButton({ amountValue, planKey }: PricingCheckoutB
       }
       window.location.assign(payload.checkoutUrl);
     } catch (error) {
+      checkoutInFlight.current = false;
       setPaymentState("error");
       setMessage(error instanceof Error ? error.message : "Could not open Mollie checkout.");
     }
@@ -78,7 +83,7 @@ export function PricingCheckoutButton({ amountValue, planKey }: PricingCheckoutB
       >
         {paymentState === "loading" ? "Opening checkout" : "Upgrade to Pro"}
       </button>
-      {message && (
+      {paymentState === "error" && message && (
         <p className={`notice standalone ${paymentState === "error" ? "error" : ""}`}>
           {message}
         </p>
