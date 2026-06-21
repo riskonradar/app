@@ -1,0 +1,62 @@
+[
+  {
+    "score": 10,
+    "likelihood": "Very high",
+    "weightedEvidence": "Not assigned from literature count alone",
+    "scoringGuidance": "Reserve for fleet-frequency data showing repeated or nearly inevitable occurrence."
+  },
+  {
+    "score": 9,
+    "likelihood": "High",
+    "weightedEvidence": "Not assigned from literature count alone",
+    "scoringGuidance": "Reserve for confirmed frequent fleet occurrence or strong operational-rate evidence."
+  },
+  {
+    "score": 8,
+    "likelihood": "Repeatedly observed",
+    "weightedEvidence": "24+ weighted evidence points",
+    "scoringGuidance": "Use when many independent records report the same component/failure/cause combination."
+  },
+  {
+    "score": 7,
+    "likelihood": "Known recurring issue",
+    "weightedEvidence": "16-23 weighted evidence points",
+    "scoringGuidance": "Use when the evidence base suggests recurrence across records, especially with EASA AD support."
+  },
+  {
+    "score": 6,
+    "likelihood": "Moderate",
+    "weightedEvidence": "10-15 weighted evidence points",
+    "scoringGuidance": "Use for documented issues with several records but not enough to imply high recurrence."
+  },
+  {
+    "score": 5,
+    "likelihood": "Low-moderate",
+    "weightedEvidence": "5-9 weighted evidence points",
+    "scoringGuidance": "Use for limited but credible repeated evidence."
+  },
+  {
+    "score": 4,
+    "likelihood": "Low",
+    "weightedEvidence": "3-4 weighted evidence points",
+    "scoringGuidance": "Use for sparse evidence with more than one record or one EASA-supported record."
+  },
+  {
+    "score": 3,
+    "likelihood": "Rare but reported",
+    "weightedEvidence": "1-2 weighted evidence points",
+    "scoringGuidance": "Use for isolated literature or report evidence."
+  },
+  {
+    "score": 2,
+    "likelihood": "Very rare",
+    "weightedEvidence": "Requires frequency data",
+    "scoringGuidance": "Use when evidence supports rare occurrence rather than simply low publication count."
+  },
+  {
+    "score": 1,
+    "likelihood": "Remote",
+    "weightedEvidence": "No supporting evidence",
+    "scoringGuidance": "Use only when occurrence is credibly remote or absent from relevant evidence."
+  }
+]

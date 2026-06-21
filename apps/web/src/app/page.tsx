@@ -7,6 +7,10 @@ import type { ChangeEvent } from "react";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
+import severityReference from "@/data/fmea-severity-reference.json";
+import occurrenceReference from "@/data/fmea-occurrence-reference.json";
+import detectionReference from "@/data/fmea-detection-reference.json";
+import propagationPaths from "@/data/turbofan-propagation-paths.json";
 
 type Source = {
   title: string;

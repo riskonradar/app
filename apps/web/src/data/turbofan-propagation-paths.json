@@ -1,0 +1,130 @@
+[
+  {
+    "cause": "HCF / LCF fatigue",
+    "componentFailure": "Fan blade crack",
+    "localEffect": "Blade fracture / blade-out",
+    "engineEffect": "Vibration + fan-case load + possible IFSD",
+    "aircraftMissionConsequence": "Diversion / nacelle damage / safety hazard",
+    "suggestedSeverity": 9
+  },
+  {
+    "cause": "Bird strike / FOD",
+    "componentFailure": "Fan blade impact damage",
+    "localEffect": "Blade deformation or loss",
+    "engineEffect": "Vibration + thrust loss + containment event",
+    "aircraftMissionConsequence": "Return to airport / AOG / aircraft damage",
+    "suggestedSeverity": 9
+  },
+  {
+    "cause": "Ice ingestion",
+    "componentFailure": "Fan or compressor flow distortion",
+    "localEffect": "Compressor damage or unstable flow",
+    "engineEffect": "Surge / stall / flameout",
+    "aircraftMissionConsequence": "IFSD / diversion",
+    "suggestedSeverity": 8
+  },
+  {
+    "cause": "Compressor blade fatigue",
+    "componentFailure": "LPC/HPC blade crack",
+    "localEffect": "Efficiency loss or blade liberation",
+    "engineEffect": "Surge / stall + vibration + EGT rise",
+    "aircraftMissionConsequence": "IFSD / early removal",
+    "suggestedSeverity": 8
+  },
+  {
+    "cause": "VSV/VBV actuator fault",
+    "componentFailure": "Variable vane mis-position",
+    "localEffect": "Incorrect compressor airflow",
+    "engineEffect": "Surge / poor acceleration / thrust loss",
+    "aircraftMissionConsequence": "Rejected takeoff risk / dispatch delay",
+    "suggestedSeverity": 8
+  },
+  {
+    "cause": "Sand / dust erosion",
+    "componentFailure": "Compressor blade erosion",
+    "localEffect": "Reduced compressor efficiency",
+    "engineEffect": "EGT margin loss + thrust deterioration",
+    "aircraftMissionConsequence": "Early shop visit / ETOPS limitation",
+    "suggestedSeverity": 6
+  },
+  {
+    "cause": "Fuel nozzle blockage",
+    "componentFailure": "Combustor fuel maldistribution",
+    "localEffect": "Hot streak / unstable combustion",
+    "engineEffect": "Overtemperature + turbine damage + flameout",
+    "aircraftMissionConsequence": "IFSD / unscheduled maintenance",
+    "suggestedSeverity": 8
+  },
+  {
+    "cause": "Combustor liner cracking",
+    "componentFailure": "Hot gas leakage",
+    "localEffect": "Case heating / hot streak",
+    "engineEffect": "Fire risk + turbine distress",
+    "aircraftMissionConsequence": "Diversion / engine removal",
+    "suggestedSeverity": 9
+  },
+  {
+    "cause": "TBC spallation or CMAS attack",
+    "componentFailure": "HPT coating degradation",
+    "localEffect": "Metal overheating / cooling blockage",
+    "engineEffect": "Creep + oxidation + EGT margin loss",
+    "aircraftMissionConsequence": "Reduced time-on-wing / shop visit",
+    "suggestedSeverity": 6
+  },
+  {
+    "cause": "Creep / thermal fatigue",
+    "componentFailure": "HPT blade crack or elongation",
+    "localEffect": "Blade fracture or tip rub",
+    "engineEffect": "Turbine failure + vibration + IFSD",
+    "aircraftMissionConsequence": "Diversion / safety hazard",
+    "suggestedSeverity": 9
+  },
+  {
+    "cause": "Powder-metal anomaly",
+    "componentFailure": "Disk / hub crack",
+    "localEffect": "Crack growth in rotating part",
+    "engineEffect": "Rotor burst risk / uncontained failure",
+    "aircraftMissionConsequence": "Aircraft damage / catastrophic hazard",
+    "suggestedSeverity": 10
+  },
+  {
+    "cause": "Oil leak",
+    "componentFailure": "Oil pipe or seal failure",
+    "localEffect": "Low oil quantity / fire source",
+    "engineEffect": "Bearing distress + oil fire + IFSD",
+    "aircraftMissionConsequence": "Fire emergency / diversion",
+    "suggestedSeverity": 9
+  },
+  {
+    "cause": "Oil starvation / coking",
+    "componentFailure": "Oil passage blockage",
+    "localEffect": "Bearing overheating / seizure",
+    "engineEffect": "Shaft imbalance + rotor rub + fire",
+    "aircraftMissionConsequence": "IFSD / major engine damage",
+    "suggestedSeverity": 8
+  },
+  {
+    "cause": "Bearing spalling",
+    "componentFailure": "Main shaft bearing damage",
+    "localEffect": "Debris + heat + vibration",
+    "engineEffect": "Rotor imbalance + secondary blade rub",
+    "aircraftMissionConsequence": "IFSD / shop visit",
+    "suggestedSeverity": 8
+  },
+  {
+    "cause": "Sensor drift or FADEC fault",
+    "componentFailure": "Wrong control input",
+    "localEffect": "Incorrect fuel / VSV / clearance scheduling",
+    "engineEffect": "Surge + flameout + overtemperature + thrust loss",
+    "aircraftMissionConsequence": "Aborted takeoff / degraded mode / diversion",
+    "suggestedSeverity": 8
+  },
+  {
+    "cause": "Maintenance or repair error",
+    "componentFailure": "Incorrect assembly / missed inspection",
+    "localEffect": "Latent defect remains",
+    "engineEffect": "Progressive failure in service",
+    "aircraftMissionConsequence": "Unscheduled removal / possible safety event",
+    "suggestedSeverity": 7
+  }
+]

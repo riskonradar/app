@@ -1,0 +1,52 @@
+[
+  {
+    "score": 10,
+    "detectability": "Very unlikely",
+    "meaning": "No practical pre-failure indication; failure may be sudden or hidden until system effect occurs."
+  },
+  {
+    "score": 9,
+    "detectability": "Very low",
+    "meaning": "Latent or internal damage with weak symptoms and limited inspection access."
+  },
+  {
+    "score": 8,
+    "detectability": "Low",
+    "meaning": "Detection depends on targeted inspection or teardown; symptoms may arrive late."
+  },
+  {
+    "score": 7,
+    "detectability": "Low-moderate",
+    "meaning": "Possible to detect, but not reliably with routine controls."
+  },
+  {
+    "score": 6,
+    "detectability": "Moderate baseline",
+    "meaning": "Default when evidence does not clearly show strong monitoring or hidden sudden failure."
+  },
+  {
+    "score": 5,
+    "detectability": "Moderate",
+    "meaning": "Routine inspection, check, test, or replacement instruction improves detectability."
+  },
+  {
+    "score": 4,
+    "detectability": "High",
+    "meaning": "Clear inspection, borescope, oil debris, pressure, temperature, vibration, sensor, or alarm evidence."
+  },
+  {
+    "score": 3,
+    "detectability": "High-very high",
+    "meaning": "Multiple direct monitoring or inspection indicators are present."
+  },
+  {
+    "score": 2,
+    "detectability": "Very high",
+    "meaning": "Continuous monitoring or direct alarm is expected to detect the condition before propagation."
+  },
+  {
+    "score": 1,
+    "detectability": "Almost certain",
+    "meaning": "Near-certain detection with direct controls before the failure effect occurs."
+  }
+]
