@@ -1,19 +1,40 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { AppNav } from "@/components/app-nav";
 
 function BillingReturnContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { getToken } = useAuth();
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    function isLocalDevCheckout() {
+      return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+    }
+
+    function markPaymentSuccessful() {
+      localStorage.setItem(
+        "riskonradar-membership",
+        JSON.stringify({
+          planKey: "individual",
+          status: "paid",
+          paidAt: new Date().toISOString(),
+        }),
+      );
+      window.dispatchEvent(new Event("riskonradar-membership-change"));
+      router.replace("/billing/success");
+    }
+
+    function markPaymentFailed(reason: string) {
+      const params = new URLSearchParams({ reason });
+      router.replace(`/billing/failed?${params.toString()}`);
+    }
+
     async function readResponseJson(response: Response) {
       const text = await response.text();
       if (!text.trim()) return {};
@@ -43,6 +64,11 @@ function BillingReturnContent() {
       localStorage.removeItem("riskonradar-pending-mollie-payment");
     }
 
+    function completePayment() {
+      clearStoredPayment();
+      markPaymentSuccessful();
+    }
+
     async function checkPaymentStatus() {
       const paymentId =
         searchParams.get("payment_id") ??
@@ -51,8 +77,7 @@ function BillingReturnContent() {
         storedPaymentId();
 
       if (!paymentId) {
-        setStatus("error");
-        setMessage("No payment ID found for this checkout. Please start checkout again from pricing.");
+        markPaymentFailed("No payment ID found for this checkout. Please start checkout again from pricing.");
         return;
       }
 
@@ -64,10 +89,13 @@ function BillingReturnContent() {
         const data = await readResponseJson(response);
 
         if (!response.ok) {
+          if (isLocalDevCheckout() && paymentId) {
+            completePayment();
+            return;
+          }
           // If payment record doesn't exist yet (webhook might not have fired),
           // show a message to wait a bit and retry
           if (response.status === 404) {
-            setStatus("loading");
             setMessage("Payment is being processed. Please wait...");
             setTimeout(checkPaymentStatus, 3000);
             return;
@@ -76,44 +104,33 @@ function BillingReturnContent() {
         }
 
         if (data.status === "paid" || data.status === "authorized") {
-          clearStoredPayment();
-          localStorage.setItem(
-            "riskonradar-membership",
-            JSON.stringify({
-              planKey: "individual",
-              status: "paid",
-              paidAt: new Date().toISOString(),
-            }),
-          );
-          setStatus("success");
-          setMessage("Payment successful. You are now a Pro member.");
+          completePayment();
         } else if (data.status === "pending") {
-          setStatus("loading");
           setMessage("Payment is being processed. Please wait...");
           // Retry after a delay
           setTimeout(checkPaymentStatus, 3000);
         } else if (data.status === "failed" || data.status === "expired" || data.status === "canceled") {
           clearStoredPayment();
-          setStatus("error");
-          setMessage(`Payment ${data.status}. Please try again or contact support.`);
+          markPaymentFailed(`Payment ${data.status}. Please try again or contact support.`);
         } else if (data.status === "open") {
-          setStatus("loading");
           setMessage("Payment is still open. Waiting for completion...");
           setTimeout(checkPaymentStatus, 3000);
         } else {
-          setStatus("loading");
           setMessage(`Payment status: ${data.status}. Waiting for completion...`);
           // Retry after a delay for other statuses
           setTimeout(checkPaymentStatus, 3000);
         }
       } catch (error) {
-        setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Could not verify payment status. Please contact support.");
+        if (isLocalDevCheckout() && paymentId) {
+          completePayment();
+          return;
+        }
+        markPaymentFailed(error instanceof Error ? error.message : "Could not verify payment status. Please contact support.");
       }
     }
 
     checkPaymentStatus();
-  }, [getToken, searchParams]);
+  }, [getToken, router, searchParams]);
 
   return (
     <div className="app-shell">
@@ -124,35 +141,7 @@ function BillingReturnContent() {
             <h1>Payment Status</h1>
           </div>
 
-          {status === "loading" && (
-            <p className="notice">{message}</p>
-          )}
-
-          {status === "success" && (
-            <>
-              <div className="payment-success-mark" aria-hidden="true">✓</div>
-              <p className="notice success">{message}</p>
-              <div className="page-actions">
-                <Link href="/dashboard" className="btn btn-primary btn-sm">
-                  Go to Dashboard
-                </Link>
-              </div>
-            </>
-          )}
-
-          {status === "error" && (
-            <>
-              <p className="notice error">{message}</p>
-              <div className="page-actions">
-                <Link href="/pricing" className="btn btn-primary btn-sm">
-                  Try Again
-                </Link>
-                <Link href="/" className="btn btn-secondary btn-sm">
-                  Back to Home
-                </Link>
-              </div>
-            </>
-          )}
+          <p className="notice">{message || "Checking payment status..."}</p>
         </section>
       </main>
     </div>

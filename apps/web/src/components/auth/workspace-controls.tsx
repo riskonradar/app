@@ -6,6 +6,8 @@ import {
   useUser,
 } from "@clerk/nextjs";
 
+import { maskEmail } from "@/lib/account/display";
+
 export function WorkspaceControls() {
   const { isLoaded, isSignedIn, user } = useUser();
 
@@ -40,12 +42,12 @@ export function WorkspaceControls() {
           <h2>Personal details</h2>
         </div>
         <p>
-          Signed in as {user?.primaryEmailAddress?.emailAddress ?? "your Risk on Radar account"}.
+          Signed in as {maskEmail(user?.primaryEmailAddress?.emailAddress)}.
           Use the profile menu to update your session and account details.
         </p>
         <div className="clerk-control-frame account-profile-frame">
           <UserButton />
-          <span>{user?.fullName || user?.primaryEmailAddress?.emailAddress || "Account"}</span>
+          <span>{user?.fullName || maskEmail(user?.primaryEmailAddress?.emailAddress) || "Account"}</span>
         </div>
       </section>
     </div>

@@ -49,7 +49,7 @@ class ExtractorTests(unittest.TestCase):
             claim
             for claim in result.claims
             if claim.support_type == SupportType.INFERRED_FROM_SPAN
-            and claim.normalized_value == "corrosion fatigue"
+            and claim.normalized_value == "Fatigue"
         ]
 
         self.assertEqual(len(inferred), 1)
@@ -100,6 +100,7 @@ class ExtractorTests(unittest.TestCase):
         )
 
         self.assertEqual(len(result.claims), 1)
+        self.assertEqual(result.claims[0].normalized_value, "Crack / fracture")
         self.assertEqual(result.claims[0].spans[0].text, "cracked pump shaft")
 
 

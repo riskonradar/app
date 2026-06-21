@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AppNav } from "@/components/app-nav";
 import { WorkspaceControls } from "@/components/auth/workspace-controls";
 import { MembershipStatus } from "@/components/billing/membership-status";
-import { billingPlans, getBillingPlan } from "@/lib/billing/plans";
+import { billingPlans } from "@/lib/billing/plans";
 import { getWorkspaceSummary } from "@/lib/account/server";
 import { AccountOverview } from "./account-overview";
 
@@ -15,10 +15,9 @@ export default async function AccountPage() {
     console.error("Failed to load workspace summary:", error);
     return null;
   });
-  const activePlan = getBillingPlan(summary?.organization.plan_key);
   const workspaceName = summary?.organization.name ?? "Personal workspace";
   const workspaceSlug = summary?.organization.slug ?? "personal workspace";
-  const planName = activePlan?.name ?? (summary?.organization.plan_key === "individual" ? "Individual" : "Free");
+  const serverPlan = summary?.organization.plan_key ?? "free";
   const billingStatus = summary?.organization.billing_status ?? "free";
   const memberCount = summary?.memberCount ?? 1;
   const role = summary?.role ?? "Owner";
@@ -30,7 +29,7 @@ export default async function AccountPage() {
         <AccountOverview
           billingStatus={billingStatus}
           memberCount={memberCount}
-          planName={planName}
+          serverPlan={serverPlan}
           role={role}
           workspaceName={workspaceName}
           workspaceSlug={workspaceSlug}

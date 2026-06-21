@@ -7,6 +7,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from paper_classifier.failure_modes import canonical_failure_mode_label
 from paper_classifier.models import (
     ClaimRelationship,
     ClaimType,
@@ -145,6 +146,15 @@ Rules:
 - Direct relationships must use relationship_evidence_text copied exactly from the title or abstract.
 - Inferred relationships must still cite relationship_evidence_text and include inference_rationale.
 - Prefer atomic claims: one fact per claim row.
+- For failure_mode normalized_value, use a canonical mechanism label when supported by the evidence:
+  Crack / fracture, Fatigue, Foreign object damage (FOD), Stall / surge,
+  Flow disturbance / distortion, Blade vibration / flutter, Deformation / buckling,
+  Wear / rubbing, Corrosion / pitting, Deposits / blockage, Leakage,
+  Overheating / overtemperature, Bearing fault, Spallation, Seizure, Creep,
+  Erosion, Oxidation, Delamination, Debonding, Coating failure, Thermal shock,
+  Combustion instability, Rotor imbalance, Misalignment, Overspeed.
+- Do not store symptoms or effects such as noise/acoustic issue, generic high vibration,
+  engine shutdown, or operational loss as failure_mode claims. Store them as effect or detection_method when supported.
 - If the paper has no failure analysis content, return not_relevant with no claims.
 - Return possibly_relevant, not relevant, for RUL/prognostics/model-only papers unless they name a concrete component failure mode, cause, effect, control, detection method, or maintenance action.
 - Return not_relevant for non-aviation wind turbine, power plant, steam turbine, natural gas pipeline, or generic compressor papers unless they explicitly discuss turbofan/aero/aircraft/jet engine applicability.
@@ -370,10 +380,16 @@ def _claim_from_payload(paper: Paper, raw_claim: Any) -> EvidenceClaim | None:
     if support_type == SupportType.INFERRED_FROM_SPAN and not rationale:
         return None
 
+    normalized_value = _clean_text(raw_claim.get("normalized_value"))
+    if claim_type == ClaimType.FAILURE_MODE:
+        normalized_value = canonical_failure_mode_label(" ".join(part for part in (normalized_value, raw_value) if part))
+        if not normalized_value:
+            return None
+
     return EvidenceClaim(
         claim_type=claim_type,
         raw_value=raw_value,
-        normalized_value=_clean_text(raw_claim.get("normalized_value")),
+        normalized_value=normalized_value,
         support_type=support_type,
         confidence=_bounded_float(raw_claim.get("confidence"), default=0.5),
         spans=(EvidenceSpan(source_field, source_text[char_start:char_end], char_start, char_end),),

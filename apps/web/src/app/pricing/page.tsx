@@ -8,9 +8,9 @@ const demoPlans = billingPlans.filter((plan) => plan.key === "individual");
 const freePlan = {
   name: "Free",
   priceLabel: "EUR 0",
-  description: "For trying the FMEA workspace before upgrading.",
+  description: "For trying the Failure Mode and Effects Analysis workspace before upgrading.",
   features: [
-    "1 saved FMEA table",
+    "1 saved Failure Mode and Effects Analysis table",
     "Evidence-backed worksheet editing",
     "CSV and XLSX export preview",
   ],
@@ -26,7 +26,7 @@ export default function PricingPage() {
             <span className="metric-label">Pricing</span>
             <h1>Risk on Radar Individual plan</h1>
             <p>
-              Start with one FMEA table, then upgrade when you need unlimited reliability analyses.
+              Start with one Failure Mode and Effects Analysis table, then upgrade when you need unlimited reliability analyses.
             </p>
           </div>
 
@@ -35,7 +35,7 @@ export default function PricingPage() {
               <div>
                 <span className="metric-label">{freePlan.name}</span>
                 <strong>{freePlan.priceLabel}</strong>
-                <small>1 FMEA table</small>
+                <small>1 Failure Mode and Effects Analysis table</small>
                 <p>{freePlan.description}</p>
               </div>
               <ul>
@@ -52,11 +52,11 @@ export default function PricingPage() {
                 <div>
                   <span className="metric-label">Pro</span>
                   <strong>{plan.priceLabel}</strong>
-                  <small>Unlimited FMEA tables</small>
+                  <small>Unlimited Failure Mode and Effects Analysis tables</small>
                   <p>{plan.description}</p>
                 </div>
                 <ul>
-                  {["Unlimited saved FMEA tables", ...plan.features.filter((feature) => feature !== "Mollie checkout")].map((feature) => (
+                  {["Unlimited saved Failure Mode and Effects Analysis tables", ...plan.features.filter((feature) => feature !== "Mollie checkout")].map((feature) => (
                     <li key={feature}>{feature}</li>
                   ))}
                 </ul>

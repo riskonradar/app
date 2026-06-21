@@ -22,7 +22,7 @@ export const billingPlans: BillingPlan[] = [
     description: "For one engineer validating evidence-backed reliability work.",
     features: [
       "Personal workspace",
-      "Evidence-linked FMEA exports",
+      "Evidence-linked Failure Mode and Effects Analysis exports",
       "Saved analyses and review state",
       "Mollie checkout",
     ],
@@ -38,7 +38,7 @@ export const billingPlans: BillingPlan[] = [
     features: [
       "Organization workspace",
       "Member invitations and roles",
-      "Shared FMEA projects",
+      "Shared Failure Mode and Effects Analysis projects",
       "Audit trail for review decisions",
     ],
   },

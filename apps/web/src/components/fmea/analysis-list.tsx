@@ -22,7 +22,7 @@ type SavedFmeaAnalysis = {
 const defaultAnalyses: SavedFmeaAnalysis[] = [
   {
     id: "turbofan-default",
-    name: "Turbofan reliability FMEA",
+    name: "Turbofan reliability Failure Mode and Effects Analysis",
     scope: "20 components",
     rowCount: 209,
     componentCount: 20,
@@ -100,7 +100,7 @@ export function AnalysisList() {
 
   function deleteAnalysis(analysis: SavedFmeaAnalysis) {
     if (analysis.id === "turbofan-default") return;
-    const confirmed = window.confirm(`Delete "${analysis.name}"? This removes the saved FMEA table from this browser.`);
+    const confirmed = window.confirm(`Delete "${analysis.name}"? This removes the saved Failure Mode and Effects Analysis table from this browser.`);
     if (!confirmed) return;
 
     const nextAnalyses = analyses.filter((item) => item.id !== analysis.id);

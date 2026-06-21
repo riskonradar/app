@@ -7,6 +7,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
+from paper_classifier.failure_modes import canonical_failure_mode_label
+
 
 COMPONENT_ORDER = [
     "Engine inlet / intake",
@@ -115,8 +117,16 @@ FAILURE_MODE_MAP = OrderedDict({
     "carbon deposit": "Deposits / blockage",
     "coking": "Deposits / blockage",
     "blockage": "Deposits / blockage",
-    "flexural vibration": "Flexural deformation / vibration",
-    "flexural deformation": "Flexural deformation / vibration",
+    "flexural vibration": "Deformation / buckling",
+    "flexural deformation": "Deformation / buckling",
+    "bearing fault": "Bearing fault",
+    "bearing faults": "Bearing fault",
+    "bearing defect": "Bearing fault",
+    "ball-bearing faults": "Bearing fault",
+    "oil leak": "Leakage",
+    "fuel leak": "Leakage",
+    "oil leakage": "Leakage",
+    "fuel leakage": "Leakage",
     "oxidation": "Oxidation",
     "overspeed": "Overspeed",
     "over-speed": "Overspeed",
@@ -252,7 +262,11 @@ def classify_ris(path: Path) -> dict[str, Any]:
         if "Foreign object damage (FOD)" in extract(text, failure_patterns) and "Fan / fan blade" not in components:
             components.insert(0, "Fan / fan blade")
         components = sorted(set(components), key=COMPONENT_ORDER.index)
-        failure_modes = extract(text, failure_patterns)
+        failure_modes = [
+            label
+            for value in extract(text, failure_patterns)
+            if (label := canonical_failure_mode_label(value))
+        ]
         effects = extract(text, effect_patterns)
         causes = extract(text, cause_patterns)
         if not components or not failure_modes:

@@ -10,6 +10,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from paper_classifier.failure_modes import canonical_failure_mode_label
 from paper_classifier.fmea_ris_classifier import (
     CAUSE_MAP,
     COMPONENT_MAP,
@@ -109,6 +110,14 @@ EXTENDED_FAILURE_MODE_MAP = OrderedDict(
         ("blocked", "Deposits / blockage"),
         ("uncontained", "Uncontained failure"),
         ("uncontained failure", "Uncontained failure"),
+        ("bearing fault", "Bearing fault"),
+        ("bearing faults", "Bearing fault"),
+        ("bearing defect", "Bearing fault"),
+        ("ball-bearing faults", "Bearing fault"),
+        ("oil leakage", "Leakage"),
+        ("fuel leakage", "Leakage"),
+        ("burn-through", "Burn-through"),
+        ("burned-through", "Burn-through"),
         *FAILURE_MODE_MAP.items(),
     ]
 )
@@ -335,7 +344,9 @@ def _add_record(
             add_unique(causes, extract(value, cause_patterns) or [_clean_claim_value(claim)])
 
     components = _dedupe_ordered([_normalize_component(value) for value in components])
-    failure_modes = _dedupe_ordered([_normalize_label(value) for value in failure_modes])
+    failure_modes = _dedupe_ordered(
+        [label for value in failure_modes if (label := canonical_failure_mode_label(_normalize_label(value)))]
+    )
     effects = _dedupe_ordered([_normalize_label(value) for value in effects])
     causes = _dedupe_ordered([_normalize_label(value) for value in causes])
 

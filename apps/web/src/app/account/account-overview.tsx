@@ -1,20 +1,40 @@
 "use client";
 
 import { SignInButton, useUser } from "@clerk/nextjs";
+import { useMemo, useSyncExternalStore } from "react";
+
+import { maskEmail, parseLocalMembership, resolvePlanDisplay } from "@/lib/account/display";
 
 type AccountOverviewProps = {
   billingStatus: string;
   memberCount: number;
-  planName: string;
+  serverPlan: string;
   role: string;
   workspaceName: string;
   workspaceSlug: string;
 };
 
+function subscribeToMembership(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("riskonradar-membership-change", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("riskonradar-membership-change", callback);
+  };
+}
+
+function getMembershipSnapshot() {
+  return window.localStorage.getItem("riskonradar-membership");
+}
+
+function getServerMembershipSnapshot() {
+  return null;
+}
+
 export function AccountOverview({
   billingStatus,
   memberCount,
-  planName,
+  serverPlan,
   role,
   workspaceName,
   workspaceSlug,
@@ -23,10 +43,21 @@ export function AccountOverview({
   const displayName =
     user?.firstName ||
     user?.fullName ||
-    user?.primaryEmailAddress?.emailAddress ||
+    maskEmail(user?.primaryEmailAddress?.emailAddress) ||
     "there";
-  const email = user?.primaryEmailAddress?.emailAddress ?? "Signed in";
+  const email = maskEmail(user?.primaryEmailAddress?.emailAddress);
   const resolvedWorkspaceName = workspaceName || "Personal workspace";
+  const localStatusSnapshot = useSyncExternalStore(
+    subscribeToMembership,
+    getMembershipSnapshot,
+    getServerMembershipSnapshot,
+  );
+  const localStatus = useMemo(() => parseLocalMembership(localStatusSnapshot), [localStatusSnapshot]);
+  const plan = resolvePlanDisplay({
+    localMembership: localStatus,
+    serverPlan,
+    serverStatus: billingStatus.toLowerCase(),
+  });
 
   return (
     <section className="page-card account-hero">
@@ -47,8 +78,8 @@ export function AccountOverview({
           </div>
           <div className="summary-tile">
             <span>Plan</span>
-            <strong>{planName}</strong>
-            <small>{billingStatus}</small>
+            <strong>{plan.name}</strong>
+            <small>{plan.status}</small>
           </div>
           <div className="summary-tile">
             <span>User</span>

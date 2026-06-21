@@ -2,6 +2,8 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 
+import { parseLocalMembership, resolvePlanDisplay } from "@/lib/account/display";
+
 type MembershipStatusProps = {
   serverStatus?: string | null;
   serverPlan?: string | null;
@@ -31,23 +33,21 @@ export function MembershipStatus({ serverStatus, serverPlan }: MembershipStatusP
     getServerMembershipSnapshot,
   );
   const localStatus = useMemo(() => {
-    if (!localStatusSnapshot) return null;
-    try {
-      return JSON.parse(localStatusSnapshot) as { status?: string };
-    } catch {
-      return null;
-    }
+    return parseLocalMembership(localStatusSnapshot);
   }, [localStatusSnapshot]);
 
-  const isPro = serverStatus === "active" || localStatus?.status === "paid";
-  const planLabel = isPro ? "Pro member" : serverPlan === "individual" ? "Free tier" : "Workspace plan";
-  const detail = isPro ? "Unlimited FMEA tables are available." : "Free tier includes 1 saved FMEA table.";
+  const plan = resolvePlanDisplay({
+    localMembership: localStatus,
+    serverPlan,
+    serverStatus,
+  });
+  const isPro = plan.name === "Pro";
 
   return (
     <div className={`membership-status ${isPro ? "is-pro" : ""}`} aria-live="polite">
-      <span>{planLabel}</span>
-      <strong>{isPro ? "You are a Pro member" : "Free workspace"}</strong>
-      <small>{detail}</small>
+      <span>{plan.label}</span>
+      <strong>{isPro ? "You are a Pro member" : `${plan.name} workspace`}</strong>
+      <small>{plan.detail}</small>
     </div>
   );
 }

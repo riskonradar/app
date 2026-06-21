@@ -112,7 +112,7 @@ const systemTemplates: SystemTemplate[] = [
     id: "turbofan",
     name: "Turbofan engine",
     domain: "Aviation propulsion",
-    source: `${fmeaData.recordCount} evidence records from papers + EASA; ${fmeaData.rowCount} merged FMEA rows`,
+    source: `${fmeaData.recordCount} evidence records from papers + EASA; ${fmeaData.rowCount} merged analysis rows`,
     description:
       "A preloaded reliability workspace built from the turbofan prototype corpus.",
     components: fmeaData.components as string[],
@@ -182,7 +182,7 @@ const editableFields: EditableField[] = [
 ];
 
 const fieldHelp: Record<string, string> = {
-  included: "Select this row if it should be included in the final FMEA export.",
+  included: "Select this row if it should be included in the final Failure Mode and Effects Analysis export.",
   component: "Physical engineering part or subsystem being analyzed.",
   function: "Intended function the component must perform.",
   failureMode: "How the component or function can fail.",
@@ -194,7 +194,7 @@ const fieldHelp: Record<string, string> = {
   detection: "Detection score: 1 is easily detected before harm, 10 is unlikely to be detected.",
   rpn: "Risk Priority Number calculated as Severity x Occurrence x Detection.",
   correctiveAction: "Recommended action to reduce risk or correct a confirmed issue.",
-  evidence: "Source count and citations behind the extracted FMEA fields.",
+  evidence: "Source count and citations behind the extracted Failure Mode and Effects Analysis fields.",
   status: "Human review state for this row.",
 };
 
@@ -580,8 +580,8 @@ function numericRowRpn(row: FmeaRow) {
 
 function defaultAnalysisName(rows: FmeaRow[]) {
   const componentNames = sortedComponentNames(Array.from(new Set(rows.map((row) => row.component))));
-  if (componentNames.length === 1) return `${componentNames[0]} FMEA`;
-  return "Turbofan reliability FMEA";
+  if (componentNames.length === 1) return `${componentNames[0]} Failure Mode and Effects Analysis`;
+  return "Turbofan reliability Failure Mode and Effects Analysis";
 }
 
 function analysisSummary(rows: FmeaRow[], name: string, updatedAt: string): SavedFmeaAnalysis {
@@ -835,7 +835,7 @@ function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
       content:
         '<?xml version="1.0" encoding="UTF-8"?>' +
         '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        '<sheets><sheet name="FMEA Export" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        '<sheets><sheet name="Analysis Export" sheetId="1" r:id="rId1"/></sheets></workbook>',
     },
     {
       name: "xl/_rels/workbook.xml.rels",
@@ -884,12 +884,17 @@ function groupRowsByComponent(rows: FmeaRow[]) {
   }));
 }
 
+function isNewWorksheetMode() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("mode") === "new";
+}
+
 export default function Home() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const [selectionStep, setSelectionStep] = useState<SelectionStep>("table");
-  const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(bundledTurbofanData.rows));
+  const [selectionStep, setSelectionStep] = useState<SelectionStep>(() => isNewWorksheetMode() ? "initial" : "table");
+  const [rows, setRows] = useState<FmeaRow[]>(() => isNewWorksheetMode() ? [] : toFmeaRows(bundledTurbofanData.rows));
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("all");
   const [componentQuery, setComponentQuery] = useState("");
@@ -897,8 +902,14 @@ export default function Home() {
   const [selectedSystemId, setSelectedSystemId] = useState("turbofan");
   const [manualComponents, setManualComponents] = useState<string[]>([]);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
-  const [notice, setNotice] = useState("Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.");
-  const [analysisName, setAnalysisName] = useState("Turbofan reliability FMEA");
+  const [notice, setNotice] = useState(() =>
+    isNewWorksheetMode()
+      ? "Start a new Failure Mode and Effects Analysis table by selecting components or importing a BOM."
+      : "Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.",
+  );
+  const [analysisName, setAnalysisName] = useState(() =>
+    isNewWorksheetMode() ? "Untitled Failure Mode and Effects Analysis" : "Turbofan reliability Failure Mode and Effects Analysis",
+  );
   const [sortMode, setSortMode] = useState<"component" | "rpn_desc" | "rpn_asc">("component");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -917,7 +928,10 @@ export default function Home() {
   const [showExitDialog, setShowExitDialog] = useState(false);
   const groupsPerPage = 6;
   const components = useMemo(
-    () => sortedComponentNames(Array.from(new Set(rows.map((row) => row.component)))),
+    () => {
+      const rowComponents = Array.from(new Set(rows.map((row) => row.component)));
+      return sortedComponentNames(rowComponents.length ? rowComponents : bundledTurbofanData.components);
+    },
     [rows],
   );
   const visibleRows = useMemo(
@@ -981,6 +995,9 @@ export default function Home() {
         : new URLSearchParams();
     if (params.get("mode") === "new") {
       setSelectionStep("initial");
+      setRows([]);
+      setAnalysisName("Untitled Failure Mode and Effects Analysis");
+      setNotice("Start a new Failure Mode and Effects Analysis table by selecting components or importing a BOM.");
       return;
     }
     const component = params.get("component");
@@ -1064,6 +1081,7 @@ export default function Home() {
 
   // Load saved data from localStorage on mount
   useEffect(() => {
+    if (isNewWorksheetMode()) return;
     try {
       const savedData = localStorage.getItem("riskonradar-fmea-data");
       if (savedData) {
@@ -1084,7 +1102,7 @@ export default function Home() {
         }
       }
     } catch (error) {
-      console.error("Failed to load saved FMEA data:", error);
+      console.error("Failed to load saved Failure Mode and Effects Analysis data:", error);
     }
   }, []);
 
@@ -1108,7 +1126,7 @@ export default function Home() {
           router.push("/dashboard");
         }
       } catch {
-        setNotice("Failed to save FMEA data.");
+        setNotice("Failed to save Failure Mode and Effects Analysis data.");
         setTimeout(() => setNotice(""), 3000);
       } finally {
         setIsSaving(false);
@@ -1315,7 +1333,7 @@ export default function Home() {
       setAnalysisName(defaultAnalysisName(nextRows));
       setNotice(
         evidenceRows.length
-          ? `Loaded ${nextRows.length} evidence-backed FMEA row${nextRows.length === 1 ? "" : "s"} for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
+          ? `Loaded ${nextRows.length} evidence-backed analysis row${nextRows.length === 1 ? "" : "s"} for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
           : `Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`,
       );
     } catch {
@@ -1325,7 +1343,7 @@ export default function Home() {
       setAnalysisName(defaultAnalysisName(nextRows));
       setNotice(
         evidenceRows.length
-          ? `Loaded bundled evidence-backed FMEA rows for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
+          ? `Loaded bundled evidence-backed analysis rows for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
           : `Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`,
       );
     } finally {
@@ -1374,7 +1392,7 @@ export default function Home() {
     if (existingComponentKeys.has(componentKey)) {
       setComponentFilter(component);
       setExpandedComponents((current) => new Set([...current, component]));
-      setNotice(`${component} is already in this FMEA. Showing that component now.`);
+      setNotice(`${component} is already in this Failure Mode and Effects Analysis. Showing that component now.`);
       setNewComponentName("");
       return;
     }
@@ -1394,7 +1412,7 @@ export default function Home() {
       setNotice(
         evidenceRows.length
           ? `Added ${rowsToAdd.length} evidence-backed row${rowsToAdd.length === 1 ? "" : "s"} for ${component}.`
-          : `Added starter FMEA rows for ${component}.`,
+          : `Added starter Failure Mode and Effects Analysis rows for ${component}.`,
       );
     } catch {
       const evidenceRows = rowsForSelectedComponents(bundledTurbofanData.rows, [component]);
@@ -1406,7 +1424,7 @@ export default function Home() {
       setNotice(
         evidenceRows.length
           ? `Added bundled evidence-backed rows for ${component}.`
-          : `Added starter FMEA rows for ${component}.`,
+          : `Added starter Failure Mode and Effects Analysis rows for ${component}.`,
       );
     } finally {
       setNewComponentName("");
@@ -1430,12 +1448,12 @@ export default function Home() {
         setRowFilter("all");
         setRows(nextRows);
         setAnalysisName(defaultAnalysisName(nextRows));
-        setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${nextRows.length} merged FMEA rows.`);
+        setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${nextRows.length} merged analysis rows.`);
       } else {
         const nextRows = templateRowsForComponents(nextSystem.components);
         setRowFilter("all");
         setRows(nextRows);
-        setAnalysisName(`${nextSystem.name} FMEA`);
+        setAnalysisName(`${nextSystem.name} Failure Mode and Effects Analysis`);
         setNotice(`Loaded ${nextSystem.name}. Edit the generated worksheet, then export when required fields are complete.`);
       }
       setSelectionStep("table");
@@ -1581,8 +1599,8 @@ export default function Home() {
               }}
               onChange={(event) => event.stopPropagation()}
               className="fmea-checkbox"
-              aria-label={`Include ${row.original.component} - ${row.original.failureMode} in exported FMEA spreadsheet`}
-              title="Include this row in the exported FMEA spreadsheet"
+              aria-label={`Include ${row.original.component} - ${row.original.failureMode} in exported Failure Mode and Effects Analysis spreadsheet`}
+              title="Include this row in the exported Failure Mode and Effects Analysis spreadsheet"
               onFocus={() => setFocusedCellId(`${row.original.id}:included`)}
               onBlur={() => setFocusedCellId(null)}
               onKeyDown={(event) => {
@@ -1798,11 +1816,11 @@ export default function Home() {
             <div className="workspace-start-layout">
               <div className="workspace-start-intro">
                 <div className="page-heading workspace-start-heading">
-                  <span className="metric-label">Evidence-backed FMEA workspace</span>
+                  <span className="metric-label">Evidence-backed Failure Mode and Effects Analysis workspace</span>
                   <h1>Start from a system model, then review the evidence row by row.</h1>
                   <p>
                     Load a prepared reliability workspace, narrow the analysis to selected components,
-                    or import a BOM to generate an editable FMEA worksheet with citations.
+                    or import a BOM to generate an editable Failure Mode and Effects Analysis worksheet with citations.
                   </p>
                 </div>
 
@@ -1998,16 +2016,16 @@ export default function Home() {
               >
                 Exit to dashboard
               </button>
-              <span className="metric-label">FMEA Worksheet</span>
+              <span className="metric-label">Failure Mode and Effects Analysis worksheet</span>
               <label className="analysis-name-field">
-                <span className="visually-hidden">FMEA analysis name</span>
+                <span className="visually-hidden">Failure Mode and Effects Analysis name</span>
                 <input
                   value={analysisName}
                   onChange={(event) => {
                     setAnalysisName(event.target.value);
                     setHasUnsavedChanges(true);
                   }}
-                  aria-label="FMEA analysis name"
+                  aria-label="Failure Mode and Effects Analysis name"
                 />
               </label>
             </div>
@@ -2460,16 +2478,16 @@ export default function Home() {
             className="source-dialog source-dialog-compact"
             role="dialog"
             aria-modal="true"
-            aria-label="Unsaved FMEA changes"
+            aria-label="Unsaved Failure Mode and Effects Analysis changes"
             onClick={(event) => event.stopPropagation()}
           >
             <button className="dialog-close" type="button" aria-label="Close" onClick={() => setShowExitDialog(false)}>
               ×
             </button>
-            <span className="metric-label">Unsaved FMEA</span>
+            <span className="metric-label">Unsaved Failure Mode and Effects Analysis</span>
             <h3>Save before returning to the dashboard?</h3>
             <p>
-              This FMEA has unsaved edits. Save them now, or discard the changes and return to the dashboard.
+              This Failure Mode and Effects Analysis has unsaved edits. Save them now, or discard the changes and return to the dashboard.
             </p>
             <div className="dialog-actions">
               <button className="btn btn-secondary btn-sm" type="button" onClick={discardAndExit}>
@@ -2504,7 +2522,7 @@ export default function Home() {
             </p>
             <ul className="source-list">
               <li>
-                <strong>Extracted FMEA fields</strong>
+                <strong>Extracted Failure Mode and Effects Analysis fields</strong>
                 {evidenceSummary(selectedSourceRow).map(([label, value]) => (
                   <span key={label}>
                     {label}: {value}
@@ -2551,7 +2569,7 @@ export default function Home() {
               </li>
               <li>
                 <strong>Ctrl+S / Cmd+S</strong>
-                <span>Save FMEA data</span>
+                <span>Save analysis data</span>
               </li>
               <li>
                 <strong>Ctrl+A / Cmd+A</strong>
@@ -2578,7 +2596,7 @@ export default function Home() {
                 <span>Close dialogs, dropdowns, or clear selection</span>
               </li>
             </ul>
-            <h3>FMEA Field Explanations</h3>
+            <h3>Failure Mode and Effects Analysis Field Explanations</h3>
             <ul className="source-list">
               <li>
                 <strong>Component</strong>
@@ -2626,7 +2644,7 @@ export default function Home() {
               </li>
               <li>
                 <strong>Evidence</strong>
-                <span>Source count and citations behind the extracted FMEA fields</span>
+                <span>Source count and citations behind the extracted Failure Mode and Effects Analysis fields</span>
               </li>
               <li>
                 <strong>Status</strong>

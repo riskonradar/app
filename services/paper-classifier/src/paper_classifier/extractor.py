@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+from paper_classifier.failure_modes import canonical_failure_mode_label
 from paper_classifier.keywords import ALL_TERMS, KeywordTerm
 from paper_classifier.models import (
     ClaimRelationship,
@@ -48,11 +49,16 @@ def _direct_keyword_claims(paper: Paper) -> tuple[EvidenceClaim, ...]:
             spans = tuple(_find_spans(source_field, value, term.aliases))
             if not spans:
                 continue
+            normalized_value = term.normalized
+            if term.claim_type == ClaimType.FAILURE_MODE:
+                normalized_value = canonical_failure_mode_label(term.normalized)
+                if not normalized_value:
+                    continue
             claims.append(
                 EvidenceClaim(
                     claim_type=term.claim_type,
                     raw_value=spans[0].text,
-                    normalized_value=term.normalized,
+                    normalized_value=normalized_value,
                     support_type=SupportType.DIRECT_SPAN,
                     confidence=_term_confidence(term, source_field),
                     spans=spans,
@@ -105,18 +111,18 @@ def _inferred_claims(claims: tuple[EvidenceClaim, ...]) -> tuple[EvidenceClaim, 
     by_type = {claim.claim_type for claim in claims}
     inferred: list[EvidenceClaim] = []
 
-    if "corrosion" in normalized and "fatigue failure" in normalized:
+    if "Corrosion / pitting" in normalized and "Fatigue" in normalized:
         spans = tuple(
             span
             for claim in claims
-            if claim.normalized_value in {"corrosion", "fatigue failure"}
+            if claim.normalized_value in {"Corrosion / pitting", "Fatigue"}
             for span in claim.spans[:1]
         )
         inferred.append(
             EvidenceClaim(
                 claim_type=ClaimType.FAILURE_MODE,
                 raw_value="corrosion fatigue",
-                normalized_value="corrosion fatigue",
+                normalized_value=canonical_failure_mode_label("corrosion fatigue"),
                 support_type=SupportType.INFERRED_FROM_SPAN,
                 confidence=0.62,
                 spans=spans,
