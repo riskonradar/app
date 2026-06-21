@@ -7,7 +7,7 @@ import {
 } from "@clerk/nextjs";
 
 export function WorkspaceControls() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
 
   if (!isLoaded) {
     return (
@@ -36,12 +36,16 @@ export function WorkspaceControls() {
     <div className="account-grid">
       <section className="account-panel">
         <div className="section-heading">
-          <span className="metric-label">Account</span>
-          <h2>Signed in</h2>
+          <span className="metric-label">Profile</span>
+          <h2>Personal details</h2>
         </div>
-        <p>Manage your user session here. Team workspace controls will appear after Organizations are enabled in Clerk.</p>
-        <div className="clerk-control-frame">
+        <p>
+          Signed in as {user?.primaryEmailAddress?.emailAddress ?? "your Risk on Radar account"}.
+          Use the profile menu to update your session and account details.
+        </p>
+        <div className="clerk-control-frame account-profile-frame">
           <UserButton />
+          <span>{user?.fullName || user?.primaryEmailAddress?.emailAddress || "Account"}</span>
         </div>
       </section>
     </div>
