@@ -8,7 +8,8 @@ export function getMollieClient() {
   if (!mollieClient) {
     // Cloudflare Workers doesn't set process.release; Mollie's client checks it on init.
     if (typeof process !== "undefined" && !process.release) {
-      (process as NodeJS.Process).release = { name: "node" };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (process as any).release = { name: "node" };
     }
 
     const apiKey = getMollieApiKey();
