@@ -75,6 +75,7 @@ type FmeaDataset = {
 type SelectionStep = "initial" | "table";
 type EditableField =
   | "included"
+  | "failureMode"
   | "effect"
   | "severity"
   | "cause"
@@ -147,6 +148,7 @@ const scoreOptions = Array.from({ length: 10 }, (_, index) => String(index + 1))
 const bundledTurbofanData = fmeaData as FmeaDataset;
 const editableFields: EditableField[] = [
   "included",
+  "failureMode",
   "effect",
   "severity",
   "cause",
@@ -158,10 +160,9 @@ const editableFields: EditableField[] = [
 ];
 
 const fieldHelp: Record<string, string> = {
-  included: "Include or exclude this row from save/export decisions.",
+  included: "Whether this failure mode row should be included in the exported FMEA spreadsheet.",
   component: "Physical engineering part or subsystem being analyzed.",
   function: "Intended function the component must perform.",
-  requirement: "Operating requirement or condition the function must satisfy.",
   failureMode: "How the component or function can fail.",
   effect: "Consequence if the failure mode occurs.",
   severity: "Severity score: 1 is minor, 10 is hazardous or catastrophic.",
@@ -176,9 +177,8 @@ const fieldHelp: Record<string, string> = {
 };
 
 const worksheetColumnSpecs = [
-  { id: "included", size: 38 },
+  { id: "included", size: 58 },
   { id: "function", size: 108 },
-  { id: "requirement", size: 112 },
   { id: "failureMode", size: 118 },
   { id: "effect", size: 116 },
   { id: "severity", size: 50 },
@@ -192,7 +192,7 @@ const worksheetColumnSpecs = [
   { id: "status", size: 106 },
 ] as const;
 
-const helpFields = new Set(["failureMode", "severity", "occurrence", "detection", "rpn", "evidence"]);
+const helpFields = new Set(["included", "failureMode", "severity", "occurrence", "detection", "rpn", "evidence"]);
 const turbofanComponents = [
   "Bearing",
   "Combustor",
@@ -506,10 +506,9 @@ function isComplete(row: FmeaRow) {
 
 function buildCsv(rows: FmeaRow[]) {
   const headers = [
-    "Included",
+    "Include in FMEA spreadsheet",
     "Component",
     "Function",
-    "Requirement",
     "Failure mode",
     "Effect",
     "Severity",
@@ -529,7 +528,6 @@ function buildCsv(rows: FmeaRow[]) {
     row.included ? "Yes" : "No",
     row.component,
     row.function,
-    row.requirement,
     row.failureMode,
     row.effect,
     row.severity,
@@ -552,10 +550,9 @@ function buildCsv(rows: FmeaRow[]) {
 
 function buildExcelHtml(rows: FmeaRow[]) {
   const headers = [
-    "Included",
+    "Include in FMEA spreadsheet",
     "Component",
     "Function",
-    "Requirement",
     "Failure mode",
     "Effect",
     "Severity",
@@ -574,7 +571,6 @@ function buildExcelHtml(rows: FmeaRow[]) {
     row.included ? "Yes" : "No",
     row.component,
     row.function,
-    row.requirement,
     row.failureMode,
     row.effect,
     row.severity,
@@ -734,6 +730,7 @@ export default function Home() {
   function saveCellViewer(newValue: string) {
     if (!cellViewer) return;
     const fieldMap: Record<string, keyof FmeaRow> = {
+      "Failure Mode": "failureMode",
       "Effect": "effect",
       "Cause": "cause",
       "Controls": "currentControl",
@@ -1075,26 +1072,82 @@ export default function Home() {
     );
   }
 
+  function renderLongTextCell(row: FmeaRow, field: EditableField, label: string, value: string) {
+    const displayValue = value.trim() || `Add ${label.toLowerCase()}`;
+    const openText = () => openCellViewer(row.id, label, value);
+
+    return (
+      <button
+        ref={(element) => registerCell(row.id, field, element)}
+        type="button"
+        className={`fmea-cell-control fmea-text-open ${editableCellClass(row.id, field)}`}
+        aria-label={`Open full ${label.toLowerCase()} text for ${row.component} - ${row.failureMode}`}
+        title={value || `Open ${label.toLowerCase()} text`}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          openText();
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+          openText();
+        }}
+        onFocus={() => setFocusedCellId(`${row.id}:${field}`)}
+        onBlur={() => setFocusedCellId(null)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            openText();
+            return;
+          }
+          handleTableCellKeyDown(event, row.id, field);
+        }}
+      >
+        {displayValue}
+      </button>
+    );
+  }
+
   // TanStack Table columns
-  const columns = useMemo<ColumnDef<FmeaRow>[]>(
-    () => [
+  const columns: ColumnDef<FmeaRow>[] = [
       {
         id: "included",
-        header: () => <HeaderLabel field="included" label="Use" />,
-        cell: ({ row }) => (
-          <input
-            ref={(element) => registerCell(row.original.id, "included", element)}
-            type="checkbox"
-            checked={row.original.included}
-            onChange={(e) => updateRow(row.original.id, { included: e.target.checked })}
-            className="fmea-checkbox"
-            aria-label={`Include ${row.original.component} - ${row.original.failureMode}`}
-            onFocus={() => setFocusedCellId(`${row.original.id}:included`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "included")}
-          />
-        ),
-        size: 38,
+        header: () => <HeaderLabel field="included" label="Export" />,
+        cell: ({ row }) => {
+          const toggleIncluded = () => updateRow(row.original.id, { included: !row.original.included });
+          return (
+            <input
+              ref={(element) => registerCell(row.original.id, "included", element)}
+              type="checkbox"
+              checked={row.original.included}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleIncluded();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onChange={(event) => event.stopPropagation()}
+              className="fmea-checkbox"
+              aria-label={`Include ${row.original.component} - ${row.original.failureMode} in exported FMEA spreadsheet`}
+              title="Include this row in the exported FMEA spreadsheet"
+              onFocus={() => setFocusedCellId(`${row.original.id}:included`)}
+              onBlur={() => setFocusedCellId(null)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggleIncluded();
+                  return;
+                }
+                handleTableCellKeyDown(event, row.original.id, "included");
+              }}
+            />
+          );
+        },
+        size: 58,
       },
       {
         accessorKey: "component",
@@ -1109,32 +1162,15 @@ export default function Home() {
         size: 120,
       },
       {
-        accessorKey: "requirement",
-        header: () => <HeaderLabel field="requirement" label="Requirement" />,
-        cell: ({ row }) => <span>{row.original.requirement}</span>,
-        size: 135,
-      },
-      {
         accessorKey: "failureMode",
         header: () => <HeaderLabel field="failureMode" label="Failure Mode" />,
-        cell: ({ row }) => <span>{row.original.failureMode}</span>,
+        cell: ({ row }) => renderLongTextCell(row.original, "failureMode", "Failure Mode", row.original.failureMode),
         size: 130,
       },
       {
         accessorKey: "effect",
         header: () => <HeaderLabel field="effect" label="Effect" />,
-        cell: ({ row }) => (
-          <input
-            ref={(element) => registerCell(row.original.id, "effect", element)}
-            type="text"
-            value={row.original.effect}
-            readOnly
-            className={`fmea-cell-control ${editableCellClass(row.original.id, "effect")}`}
-            aria-label={`Effect for ${row.original.component} - ${row.original.failureMode}`}
-            onClick={() => openCellViewer(row.original.id, "Effect", row.original.effect)}
-            title={row.original.effect || "Click to edit"}
-          />
-        ),
+        cell: ({ row }) => renderLongTextCell(row.original, "effect", "Effect", row.original.effect),
         size: 120,
       },
       {
@@ -1164,18 +1200,7 @@ export default function Home() {
       {
         accessorKey: "cause",
         header: () => <HeaderLabel field="cause" label="Cause" />,
-        cell: ({ row }) => (
-          <input
-            ref={(element) => registerCell(row.original.id, "cause", element)}
-            type="text"
-            value={row.original.cause}
-            readOnly
-            className={`fmea-cell-control ${editableCellClass(row.original.id, "cause")}`}
-            aria-label={`Cause for ${row.original.component} - ${row.original.failureMode}`}
-            onClick={() => openCellViewer(row.original.id, "Cause", row.original.cause)}
-            title={row.original.cause || "Click to edit"}
-          />
-        ),
+        cell: ({ row }) => renderLongTextCell(row.original, "cause", "Cause", row.original.cause),
         size: 120,
       },
       {
@@ -1205,18 +1230,7 @@ export default function Home() {
       {
         accessorKey: "currentControl",
         header: () => <HeaderLabel field="currentControl" label="Controls" />,
-        cell: ({ row }) => (
-          <input
-            ref={(element) => registerCell(row.original.id, "currentControl", element)}
-            type="text"
-            value={row.original.currentControl}
-            readOnly
-            className={`fmea-cell-control ${editableCellClass(row.original.id, "currentControl")}`}
-            aria-label={`Controls for ${row.original.component} - ${row.original.failureMode}`}
-            onClick={() => openCellViewer(row.original.id, "Controls", row.original.currentControl)}
-            title={row.original.currentControl || "Click to edit"}
-          />
-        ),
+        cell: ({ row }) => renderLongTextCell(row.original, "currentControl", "Controls", row.original.currentControl),
         size: 120,
       },
       {
@@ -1252,18 +1266,7 @@ export default function Home() {
       {
         accessorKey: "correctiveAction",
         header: () => <HeaderLabel field="correctiveAction" label="Action" />,
-        cell: ({ row }) => (
-          <input
-            ref={(element) => registerCell(row.original.id, "correctiveAction", element)}
-            type="text"
-            value={row.original.correctiveAction}
-            readOnly
-            className={`fmea-cell-control ${editableCellClass(row.original.id, "correctiveAction")}`}
-            aria-label={`Corrective action for ${row.original.component} - ${row.original.failureMode}`}
-            onClick={() => openCellViewer(row.original.id, "Action", row.original.correctiveAction)}
-            title={row.original.correctiveAction || "Click to edit"}
-          />
-        ),
+        cell: ({ row }) => renderLongTextCell(row.original, "correctiveAction", "Action", row.original.correctiveAction),
         size: 120,
       },
       {
@@ -1307,9 +1310,7 @@ export default function Home() {
         ),
         size: 104,
       },
-    ],
-    [editableCellClass, handleTableCellKeyDown],
-  );
+    ];
 
   const visibleColumnCount = columns.length - 1;
 
@@ -1657,7 +1658,7 @@ export default function Home() {
                 </colgroup>
                 <thead>
                   <tr className="column-group-row">
-                    <th colSpan={4}>Component details</th>
+                    <th colSpan={3}>Component details</th>
                     <th colSpan={6}>Failure analysis and scoring</th>
                     <th colSpan={4}>Evidence and review</th>
                   </tr>
@@ -1739,7 +1740,7 @@ export default function Home() {
             </span>
             {selectedRowIds.size > 0 && (
               <span className="selection-count">
-                {selectedRowIds.size} selected
+                {selectedRowIds.size} row{selectedRowIds.size === 1 ? "" : "s"} selected for batch actions
               </span>
             )}
             {totalPages > 1 && (
@@ -1994,10 +1995,6 @@ export default function Home() {
               <li>
                 <strong>Function</strong>
                 <span>Intended function the component must perform</span>
-              </li>
-              <li>
-                <strong>Requirement</strong>
-                <span>Operating requirement or condition the function must satisfy</span>
               </li>
               <li>
                 <strong>Failure Mode</strong>

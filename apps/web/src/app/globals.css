@@ -682,7 +682,7 @@ input[type="checkbox"]:focus {
 /* Table styling matching site design */
 .fmea-table {
   width: 100%;
-  min-width: 1234px;
+  min-width: 1142px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8rem;
@@ -721,7 +721,8 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table td input,
-.fmea-table td select {
+.fmea-table td select,
+.fmea-table td button.fmea-text-open {
   font-family: inherit;
   font-size: inherit;
   color: inherit;
@@ -739,23 +740,32 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table td input:focus,
-.fmea-table td select:focus {
+.fmea-table td select:focus,
+.fmea-table td button.fmea-text-open:focus {
   white-space: nowrap;
   overflow: hidden;
 }
 
 .fmea-table td input:hover,
-.fmea-table td select:hover {
+.fmea-table td select:hover,
+.fmea-table td button.fmea-text-open:hover {
   border-color: var(--color-border-strong);
   background: rgba(255, 255, 255, 0.02);
 }
 
 .fmea-table td input:focus,
-.fmea-table td select:focus {
+.fmea-table td select:focus,
+.fmea-table td button.fmea-text-open:focus {
   outline: none;
   border-color: var(--color-accent);
   background: rgba(232, 86, 52, 0.05);
   box-shadow: 0 0 0 2px rgba(232, 86, 52, 0.1);
+}
+
+.fmea-table td button.fmea-text-open {
+  cursor: zoom-in;
+  display: block;
+  text-align: left;
 }
 
 .fmea-table td select {
@@ -1110,8 +1120,8 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-checkbox {
-  width: 16px;
-  height: 16px;
+  width: 13px;
+  height: 13px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
   accent-color: var(--color-accent);
@@ -1119,6 +1129,10 @@ input[type="checkbox"]:focus {
   transition:
     border-color 200ms var(--ease-out),
     box-shadow 200ms var(--ease-out);
+}
+
+.fmea-checkbox:checked::after {
+  font-size: 9px;
 }
 
 .fmea-checkbox:focus {
@@ -1166,6 +1180,11 @@ input[type="checkbox"]:focus {
 
 .export-menu {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .export-dropdown {
@@ -1195,6 +1214,14 @@ input[type="checkbox"]:focus {
 
 .export-dropdown button:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.export-hint {
+  color: var(--color-warning);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  max-width: 220px;
 }
 
 .header-label {
@@ -1498,18 +1525,14 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table .col-included {
-  width: 38px;
-  min-width: 38px;
-  max-width: 38px;
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
   text-align: center;
 }
 
 .fmea-table .col-function {
   width: 108px;
-}
-
-.fmea-table .col-requirement {
-  width: 112px;
 }
 
 .fmea-table .col-failureMode {
