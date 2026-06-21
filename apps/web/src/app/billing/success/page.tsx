@@ -33,25 +33,9 @@ export default function BillingSuccessPage() {
             <span className="metric-label">Payment complete</span>
             <h1 id="payment-success-title">You are now a Pro member</h1>
             <p>
-              Your account is upgraded for this workspace. Unlimited Failure Mode and Effects Analysis tables are available
-              in the dashboard and account management views.
+              Your account is upgraded for this workspace. Unlimited FMEA tables are available.
             </p>
           </div>
-
-          <dl className="billing-result-summary">
-            <div>
-              <dt>Plan</dt>
-              <dd>Pro Individual</dd>
-            </div>
-            <div>
-              <dt>Analysis availability</dt>
-              <dd>Unlimited saved tables</dd>
-            </div>
-            <div>
-              <dt>Profile status</dt>
-              <dd>Pro profile active</dd>
-            </div>
-          </dl>
 
           <div className="page-actions">
             <Link href="/dashboard" className="btn btn-primary btn-sm">

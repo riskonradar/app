@@ -2922,12 +2922,26 @@ input[type="checkbox"]:focus {
   width: 100%;
 }
 
-.account-pricing-summary .membership-status {
-  max-width: 520px;
+.account-plan-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1fr);
+  gap: var(--space-lg);
+  align-items: stretch;
+  margin-top: var(--space-xl);
 }
 
-.account-pricing-summary .plan-strip {
-  grid-template-columns: minmax(0, 420px);
+.account-plan-grid .membership-status {
+  min-height: 100%;
+  margin-top: 0;
+}
+
+.account-plan-detail {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.account-plan-detail .page-actions {
+  margin-top: 0;
 }
 
 .clerk-embedded-frame {
@@ -3200,6 +3214,7 @@ input[type="checkbox"]:focus {
   .dashboard-metrics,
   .account-summary-grid,
   .pricing-grid,
+  .account-plan-grid,
   .plan-strip {
     grid-template-columns: 1fr;
   }

@@ -42,23 +42,25 @@ export default async function AccountPage() {
             <span className="metric-label">Plan</span>
             <h2>Current plan</h2>
           </div>
-          <MembershipStatus serverStatus={summary?.organization.billing_status} serverPlan={summary?.organization.plan_key} />
-          <div className="plan-strip">
-            {demoPlans.map((plan) => (
-              <article key={plan.key} className="plan-strip-item">
-                <span>{plan.name}</span>
-                <strong>{plan.priceLabel}</strong>
-                <p>{plan.description}</p>
-              </article>
-            ))}
-          </div>
-          <div className="page-actions">
-            <Link href="/pricing" className="btn btn-primary btn-sm">
-              Manage plan
-            </Link>
-            <Link href="/dashboard" className="btn btn-secondary btn-sm">
-              Open dashboard
-            </Link>
+          <div className="account-plan-grid">
+            <MembershipStatus serverStatus={summary?.organization.billing_status} serverPlan={summary?.organization.plan_key} />
+            <div className="account-plan-detail">
+              {demoPlans.map((plan) => (
+                <article key={plan.key} className="plan-strip-item">
+                  <span>{plan.name}</span>
+                  <strong>{plan.priceLabel}</strong>
+                  <p>{plan.description}</p>
+                </article>
+              ))}
+              <div className="page-actions">
+                <Link href="/pricing" className="btn btn-primary btn-sm">
+                  Manage plan
+                </Link>
+                <Link href="/dashboard" className="btn btn-secondary btn-sm">
+                  Open dashboard
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
       </main>
