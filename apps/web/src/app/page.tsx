@@ -47,6 +47,7 @@ type FmeaRow = EvidenceRow & {
   id: string;
   function: string;
   requirement: string;
+  industry: string;
   currentControl: string;
   owner: string;
   status: "needs_review" | "accepted" | "rejected";
@@ -179,6 +180,7 @@ const fieldHelp: Record<string, string> = {
 const worksheetColumnSpecs = [
   { id: "included", size: 76 },
   { id: "function", size: 108 },
+  { id: "industry", size: 92 },
   { id: "failureMode", size: 118 },
   { id: "effect", size: 116 },
   { id: "severity", size: 50 },
@@ -347,6 +349,7 @@ function toFmeaRows(rows: EvidenceRow[]): FmeaRow[] {
     id: makeRowId(row, index),
     function: functionForComponent(row.component),
     requirement: "Maintain intended system function under defined operating conditions",
+    industry: industryForRow(row),
     currentControl: row.correctiveAction || defaultControls[index % defaultControls.length],
     owner: "",
     status: "needs_review",
@@ -369,6 +372,7 @@ function normalizeSavedRows(rows: FmeaRow[]) {
       ? {
           ...row,
           requirement: saved.requirement || row.requirement,
+          industry: saved.industry || row.industry,
           currentControl: saved.currentControl || row.currentControl,
           owner: saved.owner || row.owner,
           status: saved.status || row.status,
@@ -390,6 +394,19 @@ function functionForComponent(component: string) {
   return `Perform ${component.toLowerCase()} function`;
 }
 
+function industryForRow(row: EvidenceRow) {
+  const sourceText = row.sources
+    .map((source) => `${source.category ?? ""} ${source.title ?? ""}`)
+    .join(" ")
+    .toLowerCase();
+
+  if (sourceText.includes("easa") || sourceText.includes("turbofan") || sourceText.includes("aircraft")) {
+    return "Aviation";
+  }
+
+  return "Cross-industry reliability";
+}
+
 function templateRowsForComponents(components: string[]): FmeaRow[] {
   const failureModes = [
     "Fatigue cracking",
@@ -407,6 +424,7 @@ function templateRowsForComponents(components: string[]): FmeaRow[] {
         component,
         function: functionForComponent(component),
         requirement: "Define requirement",
+        industry: "Cross-industry reliability",
         failureMode,
         effect: "",
         cause: "",
@@ -510,7 +528,6 @@ function isComplete(row: FmeaRow) {
 
 function buildCsv(rows: FmeaRow[]) {
   const headers = [
-    "Include in FMEA spreadsheet",
     "Component",
     "Function",
     "Failure mode",
@@ -523,13 +540,11 @@ function buildCsv(rows: FmeaRow[]) {
     "RPN",
     "Recommended action",
     "Owner",
-    "Review status",
     "Evidence count",
     "Sources",
   ];
 
   const body = rows.map((row) => [
-    row.included ? "Yes" : "No",
     row.component,
     row.function,
     row.failureMode,
@@ -542,7 +557,6 @@ function buildCsv(rows: FmeaRow[]) {
     rowRpn(row),
     row.correctiveAction,
     row.owner,
-    row.status,
     row.evidenceCount,
     row.sources.map((source) => source.doi || source.title).join("; "),
   ]);
@@ -554,7 +568,6 @@ function buildCsv(rows: FmeaRow[]) {
 
 function buildExcelHtml(rows: FmeaRow[]) {
   const headers = [
-    "Include in FMEA spreadsheet",
     "Component",
     "Function",
     "Failure mode",
@@ -567,12 +580,10 @@ function buildExcelHtml(rows: FmeaRow[]) {
     "RPN",
     "Recommended action",
     "Owner",
-    "Review status",
     "Evidence count",
     "Sources",
   ];
   const body = rows.map((row) => [
-    row.included ? "Yes" : "No",
     row.component,
     row.function,
     row.failureMode,
@@ -585,7 +596,6 @@ function buildExcelHtml(rows: FmeaRow[]) {
     rowRpn(row),
     row.correctiveAction,
     row.owner,
-    row.status,
     row.evidenceCount,
     row.sources.map((source) => source.doi || source.title).join("; "),
   ]);
@@ -671,13 +681,27 @@ function zipStore(files: { name: string; content: string }[]) {
 }
 
 function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
-  const columnLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const columnWidths = [24, 30, 30, 38, 10, 34, 12, 34, 12, 10, 34, 18, 14, 55];
+  const columnName = (index: number) => {
+    let name = "";
+    let value = index + 1;
+    while (value > 0) {
+      const remainder = (value - 1) % 26;
+      name = String.fromCharCode(65 + remainder) + name;
+      value = Math.floor((value - 1) / 26);
+    }
+    return name;
+  };
+  const columns = columnWidths
+    .map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`)
+    .join("");
   const sheetRows = rows
     .map((row, rowIndex) => {
       const cells = row
         .map((cell, columnIndex) => {
-          const ref = `${columnLetters[columnIndex] ?? "A"}${rowIndex + 1}`;
-          return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(cell)}</t></is></c>`;
+          const ref = `${columnName(columnIndex)}${rowIndex + 1}`;
+          const style = rowIndex === 0 ? ' s="1"' : "";
+          return `<c r="${ref}"${style} t="inlineStr"><is><t>${xmlEscape(cell)}</t></is></c>`;
         })
         .join("");
       return `<row r="${rowIndex + 1}">${cells}</row>`;
@@ -694,6 +718,7 @@ function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
         '<Default Extension="xml" ContentType="application/xml"/>' +
         '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
         '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
         "</Types>",
     },
     {
@@ -717,14 +742,28 @@ function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
         '<?xml version="1.0" encoding="UTF-8"?>' +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
         "</Relationships>",
+    },
+    {
+      name: "xl/styles.xml",
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Aptos"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Aptos"/></font></fonts>' +
+        '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE85634"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>' +
+        "</styleSheet>",
     },
     {
       name: "xl/worksheets/sheet1.xml",
       content:
         '<?xml version="1.0" encoding="UTF-8"?>' +
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-        `<sheetData>${sheetRows}</sheetData></worksheet>`,
+        '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+        `<cols>${columns}</cols><sheetData>${sheetRows}</sheetData></worksheet>`,
     },
   ]);
 }
@@ -1099,14 +1138,41 @@ export default function Home() {
     importBomFile(file);
   }
 
-  function startManualWorksheet() {
+  function rowsForSelectedComponents(datasetRows: EvidenceRow[], selectedComponents: string[]) {
+    const selected = new Set(selectedComponents.map((component) => component.toLowerCase()));
+    return datasetRows.filter((row) => selected.has(row.component.toLowerCase()));
+  }
+
+  async function startManualWorksheet() {
     const nextComponents = manualComponents.length ? manualComponents : components.slice(0, 5);
-    setRows(templateRowsForComponents(nextComponents));
+    setLoadingAction("system");
     setComponentFilter("All");
     setComponentQuery("");
     setRowFilter("all");
-    setSelectionStep("table");
-    setNotice(`Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`);
+    try {
+      const liveDataset = await fetchLiveTurbofanDataset();
+      const evidenceRows = rowsForSelectedComponents(liveDataset.rows, nextComponents);
+      const nextRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents(nextComponents);
+      setRows(nextRows);
+      setNotice(
+        evidenceRows.length
+          ? `Loaded ${nextRows.length} evidence-backed FMEA row${nextRows.length === 1 ? "" : "s"} for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
+          : `Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`,
+      );
+    } catch {
+      const evidenceRows = rowsForSelectedComponents(bundledTurbofanData.rows, nextComponents);
+      const nextRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents(nextComponents);
+      setRows(nextRows);
+      setNotice(
+        evidenceRows.length
+          ? `Loaded bundled evidence-backed FMEA rows for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
+          : `Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`,
+      );
+    } finally {
+      setSelectionStep("table");
+      setHasUnsavedChanges(true);
+      setLoadingAction(null);
+    }
   }
 
   async function fetchLiveTurbofanDataset() {
@@ -1200,7 +1266,10 @@ export default function Home() {
             aria-label={`${label}: ${helpText}`}
             data-tooltip={helpText}
           >
-            ?
+            i
+            <span className="field-help-tooltip" role="tooltip">
+              {helpText}
+            </span>
           </button>
         )}
       </span>
@@ -1295,6 +1364,12 @@ export default function Home() {
         header: () => <HeaderLabel field="function" label="Function" />,
         cell: ({ row }) => <span>{row.original.function}</span>,
         size: 120,
+      },
+      {
+        accessorKey: "industry",
+        header: () => <HeaderLabel field="industry" label="Industry" />,
+        cell: ({ row }) => <span>{row.original.industry}</span>,
+        size: 92,
       },
       {
         accessorKey: "failureMode",
@@ -1529,6 +1604,10 @@ export default function Home() {
                   </button>
                 </div>
 
+                <div className="choice-divider" aria-hidden="true">
+                  or
+                </div>
+
                 <div className="workspace-start-secondary">
                   <div className="workspace-start-panel">
                     <label className="field-label" htmlFor="manual-component">
@@ -1588,6 +1667,10 @@ export default function Home() {
                     >
                       Start manual worksheet
                     </button>
+                  </div>
+
+                  <div className="choice-divider choice-divider-inline" aria-hidden="true">
+                    or
                   </div>
 
                   <button
@@ -1651,7 +1734,7 @@ export default function Home() {
       <AppNav />
 
       <main id="main-content" className="app-main">
-        <section className="workflow-card">
+        <section className="workflow-card worksheet-workspace">
           {/* Header with Export */}
           <div className="fmea-header">
             <div>
@@ -1830,7 +1913,7 @@ export default function Home() {
                 </colgroup>
                 <thead>
                   <tr className="column-group-row">
-                    <th colSpan={3}>Component details</th>
+                    <th colSpan={4}>Component details</th>
                     <th colSpan={6}>Failure analysis and scoring</th>
                     <th colSpan={4}>Evidence and review</th>
                   </tr>

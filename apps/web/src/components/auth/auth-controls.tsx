@@ -14,7 +14,8 @@ export function AuthControls() {
     return (
       <div className="auth-controls">
         <Link href="/sign-in" className="btn btn-primary btn-sm">
-          Sign in or create account
+          <span className="auth-label-full">Sign in or create account</span>
+          <span className="auth-label-short">Sign in</span>
         </Link>
       </div>
     );
@@ -30,7 +31,8 @@ function ConfiguredAuthControls() {
     return (
       <div className="auth-controls">
         <button type="button" className="btn btn-primary btn-sm" disabled>
-          Sign in or create account
+          <span className="auth-label-full">Sign in or create account</span>
+          <span className="auth-label-short">Sign in</span>
         </button>
       </div>
     );
@@ -43,7 +45,8 @@ function ConfiguredAuthControls() {
       ) : (
         <SignInButton mode="modal">
           <button type="button" className="btn btn-primary btn-sm">
-            Sign in or create account
+            <span className="auth-label-full">Sign in or create account</span>
+            <span className="auth-label-short">Sign in</span>
           </button>
         </SignInButton>
       )}

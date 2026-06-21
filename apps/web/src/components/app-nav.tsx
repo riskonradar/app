@@ -14,13 +14,13 @@ export function AppNav() {
   return (
     <nav className="nav app-nav" aria-label="Primary navigation">
       <div className="nav-container">
-        <Link
-          href="/"
+        <a
+          href="https://riskonradar.com/"
           className="nav-brand"
-          aria-label="Risk on Radar app home"
+          aria-label="Risk on Radar public website"
         >
           <Wordmark />
-        </Link>
+        </a>
 
         <div className="nav-actions">
           <Link className="nav-link" href="/">
