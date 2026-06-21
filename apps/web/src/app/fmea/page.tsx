@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
@@ -835,25 +835,18 @@ function groupRowsByComponent(rows: FmeaRow[]) {
   }));
 }
 
-function isNewWorksheetMode() {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("mode") === "new";
-}
-
-function savedAnalysisIdFromUrl() {
-  if (typeof window === "undefined") return null;
-  return new URLSearchParams(window.location.search).get("analysis");
-}
-
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isNewMode = searchParams.get("mode") === "new";
+  const savedAnalysisId = searchParams.get("analysis");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const [selectionStep, setSelectionStep] = useState<SelectionStep>(() =>
-    isNewWorksheetMode() ? "initial" : "table",
+  const [selectionStep, setSelectionStep] = useState<SelectionStep>(
+    isNewMode ? "initial" : "table",
   );
   const [rows, setRows] = useState<FmeaRow[]>(() => {
-    if (isNewWorksheetMode() || savedAnalysisIdFromUrl()) return [];
+    if (isNewMode || savedAnalysisId) return [];
     return toFmeaRows(bundledTurbofanData.rows);
   });
   const [componentFilter, setComponentFilter] = useState("All");
@@ -861,18 +854,18 @@ export default function Home() {
   const [componentQuery, setComponentQuery] = useState("");
   const [newComponentName, setNewComponentName] = useState("");
   const [selectedSystemId, setSelectedSystemId] = useState("turbofan");
-  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(() => savedAnalysisIdFromUrl());
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(savedAnalysisId);
   const [manualComponents, setManualComponents] = useState<string[]>([]);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
-  const [notice, setNotice] = useState(() =>
-    isNewWorksheetMode()
+  const [notice, setNotice] = useState(
+    isNewMode
       ? "Start a new Failure Mode and Effects Analysis table by selecting components or importing a BOM."
-      : savedAnalysisIdFromUrl()
+      : savedAnalysisId
       ? "Loading saved Failure Mode and Effects Analysis table..."
       : "Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.",
   );
-  const [analysisName, setAnalysisName] = useState(() =>
-    isNewWorksheetMode() ? "Untitled Failure Mode and Effects Analysis" : "Turbofan reliability Failure Mode and Effects Analysis",
+  const [analysisName, setAnalysisName] = useState(
+    isNewMode ? "Untitled Failure Mode and Effects Analysis" : "Turbofan reliability Failure Mode and Effects Analysis",
   );
   const [sortMode, setSortMode] = useState<"component" | "rpn_desc" | "rpn_asc">("component");
   const [showExportDropdown, setShowExportDropdown] = useState(false);

@@ -2275,21 +2275,22 @@ input[type="checkbox"]:focus {
 }
 
 .dashboard-new-fmea {
-  display: flex;
-  min-height: 46px;
+  display: inline-flex;
+  height: 40px;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
+  gap: 6px;
+  padding: 0 var(--space-lg);
   border-radius: var(--radius-md);
   background: var(--color-accent);
   color: var(--color-on-accent);
   font-size: 0.88rem;
   font-weight: 800;
+  white-space: nowrap;
   transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
 }
 
 .dashboard-new-fmea span {
-  font-size: 1.1rem;
+  font-size: 1rem;
   line-height: 1;
 }
 

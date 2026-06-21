@@ -69,7 +69,7 @@ export async function ensureCurrentUserAccount(request?: Request): Promise<UserA
     .single();
 
   if (error) {
-    console.error("Failed to ensure user account:", error);
+    console.error("Failed to ensure user account:", JSON.stringify(error), { code: error.code, message: error.message, details: error.details, hint: error.hint });
     throw new Error("Could not resolve user account.");
   }
 
