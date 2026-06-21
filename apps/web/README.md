@@ -40,7 +40,7 @@ Required for full integration:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `MOLLIE_API_KEY`
+- `MOLLIE_API_KEY` or `MOLLIE_TEST_API_KEY`
 
 The local `.env.local` is intentionally ignored by git. Never commit real Clerk, Supabase service-role, or Mollie secrets.
 
@@ -96,7 +96,7 @@ Files:
 - `src/app/api/billing/create-payment/route.ts`
 - `src/app/api/billing/mollie-webhook/route.ts`
 
-Mollie must only be called from server-side code. The browser must never receive `MOLLIE_API_KEY`.
+Mollie must only be called from server-side code. The browser must never receive `MOLLIE_API_KEY` or `MOLLIE_TEST_API_KEY`.
 
 Current packaging direction:
 

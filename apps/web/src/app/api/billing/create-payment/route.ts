@@ -8,71 +8,81 @@ import { getMollieClient } from "@/lib/mollie/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
-  if (!isMollieConfigured()) {
-    return Response.json(
-      { error: "Mollie must be configured before creating payments." },
-      { status: 503 },
+  try {
+    if (!isMollieConfigured()) {
+      return Response.json(
+        { error: "Mollie checkout is not configured. Add a Mollie API key before creating payments." },
+        { status: 503 },
+      );
+    }
+
+    const clerkContext = await getCurrentClerkContext(request);
+    if (!clerkContext.userId) {
+      return Response.json(
+        { error: "Sign in before opening Mollie checkout." },
+        { status: 401 },
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const workspace = await ensureCurrentWorkspace(request);
+    if (!workspace) {
+      return Response.json(
+        { error: "Could not prepare your account for checkout. Refresh the page and try again." },
+        { status: 409 },
+      );
+    }
+
+    const plan = getBillingPlan(String(body.planKey ?? workspace.organization.plan_key ?? "individual"));
+
+    if (!plan || !plan.amountValue) {
+      return Response.json(
+        { error: "This plan requires a sales-led billing setup." },
+        { status: 400 },
+      );
+    }
+
+    const seats = Math.max(
+      Number(plan.includedSeats ?? 1),
+      Number.parseInt(String(body.seats ?? plan.includedSeats ?? 1), 10) || 1,
     );
-  }
+    const amountValue = plan.amountValue;
+    const description = `Risk on Radar ${plan.name} plan`;
+    const redirectUrl = process.env.MOLLIE_REDIRECT_URL ?? new URL("/billing/return", request.url).toString();
+    const webhookUrl = process.env.MOLLIE_WEBHOOK_URL || undefined;
 
-  const clerkContext = await getCurrentClerkContext(request);
-  if (!clerkContext.userId) {
-    return Response.json(
-      { error: "Sign in before opening Mollie checkout." },
-      { status: 401 },
-    );
-  }
+    const payment = await getMollieClient().payments.create({
+      amount: {
+        currency: "EUR",
+        value: amountValue,
+      },
+      description,
+      redirectUrl,
+      ...(webhookUrl ? { webhookUrl } : {}),
+      metadata: {
+        clerkUserId: clerkContext.userId,
+        clerkOrganizationId: clerkContext.orgId ?? null,
+        organizationId: workspace.organization.id,
+        userAccountId: workspace.userAccount.id,
+        planKey: plan.key,
+        planName: plan.name,
+        productName: `Risk on Radar ${plan.name} plan`,
+        billingScope: plan.billingScope,
+        billingPeriod: "monthly",
+        seats,
+        checkoutContext: "signed_in",
+      },
+    });
 
-  const body = await request.json().catch(() => ({}));
-  const workspace = await ensureCurrentWorkspace(request).catch((error) => {
-    console.error("Checkout will continue without persisted workspace:", error);
-    return null;
-  });
-  const plan = getBillingPlan(String(body.planKey ?? workspace?.organization.plan_key ?? "individual"));
+    const checkoutUrl = payment._links.checkout?.href;
+    if (!checkoutUrl) {
+      console.error("Mollie payment was created without a checkout URL:", payment.id);
+      return Response.json(
+        { error: "Mollie did not return a checkout URL. Please try again." },
+        { status: 502 },
+      );
+    }
 
-  if (!plan || !plan.amountValue) {
-    return Response.json(
-      { error: "This plan requires a sales-led billing setup." },
-      { status: 400 },
-    );
-  }
-
-  const seats = Math.max(
-    Number(plan.includedSeats ?? 1),
-    Number.parseInt(String(body.seats ?? plan.includedSeats ?? 1), 10) || 1,
-  );
-  const amountValue = plan.amountValue;
-  const description = `Risk on Radar ${plan.name} plan`;
-  const redirectUrl = process.env.MOLLIE_REDIRECT_URL ?? new URL("/billing/return", request.url).toString();
-  const webhookUrl = process.env.MOLLIE_WEBHOOK_URL || undefined;
-
-  const payment = await getMollieClient().payments.create({
-    amount: {
-      currency: "EUR",
-      value: amountValue,
-    },
-    description,
-    redirectUrl,
-    ...(webhookUrl ? { webhookUrl } : {}),
-    metadata: {
-      clerkUserId: clerkContext.userId,
-      clerkOrganizationId: clerkContext.orgId ?? null,
-      organizationId: workspace?.organization.id ?? `demo-${clerkContext.userId}`,
-      userAccountId: workspace?.userAccount.id ?? clerkContext.userId,
-      planKey: plan.key,
-      planName: plan.name,
-      productName: `Risk on Radar ${plan.name} plan`,
-      billingScope: plan.billingScope,
-      billingPeriod: "monthly",
-      seats,
-      checkoutContext: workspace ? "signed_in" : "signed_in_demo",
-    },
-  });
-
-  const checkoutUrl = payment._links.checkout?.href;
-
-  // Create initial payment record in database
-  if (workspace) {
     const supabase = getSupabaseServiceClient();
     const { error: paymentError } = await (supabase as any).schema("app")
       .from("billing_payments")
@@ -110,11 +120,17 @@ export async function POST(request: Request) {
     if (auditError) {
       console.error("Failed to record checkout audit event:", auditError);
     }
-  }
 
-  return Response.json({
-    id: payment.id,
-    status: payment.status,
-    checkoutUrl,
-  });
+    return Response.json({
+      id: payment.id,
+      status: payment.status,
+      checkoutUrl,
+    });
+  } catch (error) {
+    console.error("Create Mollie checkout failed:", error);
+    return Response.json(
+      { error: "Could not open Mollie checkout. Please try again in a moment." },
+      { status: 500 },
+    );
+  }
 }

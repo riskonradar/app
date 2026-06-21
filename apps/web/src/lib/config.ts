@@ -15,8 +15,12 @@ export function isSupabaseServiceConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+export function getMollieApiKey() {
+  return process.env.MOLLIE_API_KEY || process.env.MOLLIE_TEST_API_KEY || null;
+}
+
 export function isMollieConfigured() {
-  return Boolean(process.env.MOLLIE_API_KEY);
+  return Boolean(getMollieApiKey());
 }
 
 export function getRequiredEnv(name: string) {
