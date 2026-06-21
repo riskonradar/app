@@ -2260,6 +2260,12 @@ input[type="checkbox"]:focus {
 
 .dashboard-header-simple {
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.dashboard-header .page-heading h1 {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  text-wrap: balance;
 }
 
 .dashboard-workspace-note {
@@ -2588,7 +2594,23 @@ input[type="checkbox"]:focus {
 }
 
 .dashboard-panel-muted {
+  margin-top: var(--space-lg);
+  padding: var(--space-xl);
   background: var(--color-deep);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.dashboard-panel-muted .notice.standalone {
+  margin-top: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding-left: 0;
+}
+
+.dashboard-panel-muted .btn {
+  margin-top: var(--space-md);
 }
 
 .fmea-work-list {
