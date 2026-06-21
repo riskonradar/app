@@ -465,6 +465,7 @@ export default function Home() {
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
@@ -505,6 +506,24 @@ export default function Home() {
 
   // Group visible rows by component for tree structure
   const groupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
+
+  // Initialize all components as expanded
+  useEffect(() => {
+    const componentNames = Array.from(new Set(rows.map(row => row.component)));
+    setExpandedComponents(new Set(componentNames));
+  }, [rows]);
+
+  function toggleComponent(componentName: string) {
+    setExpandedComponents(current => {
+      const newSet = new Set(current);
+      if (newSet.has(componentName)) {
+        newSet.delete(componentName);
+      } else {
+        newSet.add(componentName);
+      }
+      return newSet;
+    });
+  }
 
   // Load saved data from localStorage on mount
   useEffect(() => {
@@ -830,19 +849,13 @@ export default function Home() {
     return (
       <span className="header-label">
         {label}
-        <button
-          type="button"
+        <span
           className="field-help"
           title={fieldHelp[field]}
-          aria-label={`${label} help: ${fieldHelp[field]}`}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            setShowHelpModal(true);
-          }}
+          data-tooltip={fieldHelp[field]}
         >
           ?
-        </button>
+        </span>
       </span>
     );
   }
@@ -1399,11 +1412,19 @@ export default function Home() {
                     <Fragment key={component}>
                       <tr className="component-section-row">
                         <td colSpan={visibleColumnCount}>
-                          <span>Component</span>
-                          {component}
+                          <button
+                            type="button"
+                            className="component-toggle"
+                            onClick={() => toggleComponent(component)}
+                            aria-label={`${expandedComponents.has(component) ? "Collapse" : "Expand"} ${component}`}
+                          >
+                            <span className="toggle-icon">{expandedComponents.has(component) ? "▼" : "▶"}</span>
+                            <span className="toggle-label">Component</span>
+                          </button>
+                          <span className="component-name">{component}</span>
                         </td>
                       </tr>
-                      {childRows.map((row) => (
+                      {expandedComponents.has(component) && childRows.map((row) => (
                         <tr
                           key={row.id}
                           className={`fmea-data-row ${selectedRowIds.has(row.id) ? "row-selected" : ""}`}

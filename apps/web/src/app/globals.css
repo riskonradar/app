@@ -967,8 +967,11 @@ input[type="checkbox"]:focus {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-strong);
   background: var(--color-deep);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .fmea-title {
@@ -1042,10 +1045,11 @@ input[type="checkbox"]:focus {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--color-text-muted);
-  cursor: help;
   font-size: 0.68rem;
   font-weight: 800;
   line-height: 1;
+  cursor: help;
+  user-select: none;
 }
 
 .field-help:hover,
@@ -1281,6 +1285,42 @@ input[type="checkbox"]:focus {
 
 .component-section-row span:last-child {
   color: var(--color-accent);
+}
+
+.component-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 150ms var(--ease-out);
+}
+
+.component-toggle:hover {
+  background: rgba(232, 86, 52, 0.1);
+  color: var(--color-accent);
+}
+
+.toggle-icon {
+  font-size: 0.65rem;
+  transition: transform 150ms var(--ease-out);
+}
+
+.toggle-label {
+  font-weight: 600;
+}
+
+.component-name {
+  color: var(--color-accent);
+  font-weight: 600;
+  margin-left: 12px;
 }
 
 .auth-page {
