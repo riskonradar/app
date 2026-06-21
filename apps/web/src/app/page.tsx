@@ -551,6 +551,14 @@ export default function Home() {
     });
   }
 
+  function collapseAllComponents() {
+    setExpandedComponents(new Set());
+  }
+
+  function expandAllComponents() {
+    setExpandedComponents(new Set(components));
+  }
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -840,12 +848,6 @@ export default function Home() {
   }
 
   function exportData(format: "csv" | "excel") {
-    if (!canExport) {
-      setValidationError(`Cannot export: ${incompleteRows.length} included row${incompleteRows.length === 1 ? "" : "s"} still need function, effect, cause, controls, or S/O/D scores.`);
-      setTimeout(() => setValidationError(null), 5000);
-      return;
-    }
-
     setIsExporting(true);
     setLoadingAction("export");
     setTimeout(() => {
@@ -1434,6 +1436,28 @@ export default function Home() {
                 <option value="evidence">Evidence-backed</option>
                 <option value="incomplete">Incomplete</option>
               </select>
+            </div>
+
+            <div className="control-field">
+              <label className="field-label">
+                Components
+              </label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={collapseAllComponents}
+                >
+                  Collapse all
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={expandAllComponents}
+                >
+                  Expand all
+                </button>
+              </div>
             </div>
           </div>
 

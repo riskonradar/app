@@ -158,13 +158,13 @@ button:disabled {
 
 .skip-link {
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: var(--space-md);
+  left: var(--space-md);
   z-index: 300;
   border-radius: var(--radius-md);
   background: var(--color-accent);
   color: var(--color-on-accent);
-  padding: 8px 16px;
+  padding: var(--space-sm) var(--space-lg);
   font-size: 0.875rem;
   font-weight: 700;
   transform: translateY(calc(-100% - 20px));
@@ -182,7 +182,7 @@ button:disabled {
   z-index: 100;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(17, 17, 17, 0.88);
-  padding: 16px 0;
+  padding: var(--space-lg) 0;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: var(--shadow-sm);
@@ -193,7 +193,7 @@ button:disabled {
   width: min(1200px, 100%);
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--space-xl);
   margin: 0 auto;
   padding: 0 var(--px);
 }
@@ -243,7 +243,7 @@ button:disabled {
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-md);
 }
 
 .nav-link {
@@ -265,7 +265,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-sm);
   border: 0;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -307,14 +307,14 @@ button:disabled {
 
 .btn-sm {
   min-height: 34px;
-  padding: 0 16px;
+  padding: 0 var(--space-lg);
   font-size: 0.75rem;
 }
 
 .btn-full {
   width: 100%;
   min-height: 44px;
-  padding: 0 18px;
+  padding: 0 var(--space-xl);
 }
 
 .metric-label {
@@ -329,7 +329,7 @@ button:disabled {
 
 .workflow-card {
   width: min(var(--max-w), calc(100% - (var(--px) * 2)));
-  margin: 20px auto 64px;
+  margin: var(--space-xl) auto var(--space-4xl);
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
@@ -337,15 +337,15 @@ button:disabled {
 }
 
 .workspace-start-heading {
-  padding: 32px 24px 20px;
+  padding: var(--space-2xl) var(--space-xl) var(--space-lg);
 }
 
 .workspace-start-grid {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 18px;
-  padding: 0 24px 32px;
+  gap: var(--space-xl);
+  padding: 0 var(--space-xl) var(--space-2xl);
 }
 
 .workspace-start-panel,
@@ -356,14 +356,14 @@ button:disabled {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-deep);
-  padding: 20px;
+  padding: var(--space-xl);
 }
 
 .workspace-start-panel {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 .workspace-start-panel p,
@@ -498,7 +498,7 @@ button:disabled {
 
 .field-label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-sm);
   color: var(--color-text-light);
   font-size: 0.75rem;
   font-weight: 800;
@@ -509,9 +509,9 @@ button:disabled {
 .worksheet-controls {
   display: grid;
   grid-template-columns: minmax(260px, 1.5fr) repeat(2, minmax(150px, 0.75fr));
-  gap: 12px;
+  gap: var(--space-md);
   border-bottom: 1px solid var(--color-border);
-  padding: 18px 20px;
+  padding: var(--space-lg) var(--space-xl);
   background: rgba(13, 13, 13, 0.5);
   backdrop-filter: blur(8px);
 }
@@ -527,7 +527,7 @@ button:disabled {
 .control-button {
   align-self: end;
   min-height: 38px;
-  padding: 0 14px;
+  padding: 0 var(--space-md);
 }
 
 .toolbar-actions,
@@ -535,7 +535,7 @@ button:disabled {
 .row-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-sm);
 }
 
 select,
@@ -546,7 +546,7 @@ select,
   border-radius: var(--radius-md);
   background: var(--color-deep);
   color: var(--color-text);
-  padding: 0 12px;
+  padding: 0 var(--space-md);
   transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
@@ -573,16 +573,16 @@ select,
 
 .score-select {
   width: 58px;
-  padding: 0 8px;
+  padding: 0 var(--space-sm);
 }
 
 .completion-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--space-xl);
   border-bottom: 1px solid var(--color-border);
-  padding: 14px 20px;
+  padding: var(--space-md) var(--space-xl);
   background: rgba(13, 13, 13, 0.3);
   backdrop-filter: blur(4px);
   transition: background 300ms ease;
@@ -739,7 +739,7 @@ input[type="checkbox"]:focus {
 }
 
 .component-section-row td {
-  padding: 12px 14px;
+  padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--color-border-strong);
   border-bottom: 1px solid var(--color-border);
   background: rgba(232, 86, 52, 0.07);
@@ -749,7 +749,7 @@ input[type="checkbox"]:focus {
 
 .component-section-row span {
   display: inline-block;
-  margin-right: 10px;
+  margin-right: var(--space-sm);
   color: var(--color-text-light);
   font-size: 0.8rem;
   font-weight: 800;
@@ -763,7 +763,7 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-data-row td {
-  padding: 10px 12px;
+  padding: var(--space-sm) var(--space-md);
   color: var(--color-text);
   vertical-align: top;
 }
@@ -775,7 +775,7 @@ input[type="checkbox"]:focus {
   background: rgba(232, 86, 52, 0.08);
   color: var(--color-accent);
   cursor: pointer;
-  padding: 0 10px;
+  padding: 0 var(--space-sm);
   font-size: 0.78rem;
   font-weight: 800;
   white-space: nowrap;
@@ -810,19 +810,19 @@ input[type="checkbox"]:focus {
 .empty-state {
   margin: 0;
   color: var(--color-text-muted);
-  padding: 32px;
+  padding: var(--space-2xl);
 }
 
 .table-pagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-lg);
   border-top: 1px solid var(--color-border);
   background: rgba(13, 13, 13, 0.5);
   backdrop-filter: blur(8px);
   color: var(--color-text-muted);
-  padding: 12px 20px;
+  padding: var(--space-md) var(--space-xl);
   font-size: 0.86rem;
 }
 
@@ -860,7 +860,7 @@ input[type="checkbox"]:focus {
   font-size: 0.9rem;
   font-weight: 500;
   list-style-position: inside;
-  padding: 12px 14px;
+  padding: var(--space-md) var(--space-lg);
   text-transform: none;
 }
 
@@ -875,7 +875,7 @@ input[type="checkbox"]:focus {
   color: var(--color-text-muted);
   font-size: 0.85rem;
   line-height: 1.55;
-  padding: 12px 14px;
+  padding: var(--space-md) var(--space-lg);
 }
 
 .reference-table-wrap {
@@ -908,7 +908,7 @@ input[type="checkbox"]:focus {
 .reference-table th,
 .reference-table td {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 9px 10px;
+  padding: var(--space-sm) var(--space-sm);
   text-align: left;
   vertical-align: top;
 }
@@ -938,7 +938,7 @@ input[type="checkbox"]:focus {
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.72);
-  padding: 16px;
+  padding: var(--space-lg);
 }
 
 .source-dialog {
@@ -948,12 +948,12 @@ input[type="checkbox"]:focus {
   overflow: auto;
   border-color: var(--color-border-strong);
   box-shadow: var(--shadow-lg);
-  padding: 24px;
+  padding: var(--space-2xl);
 }
 
 .source-dialog h3 {
   max-width: 620px;
-  margin: 10px 44px 10px 0;
+  margin: var(--space-sm) var(--space-3xl) var(--space-sm) 0;
   color: var(--color-text);
   font-size: 1.4rem;
   line-height: 1.15;
@@ -979,8 +979,8 @@ input[type="checkbox"]:focus {
 
 .source-list {
   display: grid;
-  gap: 10px;
-  margin-top: 18px;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
   list-style: none;
 }
 
@@ -988,7 +988,7 @@ input[type="checkbox"]:focus {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-deep);
-  padding: 12px;
+  padding: var(--space-md);
 }
 
 .source-list strong,
@@ -1002,15 +1002,15 @@ input[type="checkbox"]:focus {
 }
 
 .source-list span {
-  margin-top: 5px;
+  margin-top: var(--space-xs);
   color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
 .source-list blockquote {
-  margin-top: 10px;
+  margin-top: var(--space-sm);
   color: var(--color-text-muted);
-  padding: 8px 12px;
+  padding: var(--space-sm) var(--space-md);
   font-size: 0.9rem;
   line-height: 1.45;
   background: rgba(255, 255, 255, 0.03);
@@ -1044,7 +1044,7 @@ input[type="checkbox"]:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: var(--space-xl) var(--space-2xl);
   border-bottom: 1px solid var(--color-border-strong);
   background: var(--color-deep);
   position: sticky;
@@ -1053,14 +1053,14 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-title {
-  margin-top: 4px;
+  margin-top: var(--space-xs);
   font-size: 1.5rem;
   line-height: 1.2;
 }
 
 .fmea-header-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--space-md);
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1080,11 +1080,11 @@ input[type="checkbox"]:focus {
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 8px;
+  margin-top: var(--space-sm);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 8px 0;
+  padding: var(--space-sm) 0;
   min-width: 150px;
   z-index: 10;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -1092,7 +1092,7 @@ input[type="checkbox"]:focus {
 
 .export-dropdown button {
   width: 100%;
-  padding: 8px 16px;
+  padding: var(--space-sm) var(--space-lg);
   background: transparent;
   border: none;
   color: var(--color-text);
@@ -1108,7 +1108,7 @@ input[type="checkbox"]:focus {
 .header-label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-xs);
   min-width: 0;
   max-width: 100%;
 }
@@ -1128,6 +1128,32 @@ input[type="checkbox"]:focus {
   line-height: 1;
   cursor: help;
   user-select: none;
+  position: relative;
+  z-index: 1;
+}
+
+.field-help::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-deep);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms var(--ease-out);
+}
+
+.field-help:hover::after {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .field-help:hover,
@@ -1138,7 +1164,7 @@ input[type="checkbox"]:focus {
 }
 
 .validation-error {
-  padding: 12px 24px;
+  padding: var(--space-md) var(--space-2xl);
   background: rgba(252, 165, 165, 0.1);
   border-bottom: 1px solid var(--color-border);
   color: var(--color-danger);
@@ -1176,12 +1202,12 @@ input[type="checkbox"]:focus {
   position: sticky;
   top: 0;
   z-index: 20;
-  margin: 10px;
+  margin: var(--space-sm);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: rgba(13, 13, 13, 0.92);
   color: var(--color-text);
-  padding: 10px 14px;
+  padding: var(--space-sm) var(--space-md);
   font-size: 0.88rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
@@ -1191,7 +1217,7 @@ input[type="checkbox"]:focus {
   top: 0;
   background: var(--color-deep);
   z-index: 5;
-  padding: 10px 9px;
+  padding: var(--space-sm) var(--space-sm);
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text-muted);
