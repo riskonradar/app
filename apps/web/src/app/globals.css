@@ -344,20 +344,20 @@ button:disabled {
 
 .workspace-start-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 0.78fr) minmax(560px, 1.22fr);
-  min-height: calc(100vh - 220px);
+  grid-template-rows: auto 1fr;
+  min-height: calc(100vh - 176px);
 }
 
 .workspace-start-intro {
   display: flex;
-  flex-direction: column;
+  align-items: end;
   justify-content: space-between;
   gap: var(--space-3xl);
-  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 42%),
     var(--color-deep);
-  padding: var(--space-3xl);
+  padding: var(--space-2xl) var(--space-3xl);
 }
 
 .workspace-start-heading {
@@ -387,6 +387,7 @@ button:disabled {
 .workspace-start-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(440px, 100%);
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -419,14 +420,16 @@ button:disabled {
 
 .workspace-start-actions {
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: var(--space-lg);
+  grid-template-columns: minmax(300px, 1fr) auto minmax(300px, 1fr) auto minmax(300px, 1fr);
+  align-items: stretch;
+  gap: var(--space-xl);
   padding: var(--space-3xl);
 }
 
 .choice-divider {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-md);
   color: var(--color-text-light);
   font-size: 0.72rem;
@@ -445,7 +448,6 @@ button:disabled {
 }
 
 .choice-divider-inline {
-  justify-content: center;
   writing-mode: vertical-rl;
 }
 
@@ -507,9 +509,7 @@ button:disabled {
 }
 
 .workspace-start-secondary {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto minmax(240px, 0.82fr);
-  gap: var(--space-lg);
+  display: contents;
 }
 
 .workspace-start-panel p,
@@ -820,9 +820,8 @@ select,
 
 .grid-shell {
   position: relative;
-  height: auto;
-  max-height: min(72vh, 760px);
-  min-height: 450px;
+  height: calc(100vh - 322px);
+  min-height: 520px;
   background: var(--color-deep);
   overflow: hidden;
   border-top: 1px solid var(--color-border);
@@ -886,7 +885,7 @@ input[type="checkbox"]:focus {
 /* Table styling matching site design */
 .fmea-table {
   width: 100%;
-  min-width: 1234px;
+  min-width: 1816px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8rem;
@@ -1188,7 +1187,7 @@ input[type="checkbox"]:focus {
 
 @media (max-width: 900px) {
   .grid-shell {
-    height: min(68vh, 640px);
+    height: calc(100vh - 360px);
     min-height: 380px;
     border-radius: var(--radius-md);
   }
@@ -1223,7 +1222,7 @@ input[type="checkbox"]:focus {
 
 @media (max-width: 640px) {
   .fmea-table {
-    min-width: 1180px;
+    min-width: 1816px;
     font-size: 0.76rem;
   }
 
@@ -1267,6 +1266,18 @@ input[type="checkbox"]:focus {
 
 .source-dialog p {
   color: var(--color-text-muted);
+}
+
+.source-dialog-compact {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
 }
 
 .dialog-close {
@@ -1353,13 +1364,33 @@ input[type="checkbox"]:focus {
 .fmea-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: var(--space-xl) var(--space-2xl);
   border-bottom: 1px solid var(--color-border-strong);
   background: var(--color-deep);
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.worksheet-exit {
+  display: inline-flex;
+  margin-bottom: var(--space-sm);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-light);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.worksheet-exit:hover,
+.worksheet-exit:focus-visible {
+  color: var(--color-accent);
 }
 
 .fmea-title {
@@ -1374,6 +1405,25 @@ input[type="checkbox"]:focus {
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.worksheet-help {
+  min-height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0 var(--space-md);
+  transition: border-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+
+.worksheet-help:hover,
+.worksheet-help:focus-visible {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
 }
 
 .save-status {
@@ -1537,8 +1587,8 @@ input[type="checkbox"]:focus {
 /* FMEA Table Visual Hierarchy */
 .table-scroll {
   position: relative;
-  max-height: min(72vh, 760px);
-  min-height: 450px;
+  height: 100%;
+  min-height: inherit;
   overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior-x: contain;
@@ -1745,25 +1795,31 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table .col-function {
-  width: 108px;
+  width: 160px;
 }
 
 .fmea-table .col-industry {
-  width: 92px;
-}
-
-.fmea-table .col-failureMode {
   width: 118px;
 }
 
-.fmea-table .col-effect,
-.fmea-table .col-cause,
+.fmea-table .col-failureMode {
+  width: 172px;
+}
+
+.fmea-table .col-effect {
+  width: 190px;
+}
+
+.fmea-table .col-cause {
+  width: 180px;
+}
+
 .fmea-table .col-currentControl {
-  width: 116px;
+  width: 184px;
 }
 
 .fmea-table .col-correctiveAction {
-  width: 110px;
+  width: 184px;
 }
 
 .fmea-table .col-severity,
@@ -1781,15 +1837,15 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table .col-evidence {
-  width: 82px;
-  min-width: 82px;
-  max-width: 82px;
+  width: 110px;
+  min-width: 110px;
+  max-width: 110px;
 }
 
 .fmea-table .col-status {
-  width: 106px;
-  min-width: 106px;
-  max-width: 106px;
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
 }
 
 /* Component section row enhancement */
@@ -2057,6 +2113,35 @@ input[type="checkbox"]:focus {
   gap: var(--space-xl);
   align-items: end;
   margin-bottom: var(--space-xl);
+}
+
+.dashboard-header-side {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.dashboard-new-fmea {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 0.88rem;
+  font-weight: 800;
+  transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.dashboard-new-fmea span {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.dashboard-new-fmea:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
 }
 
 .dashboard-context,
@@ -2435,12 +2520,25 @@ input[type="checkbox"]:focus {
   }
 
   .workspace-start-intro {
-    border-right: 0;
     border-bottom: 1px solid var(--color-border);
   }
 
   .workspace-start-actions {
-    grid-template-rows: none;
+    grid-template-columns: 1fr;
+  }
+
+  .choice-divider,
+  .choice-divider-inline {
+    writing-mode: horizontal-tb;
+  }
+
+  .choice-divider::before,
+  .choice-divider::after,
+  .choice-divider-inline::before,
+  .choice-divider-inline::after {
+    width: auto;
+    height: 1px;
+    min-height: 0;
   }
 
   .workspace-start-grid {
@@ -2479,6 +2577,11 @@ input[type="checkbox"]:focus {
   .workspace-start-intro,
   .workspace-start-actions {
     padding: var(--space-xl);
+  }
+
+  .workspace-start-intro {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .workspace-start-heading h1 {

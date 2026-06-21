@@ -28,10 +28,10 @@ const reviewQueues = [
 
 const nextActions = [
   {
-    title: "Open FMEA workspace",
-    description: "Review failure modes, evidence spans, and editable FMEA fields.",
-    href: "/",
-    cta: "Open workspace",
+    title: "Create new FMEA",
+    description: "Start from a system, manual component set, or uploaded BOM.",
+    href: "/fmea?mode=new",
+    cta: "Create",
   },
   {
     title: "Test Mollie checkout",
@@ -85,12 +85,18 @@ export default async function DashboardPage() {
               evidence, edit fields, and export the spreadsheet.
             </p>
           </div>
-          <div className="dashboard-context">
-            <span>Active workspace</span>
-            <strong>{workspaceName}</strong>
-            <small>
-              {plan?.name ?? (user ? "Demo checkout" : "No plan")} · {memberCount} member{memberCount === 1 ? "" : "s"}
-            </small>
+          <div className="dashboard-header-side">
+            <Link href="/fmea?mode=new" className="dashboard-new-fmea" aria-label="Create new FMEA table">
+              <span aria-hidden="true">+</span>
+              New FMEA
+            </Link>
+            <div className="dashboard-context">
+              <span>Active workspace</span>
+              <strong>{workspaceName}</strong>
+              <small>
+                {plan?.name ?? (user ? "Demo checkout" : "No plan")} · {memberCount} member{memberCount === 1 ? "" : "s"}
+              </small>
+            </div>
           </div>
         </section>
 
@@ -114,7 +120,7 @@ export default async function DashboardPage() {
               {activeFmeaItems.map((row) => (
                 <Link
                   key={`${row.component}-${row.failureMode}-${row.effect}`}
-                  href="/"
+                  href={`/fmea?component=${encodeURIComponent(row.component)}`}
                   className="fmea-work-row"
                 >
                   <span>
