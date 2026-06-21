@@ -431,6 +431,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: var(--space-md);
+  min-width: 96px;
   color: var(--color-text-light);
   font-size: 0.72rem;
   font-weight: 800;
@@ -441,21 +442,21 @@ button:disabled {
 
 .choice-divider::before,
 .choice-divider::after {
-  flex: 1 1 auto;
+  flex: 0 0 28px;
   height: 1px;
   background: var(--color-border);
   content: "";
 }
 
 .choice-divider-inline {
-  writing-mode: vertical-rl;
+  writing-mode: horizontal-tb;
 }
 
 .choice-divider-inline::before,
 .choice-divider-inline::after {
-  width: 1px;
-  height: auto;
-  min-height: 84px;
+  width: auto;
+  height: 1px;
+  min-height: 0;
 }
 
 .workspace-start-grid {
@@ -2536,6 +2537,7 @@ input[type="checkbox"]:focus {
   .choice-divider::after,
   .choice-divider-inline::before,
   .choice-divider-inline::after {
+    flex: 1 1 auto;
     width: auto;
     height: 1px;
     min-height: 0;

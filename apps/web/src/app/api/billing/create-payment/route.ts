@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     Number.parseInt(String(body.seats ?? plan.includedSeats ?? 1), 10) || 1,
   );
   const amountValue = plan.amountValue;
-  const description = `${plan.name} plan - Risk on Radar`;
+  const description = `Risk on Radar ${plan.name} plan`;
   const redirectUrl = process.env.MOLLIE_REDIRECT_URL ?? new URL("/billing/return", request.url).toString();
   const webhookUrl = process.env.MOLLIE_WEBHOOK_URL || undefined;
 
@@ -60,7 +60,10 @@ export async function POST(request: Request) {
       organizationId: workspace?.organization.id ?? `demo-${clerkContext.userId}`,
       userAccountId: workspace?.userAccount.id ?? clerkContext.userId,
       planKey: plan.key,
+      planName: plan.name,
+      productName: `Risk on Radar ${plan.name} plan`,
       billingScope: plan.billingScope,
+      billingPeriod: "monthly",
       seats,
       checkoutContext: workspace ? "signed_in" : "signed_in_demo",
     },

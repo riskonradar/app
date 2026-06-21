@@ -15,7 +15,7 @@ export default function PricingPage() {
   const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
   const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey | null>(null);
   const [message, setMessage] = useState(
-    "Demo checkout uses one signed-in user and opens Mollie test checkout.",
+    "Mollie opens in test mode, with production-style plan names, amounts, and checkout metadata.",
   );
 
   async function startCheckout(planKey: BillingPlanKey) {
@@ -60,10 +60,10 @@ export default function PricingPage() {
         <section className="page-card pricing-card pricing-card-wide">
           <div className="page-heading">
             <span className="metric-label">Pricing</span>
-            <h1>Demo checkout</h1>
+            <h1>Risk on Radar Individual plan</h1>
             <p>
-              Use one signed-in personal workspace for the hackathon flow. This opens Mollie test
-              checkout without requiring an organization workspace first.
+              Test the same checkout shape we would use in production: a signed-in customer, a named
+              Risk on Radar plan, monthly EUR pricing, and auditable payment metadata.
             </p>
           </div>
 
@@ -94,7 +94,7 @@ export default function PricingPage() {
                   >
                     {paymentState === "loading" && selectedPlan === plan.key
                       ? "Opening checkout"
-                      : "Open Mollie test checkout"}
+                      : `Pay for Risk on Radar ${plan.name}`}
                   </button>
                 ) : (
                   <Link href="/account" className="btn btn-secondary btn-sm btn-full">
