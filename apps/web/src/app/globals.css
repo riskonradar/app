@@ -827,6 +827,24 @@ select,
   color: var(--color-danger);
 }
 
+.notice.success {
+  color: #86efac;
+}
+
+.payment-success-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin-bottom: var(--space-md);
+  place-items: center;
+  border: 1px solid rgba(134, 239, 172, 0.5);
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+  font-size: 1.8rem;
+  font-weight: 900;
+}
+
 .grid-shell {
   position: relative;
   height: calc(100vh - 322px);
@@ -2315,6 +2333,38 @@ input[type="checkbox"]:focus {
   margin-top: var(--space-xl);
 }
 
+.membership-status {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-xl);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.membership-status.is-pro {
+  border-color: rgba(134, 239, 172, 0.42);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.membership-status span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.membership-status strong {
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+.membership-status small {
+  color: var(--color-text-muted);
+}
+
 .dashboard-panel-muted {
   background: var(--color-deep);
 }
@@ -2343,40 +2393,71 @@ input[type="checkbox"]:focus {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.fmea-analysis-row-loading {
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+}
+
 .fmea-analysis-main {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(160px, 0.45fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-md);
   align-items: center;
 }
 
-.fmea-analysis-row span,
-.fmea-analysis-main span {
+.fmea-analysis-link {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 0.45fr) auto;
+  gap: var(--space-md);
+  align-items: center;
   min-width: 0;
 }
 
-.fmea-analysis-main strong,
-.fmea-analysis-main small,
-.fmea-analysis-main > span:nth-child(2) {
+.fmea-analysis-row span,
+.fmea-analysis-main span,
+.fmea-analysis-link span {
+  min-width: 0;
+}
+
+.fmea-analysis-link strong,
+.fmea-analysis-link small,
+.fmea-analysis-link > span:nth-child(2) {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.fmea-analysis-main small,
-.fmea-analysis-main > span:nth-child(2),
+.fmea-analysis-link small,
+.fmea-analysis-link > span:nth-child(2),
 .fmea-analysis-risks small {
   color: var(--color-text-muted);
 }
 
-.fmea-analysis-main em,
+.fmea-analysis-link em,
 .fmea-analysis-risks em {
   color: var(--color-accent);
   font-size: 0.78rem;
   font-style: normal;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.fmea-analysis-delete {
+  min-height: 36px;
+  padding: 0 var(--space-md);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  border-radius: var(--radius-sm);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.fmea-analysis-delete:hover {
+  border-color: rgba(248, 113, 113, 0.75);
+  background: rgba(248, 113, 113, 0.14);
 }
 
 .fmea-analysis-risks {
@@ -2854,7 +2935,11 @@ input[type="checkbox"]:focus {
     grid-template-columns: 1fr;
   }
 
-  .fmea-analysis-main em {
+  .fmea-analysis-link {
+    grid-template-columns: 1fr;
+  }
+
+  .fmea-analysis-link em {
     justify-self: start;
   }
 

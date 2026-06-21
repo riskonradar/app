@@ -50,7 +50,6 @@ const defaultAnalyses: SavedFmeaAnalysis[] = [
 ];
 
 function readSavedAnalyses() {
-  if (typeof window === "undefined") return defaultAnalyses;
   try {
     const saved = window.localStorage.getItem("riskonradar-fmea-analyses");
     if (!saved) return defaultAnalyses;
@@ -65,23 +64,56 @@ function readSavedAnalyses() {
 }
 
 export function AnalysisList() {
-  const [analyses] = useState<SavedFmeaAnalysis[]>(readSavedAnalyses);
+  const [analyses, setAnalyses] = useState<SavedFmeaAnalysis[]>(() =>
+    typeof window === "undefined" ? defaultAnalyses : readSavedAnalyses(),
+  );
+
+  function deleteAnalysis(analysis: SavedFmeaAnalysis) {
+    if (analysis.id === "turbofan-default") return;
+    const confirmed = window.confirm(`Delete "${analysis.name}"? This removes the saved FMEA table from this browser.`);
+    if (!confirmed) return;
+
+    const nextAnalyses = analyses.filter((item) => item.id !== analysis.id);
+    setAnalyses(nextAnalyses.length ? nextAnalyses : defaultAnalyses);
+
+    if (nextAnalyses.length) {
+      window.localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify(nextAnalyses));
+    } else {
+      window.localStorage.removeItem("riskonradar-fmea-analyses");
+    }
+
+    window.localStorage.removeItem("riskonradar-fmea-data");
+    window.localStorage.removeItem("riskonradar-fmea-saved-at");
+    window.localStorage.removeItem("riskonradar-fmea-name");
+  }
 
   return (
     <div className="fmea-analysis-list">
       {analyses.map((analysis) => (
         <article key={analysis.id} className="fmea-analysis-row">
-          <Link href="/fmea" className="fmea-analysis-main">
-            <span>
-              <strong>{analysis.name}</strong>
-              <small>
-                {analysis.componentCount} component{analysis.componentCount === 1 ? "" : "s"} ·{" "}
-                {analysis.rowCount} rows · {analysis.includedCount} spreadsheet rows
-              </small>
-            </span>
-            <span>{analysis.updatedAt}</span>
-            <em>Max RPN {analysis.highestRpn || "-"}</em>
-          </Link>
+          <div className="fmea-analysis-main">
+            <Link href="/fmea" className="fmea-analysis-link">
+              <span>
+                <strong>{analysis.name}</strong>
+                <small>
+                  {analysis.componentCount} component{analysis.componentCount === 1 ? "" : "s"} ·{" "}
+                  {analysis.rowCount} rows · {analysis.includedCount} spreadsheet rows
+                </small>
+              </span>
+              <span>{analysis.updatedAt}</span>
+              <em>Max RPN {analysis.highestRpn || "-"}</em>
+            </Link>
+            {analysis.id !== "turbofan-default" && (
+              <button
+                type="button"
+                className="fmea-analysis-delete"
+                onClick={() => deleteAnalysis(analysis)}
+                aria-label={`Delete ${analysis.name}`}
+              >
+                Delete
+              </button>
+            )}
+          </div>
           <details className="fmea-analysis-risks">
             <summary>Top RPN items</summary>
             <div>

@@ -14,12 +14,45 @@ function BillingReturnContent() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    async function readResponseJson(response: Response) {
+      const text = await response.text();
+      if (!text.trim()) return {};
+      try {
+        return JSON.parse(text) as { error?: string; status?: string };
+      } catch {
+        return {};
+      }
+    }
+
+    function storedPaymentId() {
+      const raw =
+        sessionStorage.getItem("riskonradar-pending-mollie-payment") ??
+        localStorage.getItem("riskonradar-pending-mollie-payment");
+      if (!raw) return null;
+
+      try {
+        const parsed = JSON.parse(raw) as { id?: unknown };
+        return typeof parsed.id === "string" && parsed.id.trim() ? parsed.id : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function clearStoredPayment() {
+      sessionStorage.removeItem("riskonradar-pending-mollie-payment");
+      localStorage.removeItem("riskonradar-pending-mollie-payment");
+    }
+
     async function checkPaymentStatus() {
-      const paymentId = searchParams.get("payment_id");
+      const paymentId =
+        searchParams.get("payment_id") ??
+        searchParams.get("id") ??
+        searchParams.get("paymentId") ??
+        storedPaymentId();
 
       if (!paymentId) {
         setStatus("error");
-        setMessage("No payment ID found in return URL.");
+        setMessage("No payment ID found for this checkout. Please start checkout again from pricing.");
         return;
       }
 
@@ -28,7 +61,7 @@ function BillingReturnContent() {
         const response = await fetch(`/api/billing/payment-status?payment_id=${paymentId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        const data = await response.json();
+        const data = await readResponseJson(response);
 
         if (!response.ok) {
           // If payment record doesn't exist yet (webhook might not have fired),
@@ -39,18 +72,28 @@ function BillingReturnContent() {
             setTimeout(checkPaymentStatus, 3000);
             return;
           }
-          throw new Error(data.error || "Could not verify payment status.");
+          throw new Error(data.error || "Could not verify payment status. Please try again in a moment.");
         }
 
-        if (data.status === "paid") {
+        if (data.status === "paid" || data.status === "authorized") {
+          clearStoredPayment();
+          localStorage.setItem(
+            "riskonradar-membership",
+            JSON.stringify({
+              planKey: "individual",
+              status: "paid",
+              paidAt: new Date().toISOString(),
+            }),
+          );
           setStatus("success");
-          setMessage("Payment completed successfully! You now have access to the paid plan.");
+          setMessage("Payment successful. You are now a Pro member.");
         } else if (data.status === "pending") {
           setStatus("loading");
           setMessage("Payment is being processed. Please wait...");
           // Retry after a delay
           setTimeout(checkPaymentStatus, 3000);
         } else if (data.status === "failed" || data.status === "expired" || data.status === "canceled") {
+          clearStoredPayment();
           setStatus("error");
           setMessage(`Payment ${data.status}. Please try again or contact support.`);
         } else if (data.status === "open") {
@@ -87,6 +130,7 @@ function BillingReturnContent() {
 
           {status === "success" && (
             <>
+              <div className="payment-success-mark" aria-hidden="true">✓</div>
               <p className="notice success">{message}</p>
               <div className="page-actions">
                 <Link href="/dashboard" className="btn btn-primary btn-sm">

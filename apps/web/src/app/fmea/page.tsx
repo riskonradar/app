@@ -259,7 +259,7 @@ const componentFamilies: Array<[RegExp, string | null]> = [
   [/\b(oil system|lubrication|lubricant|engine oil|oil filter|oil strainer|air\/oil|heat exchanger)\b/i, "Oil system / lubrication"],
   [/\b(oil pump|fuel pump|scavenge pump|pump)\b/i, "Pump"],
   [/\b(air seal|sealing ring|seal|seals)\b/i, "Seal"],
-  [/\b(fadec|eec|electronic engine control|engine controls?|sensor|sensors|actuator|actuators|variable geometry|instrumentation)\b/i, "Sensor / instrumentation"],
+  [/\b(fadec|eec|electronic engine control|engine controls?|sensor|sensors|variable geometry|instrumentation)\b/i, "Sensor / instrumentation"],
   [/\b(inter[- ]shaft|rotor shaft|compressor shaft|dual-rotor|turbofan rotor|shaft|spool)\b/i, "Shaft"],
   [/\b(operability bleed valve|obv|bleed valve|valve|valves|bypass valve)\b/i, "Valve"],
 ];
