@@ -1,6 +1,5 @@
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
 import { AnalysisList } from "@/components/fmea/analysis-list";
@@ -10,10 +9,6 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const user = await currentUser().catch(() => null);
-  if (!user) {
-    redirect("/fmea?mode=new");
-  }
-
   const summary = await getWorkspaceSummary().catch((error) => {
     console.error("Failed to load dashboard workspace summary:", error);
     return null;

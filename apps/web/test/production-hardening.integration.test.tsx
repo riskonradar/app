@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   currentUser: vi.fn(),
   getWorkspaceSummary: vi.fn(),
-  redirect: vi.fn(),
   useUser: vi.fn(),
 }));
 
@@ -18,10 +17,6 @@ vi.mock("@clerk/nextjs", () => ({
   SignInButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   UserButton: () => <button type="button">User menu</button>,
   useUser: mocks.useUser,
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: mocks.redirect,
 }));
 
 vi.mock("next/link", () => ({
@@ -46,12 +41,8 @@ describe("production hardening flows", () => {
     vi.resetModules();
     mocks.currentUser.mockReset();
     mocks.getWorkspaceSummary.mockReset();
-    mocks.redirect.mockReset();
     mocks.useUser.mockReset();
 
-    mocks.redirect.mockImplementation((path: string) => {
-      throw new Error(`NEXT_REDIRECT:${path}`);
-    });
     mocks.currentUser.mockImplementation(() => Promise.resolve(null));
     mocks.getWorkspaceSummary.mockImplementation(() => Promise.resolve(null));
 
@@ -70,10 +61,19 @@ describe("production hardening flows", () => {
     vi.unstubAllGlobals();
   });
 
-  test("anonymous dashboard requests are redirected to a new worksheet", async () => {
+  test("dashboard renders the saved-analysis workspace without redirecting to a new worksheet", async () => {
     const { default: DashboardPage } = await import("@/app/dashboard/page");
 
-    await expect(DashboardPage()).rejects.toThrow("NEXT_REDIRECT:/fmea?mode=new");
+    const page = await DashboardPage();
+
+    render(page);
+
+    expect(screen.getByText("Your Failure Mode and Effects Analysis tables")).toBeInTheDocument();
+    expect(screen.getByText("Open an analysis to continue editing")).toBeInTheDocument();
+    expect(screen.getByLabelText("Create new Failure Mode and Effects Analysis table")).toHaveAttribute(
+      "href",
+      "/fmea?mode=new",
+    );
   });
 
   test("saved FMEA analyses are hydrated from the account API instead of browser localStorage", async () => {
@@ -127,6 +127,9 @@ describe("production hardening flows", () => {
     expect(
       await screen.findByText("Server-backed Failure Mode and Effects Analysis"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Server-backed Failure Mode and Effects Analysis").closest("a"),
+    ).toHaveAttribute("href", "/fmea?analysis=server-analysis");
     expect(fetchMock).toHaveBeenCalledWith("/api/fmea/analyses", {
       headers: { Accept: "application/json" },
       cache: "no-store",
