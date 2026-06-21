@@ -91,20 +91,21 @@ type EditableField =
 
 type LoadingAction = "upload" | "system" | "export" | null;
 
-type SavedFmeaAnalysis = {
-  id: string;
-  name: string;
-  scope: string;
-  rowCount: number;
-  componentCount: number;
-  includedCount: number;
-  highestRpn: number;
-  updatedAt: string;
-  topRisks: Array<{
-    component: string;
-    failureMode: string;
-    rpn: number;
+type SavedAnalysisResponse = {
+  analysis?: {
+    id: string;
+    name: string;
+    rows: FmeaRow[];
+  };
+  analyses?: Array<{
+    id: string;
   }>;
+  error?: string;
+  plan?: {
+    isPro: boolean;
+    savedAnalysisLimit: number | null;
+    status: string;
+  };
 };
 
 const systemTemplates: SystemTemplate[] = [
@@ -584,34 +585,6 @@ function defaultAnalysisName(rows: FmeaRow[]) {
   return "Turbofan reliability Failure Mode and Effects Analysis";
 }
 
-function analysisSummary(rows: FmeaRow[], name: string, updatedAt: string): SavedFmeaAnalysis {
-  const componentNames = sortedComponentNames(Array.from(new Set(rows.map((row) => row.component))));
-  const topRisks = [...rows]
-    .filter((row) => numericRowRpn(row) > 0)
-    .sort((a, b) => numericRowRpn(b) - numericRowRpn(a) || b.evidenceCount - a.evidenceCount)
-    .slice(0, 3)
-    .map((row) => ({
-      component: row.component,
-      failureMode: row.failureMode,
-      rpn: numericRowRpn(row),
-    }));
-
-  return {
-    id: "current-fmea",
-    name: name.trim() || defaultAnalysisName(rows),
-    scope:
-      componentNames.length === 1
-        ? componentNames[0]
-        : `${componentNames.length} components`,
-    rowCount: rows.length,
-    componentCount: componentNames.length,
-    includedCount: rows.filter((row) => row.included).length,
-    highestRpn: rows.reduce((max, row) => Math.max(max, numericRowRpn(row)), 0),
-    updatedAt,
-    topRisks,
-  };
-}
-
 function isComplete(row: FmeaRow) {
   if (!row.included) return true;
   return Boolean(
@@ -889,22 +862,35 @@ function isNewWorksheetMode() {
   return new URLSearchParams(window.location.search).get("mode") === "new";
 }
 
+function savedAnalysisIdFromUrl() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("analysis");
+}
+
 export default function Home() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const [selectionStep, setSelectionStep] = useState<SelectionStep>(() => isNewWorksheetMode() ? "initial" : "table");
-  const [rows, setRows] = useState<FmeaRow[]>(() => isNewWorksheetMode() ? [] : toFmeaRows(bundledTurbofanData.rows));
+  const [selectionStep, setSelectionStep] = useState<SelectionStep>(() =>
+    isNewWorksheetMode() ? "initial" : "table",
+  );
+  const [rows, setRows] = useState<FmeaRow[]>(() => {
+    if (isNewWorksheetMode() || savedAnalysisIdFromUrl()) return [];
+    return toFmeaRows(bundledTurbofanData.rows);
+  });
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("all");
   const [componentQuery, setComponentQuery] = useState("");
   const [newComponentName, setNewComponentName] = useState("");
   const [selectedSystemId, setSelectedSystemId] = useState("turbofan");
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(() => savedAnalysisIdFromUrl());
   const [manualComponents, setManualComponents] = useState<string[]>([]);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
   const [notice, setNotice] = useState(() =>
     isNewWorksheetMode()
       ? "Start a new Failure Mode and Effects Analysis table by selecting components or importing a BOM."
+      : savedAnalysisIdFromUrl()
+      ? "Loading saved Failure Mode and Effects Analysis table..."
       : "Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.",
   );
   const [analysisName, setAnalysisName] = useState(() =>
@@ -993,13 +979,46 @@ export default function Home() {
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search)
         : new URLSearchParams();
+    function loadSavedAnalysis(analysisId: string, loadedNotice = "") {
+      setCurrentAnalysisId(analysisId);
+      setSelectionStep("table");
+      setNotice("Loading saved Failure Mode and Effects Analysis table...");
+      fetch(`/api/fmea/analyses/${analysisId}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          const payload = (await response.json().catch(() => ({}))) as SavedAnalysisResponse;
+          if (!response.ok || !payload.analysis) {
+            throw new Error(payload.error || "Could not load this saved analysis.");
+          }
+          setCurrentAnalysisId(payload.analysis.id);
+          setAnalysisName(payload.analysis.name);
+          setRows(normalizeSavedRows(payload.analysis.rows));
+          setLastSavedAt("Loaded from workspace");
+          setHasUnsavedChanges(false);
+          setNotice(loadedNotice);
+        })
+        .catch((error) => {
+          setNotice(error instanceof Error ? error.message : "Could not load this saved analysis.");
+        });
+    }
+
     if (params.get("mode") === "new") {
       setSelectionStep("initial");
       setRows([]);
+      setCurrentAnalysisId(null);
       setAnalysisName("Untitled Failure Mode and Effects Analysis");
       setNotice("Start a new Failure Mode and Effects Analysis table by selecting components or importing a BOM.");
       return;
     }
+
+    const analysisId = params.get("analysis");
+    if (analysisId) {
+      loadSavedAnalysis(analysisId);
+      return;
+    }
+
     const component = params.get("component");
     if (!component) return;
     setSelectionStep("table");
@@ -1079,60 +1098,51 @@ export default function Home() {
     }
   }, [componentDropdownOpen]);
 
-  // Load saved data from localStorage on mount
-  useEffect(() => {
-    if (isNewWorksheetMode()) return;
-    try {
-      const savedData = localStorage.getItem("riskonradar-fmea-data");
-      if (savedData) {
-        const parsedRows = JSON.parse(savedData) as FmeaRow[];
-        if (parsedRows.length > 0) {
-          setRows(normalizeSavedRows(parsedRows));
-          const savedTime = localStorage.getItem("riskonradar-fmea-saved-at");
-          if (savedTime) {
-            setLastSavedAt(savedTime);
-          }
-          const savedName = localStorage.getItem("riskonradar-fmea-name");
-          if (savedName) {
-            setAnalysisName(savedName);
-          } else {
-            setAnalysisName(defaultAnalysisName(parsedRows));
-          }
-          setHasUnsavedChanges(false);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load saved Failure Mode and Effects Analysis data:", error);
-    }
-  }, []);
-
   const saveFmea = useCallback((options?: { redirectToDashboard?: boolean }) => {
     setIsSaving(true);
-    window.setTimeout(() => {
-      try {
-        const savedName = analysisName.trim() || defaultAnalysisName(rows);
-        localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
+    const savedName = analysisName.trim() || defaultAnalysisName(rows);
+
+    fetch("/api/fmea/analyses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        id: currentAnalysisId,
+        name: savedName,
+        rows,
+      }),
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as SavedAnalysisResponse;
+        if (!response.ok || !payload.analysis) {
+          throw new Error(payload.error || "Failed to save Failure Mode and Effects Analysis data.");
+        }
+
         const now = new Date().toLocaleString();
-        localStorage.setItem("riskonradar-fmea-saved-at", now);
-        localStorage.setItem("riskonradar-fmea-name", savedName);
-        localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify([analysisSummary(rows, savedName, now)]));
-        window.dispatchEvent(new Event("riskonradar-fmea-analyses-change"));
+        setCurrentAnalysisId(payload.analysis.id);
         setAnalysisName(savedName);
         setLastSavedAt(now);
+        setRows(normalizeSavedRows(payload.analysis.rows));
         setHasUnsavedChanges(false);
         setNotice(`Saved "${savedName}".`);
         setTimeout(() => setNotice(""), 3000);
+        if (typeof window !== "undefined" && !currentAnalysisId) {
+          window.history.replaceState(null, "", `/fmea?analysis=${payload.analysis.id}`);
+        }
         if (options?.redirectToDashboard) {
           router.push("/dashboard");
         }
-      } catch {
-        setNotice("Failed to save Failure Mode and Effects Analysis data.");
+      })
+      .catch((error) => {
+        setNotice(error instanceof Error ? error.message : "Failed to save Failure Mode and Effects Analysis data.");
         setTimeout(() => setNotice(""), 3000);
-      } finally {
+      })
+      .finally(() => {
         setIsSaving(false);
-      }
-    }, 150);
-  }, [analysisName, router, rows]);
+      });
+  }, [analysisName, currentAnalysisId, router, rows]);
 
   // Keyboard shortcuts
   useEffect(() => {

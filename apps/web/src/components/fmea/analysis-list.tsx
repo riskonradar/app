@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type SavedFmeaAnalysis = {
   id: string;
@@ -19,96 +19,66 @@ type SavedFmeaAnalysis = {
   }>;
 };
 
-const defaultAnalyses: SavedFmeaAnalysis[] = [
-  {
-    id: "turbofan-default",
-    name: "Turbofan reliability Failure Mode and Effects Analysis",
-    scope: "20 components",
-    rowCount: 209,
-    componentCount: 20,
-    includedCount: 209,
-    highestRpn: 432,
-    updatedAt: "Preloaded evidence set",
-    topRisks: [
-      {
-        component: "High-pressure turbine",
-        failureMode: "Uncontained failure",
-        rpn: 432,
-      },
-      {
-        component: "High-pressure turbine",
-        failureMode: "Creep",
-        rpn: 392,
-      },
-      {
-        component: "Bearing",
-        failureMode: "Uncontained failure",
-        rpn: 378,
-      },
-    ],
-  },
-];
-
-function subscribeToAnalyses(callback: () => void) {
-  window.addEventListener("storage", callback);
-  window.addEventListener("riskonradar-fmea-analyses-change", callback);
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener("riskonradar-fmea-analyses-change", callback);
-  };
-}
-
-function getAnalysesSnapshot() {
-  return window.localStorage.getItem("riskonradar-fmea-analyses");
-}
-
-function getServerAnalysesSnapshot() {
-  return null;
-}
-
-function parseSavedAnalyses(saved: string | null) {
-  try {
-    if (!saved) return defaultAnalyses;
-    const parsed = JSON.parse(saved) as SavedFmeaAnalysis[];
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-  } catch {
-    return defaultAnalyses;
-  }
-  return defaultAnalyses;
-}
+type AnalysesResponse = {
+  analyses?: SavedFmeaAnalysis[];
+  error?: string;
+};
 
 export function AnalysisList() {
-  const analysesSnapshot = useSyncExternalStore(
-    subscribeToAnalyses,
-    getAnalysesSnapshot,
-    getServerAnalysesSnapshot,
-  );
-  const analyses = useMemo(() => parseSavedAnalyses(analysesSnapshot), [analysesSnapshot]);
+  const [analyses, setAnalyses] = useState<SavedFmeaAnalysis[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
 
-  function writeAnalyses(nextAnalyses: SavedFmeaAnalysis[]) {
-    if (nextAnalyses.length) {
-      window.localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify(nextAnalyses));
-    } else {
-      window.localStorage.removeItem("riskonradar-fmea-analyses");
+  const fetchAnalyses = useCallback(async () => {
+    try {
+      const response = await fetch("/api/fmea/analyses", {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as AnalysesResponse;
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not load saved analyses.");
+      }
+      setAnalyses(payload.analyses ?? []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Could not load saved analyses.");
+    } finally {
+      setIsLoading(false);
     }
-    window.dispatchEvent(new Event("riskonradar-fmea-analyses-change"));
+  }, []);
+
+  function retryLoadAnalyses() {
+    setIsLoading(true);
+    setError("");
+    void fetchAnalyses();
   }
 
-  function deleteAnalysis(analysis: SavedFmeaAnalysis) {
-    if (analysis.id === "turbofan-default") return;
-    const confirmed = window.confirm(`Delete "${analysis.name}"? This removes the saved Failure Mode and Effects Analysis table from this browser.`);
+  useEffect(() => {
+    // Server synchronization is the point of this component; the updates happen after the fetch resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchAnalyses();
+  }, [fetchAnalyses]);
+
+  async function deleteAnalysis(analysis: SavedFmeaAnalysis) {
+    const confirmed = window.confirm(`Delete "${analysis.name}"? This removes the saved Failure Mode and Effects Analysis table from this workspace.`);
     if (!confirmed) return;
 
-    const nextAnalyses = analyses.filter((item) => item.id !== analysis.id);
-    writeAnalyses(nextAnalyses);
-
-    window.localStorage.removeItem("riskonradar-fmea-data");
-    window.localStorage.removeItem("riskonradar-fmea-saved-at");
-    window.localStorage.removeItem("riskonradar-fmea-name");
+    const previousAnalyses = analyses;
+    setAnalyses((current) => current.filter((item) => item.id !== analysis.id));
+    try {
+      const response = await fetch(`/api/fmea/analyses/${analysis.id}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not delete analysis.");
+      }
+    } catch (deleteError) {
+      setAnalyses(previousAnalyses);
+      setError(deleteError instanceof Error ? deleteError.message : "Could not delete analysis.");
+    }
   }
 
   function startRenaming(analysis: SavedFmeaAnalysis) {
@@ -121,21 +91,59 @@ export function AnalysisList() {
     setDraftName("");
   }
 
-  function saveRename(analysis: SavedFmeaAnalysis) {
+  async function saveRename(analysis: SavedFmeaAnalysis) {
     const nextName = draftName.trim();
     if (!nextName) return;
 
+    const previousAnalyses = analyses;
     const nextAnalyses = analyses.map((item) =>
       item.id === analysis.id ? { ...item, name: nextName } : item,
     );
-    writeAnalyses(nextAnalyses);
+    setAnalyses(nextAnalyses);
 
-    if (analysis.id === "current-fmea") {
-      window.localStorage.setItem("riskonradar-fmea-name", nextName);
+    try {
+      const response = await fetch(`/api/fmea/analyses/${analysis.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nextName }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not rename analysis.");
+      }
+
+      setRenamingId(null);
+      setDraftName("");
+    } catch (renameError) {
+      setAnalyses(previousAnalyses);
+      setError(renameError instanceof Error ? renameError.message : "Could not rename analysis.");
     }
+  }
 
-    setRenamingId(null);
-    setDraftName("");
+  if (isLoading) {
+    return <p className="notice standalone">Loading saved analyses...</p>;
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-panel-muted">
+        <p className="notice standalone error">{error}</p>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={retryLoadAnalyses}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (!analyses.length) {
+    return (
+      <div className="dashboard-panel-muted">
+        <p className="notice standalone">No saved Failure Mode and Effects Analysis tables yet.</p>
+        <Link href="/fmea?mode=new" className="btn btn-primary btn-sm">
+          Create analysis
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -143,7 +151,7 @@ export function AnalysisList() {
       {analyses.map((analysis) => (
         <article key={analysis.id} className="fmea-analysis-row">
           <div className="fmea-analysis-main">
-            <Link href="/fmea" className="fmea-analysis-link">
+            <Link href={`/fmea?analysis=${analysis.id}`} className="fmea-analysis-link">
               <span>
                 {renamingId === analysis.id ? (
                   <input
@@ -175,45 +183,43 @@ export function AnalysisList() {
               <span>{analysis.updatedAt}</span>
               <em>Max RPN {analysis.highestRpn || "-"}</em>
             </Link>
-            {analysis.id !== "turbofan-default" && (
-              <div className="fmea-analysis-actions">
-                {renamingId === analysis.id ? (
-                  <>
-                    <button
-                      type="button"
-                      className="fmea-analysis-action"
-                      onClick={() => saveRename(analysis)}
-                      disabled={!draftName.trim()}
-                    >
-                      Save name
-                    </button>
-                    <button
-                      type="button"
-                      className="fmea-analysis-action muted"
-                      onClick={cancelRename}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
+            <div className="fmea-analysis-actions">
+              {renamingId === analysis.id ? (
+                <>
                   <button
                     type="button"
                     className="fmea-analysis-action"
-                    onClick={() => startRenaming(analysis)}
+                    onClick={() => saveRename(analysis)}
+                    disabled={!draftName.trim()}
                   >
-                    Rename
+                    Save name
                   </button>
-                )}
+                  <button
+                    type="button"
+                    className="fmea-analysis-action muted"
+                    onClick={cancelRename}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
-                  className="fmea-analysis-delete"
-                  onClick={() => deleteAnalysis(analysis)}
-                  aria-label={`Delete ${analysis.name}`}
+                  className="fmea-analysis-action"
+                  onClick={() => startRenaming(analysis)}
                 >
-                  Delete
+                  Rename
                 </button>
-              </div>
-            )}
+              )}
+              <button
+                type="button"
+                className="fmea-analysis-delete"
+                onClick={() => deleteAnalysis(analysis)}
+                aria-label={`Delete ${analysis.name}`}
+              >
+                Delete
+              </button>
+            </div>
           </div>
           <details className="fmea-analysis-risks">
             <summary>Top RPN items</summary>
