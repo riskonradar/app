@@ -182,7 +182,7 @@ const editableFields: EditableField[] = [
 ];
 
 const fieldHelp: Record<string, string> = {
-  included: "Whether this failure mode row should be included in the exported FMEA spreadsheet.",
+  included: "Select this row if it should be included in the final FMEA export.",
   component: "Physical engineering part or subsystem being analyzed.",
   function: "Intended function the component must perform.",
   failureMode: "How the component or function can fail.",
@@ -1500,12 +1500,12 @@ export default function Home() {
     const helpText = fieldHelp[field];
     const showHelp = helpText && helpFields.has(field);
     return (
-      <span className="header-label">
+      <span className={`header-label header-label-${field}`}>
         <span className="header-label-text">{label}</span>
         {showHelp && (
           <button
             type="button"
-            className="field-help"
+            className={`field-help field-help-${field}`}
             aria-label={`${label}: ${helpText}`}
             data-tooltip={helpText}
           >
@@ -1559,7 +1559,7 @@ export default function Home() {
   const columns: ColumnDef<FmeaRow>[] = [
       {
         id: "included",
-        header: () => <HeaderLabel field="included" label="Use" />,
+        header: () => <HeaderLabel field="included" label="✓" />,
         cell: ({ row }) => {
           const toggleIncluded = () => updateRow(row.original.id, { included: !row.original.included });
           return (

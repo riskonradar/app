@@ -1504,6 +1504,19 @@ input[type="checkbox"]:focus {
   text-overflow: ellipsis;
 }
 
+.header-label-included {
+  justify-content: center;
+  gap: 3px;
+}
+
+.header-label-included .header-label-text {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+  font-size: 0.86rem;
+  line-height: 1;
+  overflow: visible;
+}
+
 .field-help {
   display: inline-grid;
   place-items: center;
@@ -1552,6 +1565,11 @@ input[type="checkbox"]:focus {
   pointer-events: none;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.45);
   transition: opacity 150ms var(--ease-out);
+}
+
+.field-help-included .field-help-tooltip {
+  right: auto;
+  left: 0;
 }
 
 .field-help:hover .field-help-tooltip,
