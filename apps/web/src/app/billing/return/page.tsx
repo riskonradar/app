@@ -18,15 +18,6 @@ function BillingReturnContent() {
     }
 
     function markPaymentSuccessful() {
-      localStorage.setItem(
-        "riskonradar-membership",
-        JSON.stringify({
-          planKey: "individual",
-          status: "paid",
-          paidAt: new Date().toISOString(),
-        }),
-      );
-      window.dispatchEvent(new Event("riskonradar-membership-change"));
       router.replace("/billing/success");
     }
 

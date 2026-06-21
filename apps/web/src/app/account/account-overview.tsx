@@ -1,9 +1,8 @@
 "use client";
 
 import { SignInButton, useUser } from "@clerk/nextjs";
-import { useMemo, useSyncExternalStore } from "react";
 
-import { maskEmail, parseLocalMembership, resolvePlanDisplay } from "@/lib/account/display";
+import { maskEmail, resolvePlanDisplay } from "@/lib/account/display";
 
 type AccountOverviewProps = {
   billingStatus: string;
@@ -13,23 +12,6 @@ type AccountOverviewProps = {
   workspaceName: string;
   workspaceSlug: string;
 };
-
-function subscribeToMembership(callback: () => void) {
-  window.addEventListener("storage", callback);
-  window.addEventListener("riskonradar-membership-change", callback);
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener("riskonradar-membership-change", callback);
-  };
-}
-
-function getMembershipSnapshot() {
-  return window.localStorage.getItem("riskonradar-membership");
-}
-
-function getServerMembershipSnapshot() {
-  return null;
-}
 
 export function AccountOverview({
   billingStatus,
@@ -47,14 +29,7 @@ export function AccountOverview({
     "there";
   const email = maskEmail(user?.primaryEmailAddress?.emailAddress);
   const resolvedWorkspaceName = workspaceName || "Personal workspace";
-  const localStatusSnapshot = useSyncExternalStore(
-    subscribeToMembership,
-    getMembershipSnapshot,
-    getServerMembershipSnapshot,
-  );
-  const localStatus = useMemo(() => parseLocalMembership(localStatusSnapshot), [localStatusSnapshot]);
   const plan = resolvePlanDisplay({
-    localMembership: localStatus,
     serverPlan,
     serverStatus: billingStatus.toLowerCase(),
   });

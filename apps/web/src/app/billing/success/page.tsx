@@ -1,22 +1,17 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect } from "react";
 
 import { AppNav } from "@/components/app-nav";
+import { getWorkspaceSummary } from "@/lib/account/server";
 
-export default function BillingSuccessPage() {
-  useEffect(() => {
-    window.localStorage.setItem(
-      "riskonradar-membership",
-      JSON.stringify({
-        planKey: "individual",
-        status: "paid",
-        paidAt: new Date().toISOString(),
-      }),
-    );
-    window.dispatchEvent(new Event("riskonradar-membership-change"));
-  }, []);
+export const dynamic = "force-dynamic";
+
+export default async function BillingSuccessPage() {
+  const summary = await getWorkspaceSummary().catch((error) => {
+    console.error("Failed to load billing success workspace summary:", error);
+    return null;
+  });
+  const billingStatus = summary?.organization.billing_status ?? "free";
+  const isPro = billingStatus === "active" || billingStatus === "comped";
 
   return (
     <div className="app-shell">
@@ -30,12 +25,31 @@ export default function BillingSuccessPage() {
           </div>
 
           <div className="billing-result-copy">
-            <span className="metric-label">Payment complete</span>
-            <h1 id="payment-success-title">You are now a Pro member</h1>
+            <span className="metric-label">{isPro ? "Payment complete" : "Payment status"}</span>
+            <h1 id="payment-success-title">
+              {isPro ? "You are now a Pro member" : "Payment received, plan update pending"}
+            </h1>
             <p>
-              Your account is upgraded for this workspace. Unlimited FMEA tables are available.
+              {isPro
+                ? "Your workspace is upgraded. Unlimited Failure Mode and Effects Analysis tables are available in the dashboard and account management views."
+                : "Your checkout return was received, but this workspace is not marked Pro yet. Refresh account status after Mollie finishes processing the payment."}
             </p>
           </div>
+
+          <dl className="billing-result-summary">
+            <div>
+              <dt>Plan status</dt>
+              <dd>{isPro ? "Pro active" : billingStatus}</dd>
+            </div>
+            <div>
+              <dt>Analysis availability</dt>
+              <dd>{isPro ? "Unlimited saved tables" : "1 saved table"}</dd>
+            </div>
+            <div>
+              <dt>Workspace</dt>
+              <dd>{summary?.organization.name ?? "Not signed in"}</dd>
+            </div>
+          </dl>
 
           <div className="page-actions">
             <Link href="/dashboard" className="btn btn-primary btn-sm">

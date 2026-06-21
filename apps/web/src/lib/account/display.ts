@@ -1,7 +1,3 @@
-export type LocalMembership = {
-  status?: string;
-};
-
 export function maskEmail(email: string | null | undefined) {
   if (!email) return "Signed in";
   const [name = "", domain = ""] = email.split("@");
@@ -12,25 +8,14 @@ export function maskEmail(email: string | null | undefined) {
   return `${visibleName}@${visibleDomain}${domainRest.length ? `.${domainRest.at(-1)}` : ""}`;
 }
 
-export function parseLocalMembership(snapshot: string | null) {
-  if (!snapshot) return null;
-  try {
-    return JSON.parse(snapshot) as LocalMembership;
-  } catch {
-    return null;
-  }
-}
-
 export function resolvePlanDisplay({
-  localMembership,
   serverPlan,
   serverStatus,
 }: {
-  localMembership: LocalMembership | null;
   serverPlan?: string | null;
   serverStatus?: string | null;
 }) {
-  const isPro = serverStatus === "active" || localMembership?.status === "paid";
+  const isPro = serverStatus === "active" || serverStatus === "comped";
   if (isPro) {
     return {
       detail: "Unlimited Failure Mode and Effects Analysis tables are available.",
@@ -42,8 +27,8 @@ export function resolvePlanDisplay({
 
   return {
     detail: "Free tier includes 1 saved Failure Mode and Effects Analysis table.",
-    label: serverPlan === "individual" ? "Individual plan" : "Free tier",
-    name: serverPlan === "individual" ? "Individual" : "Free",
+    label: serverPlan === "individual" ? "Free tier" : "Free tier",
+    name: "Free",
     status: serverStatus ?? "Free",
   };
 }

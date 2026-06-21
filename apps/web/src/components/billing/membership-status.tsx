@@ -1,43 +1,12 @@
-"use client";
-
-import { useMemo, useSyncExternalStore } from "react";
-
-import { parseLocalMembership, resolvePlanDisplay } from "@/lib/account/display";
+import { resolvePlanDisplay } from "@/lib/account/display";
 
 type MembershipStatusProps = {
   serverStatus?: string | null;
   serverPlan?: string | null;
 };
 
-function subscribeToMembership(callback: () => void) {
-  window.addEventListener("storage", callback);
-  window.addEventListener("riskonradar-membership-change", callback);
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener("riskonradar-membership-change", callback);
-  };
-}
-
-function getMembershipSnapshot() {
-  return window.localStorage.getItem("riskonradar-membership");
-}
-
-function getServerMembershipSnapshot() {
-  return null;
-}
-
 export function MembershipStatus({ serverStatus, serverPlan }: MembershipStatusProps) {
-  const localStatusSnapshot = useSyncExternalStore(
-    subscribeToMembership,
-    getMembershipSnapshot,
-    getServerMembershipSnapshot,
-  );
-  const localStatus = useMemo(() => {
-    return parseLocalMembership(localStatusSnapshot);
-  }, [localStatusSnapshot]);
-
   const plan = resolvePlanDisplay({
-    localMembership: localStatus,
     serverPlan,
     serverStatus,
   });
