@@ -227,10 +227,10 @@ const componentFamilies: Array<[RegExp, string | null]> = [
   [/\b(fan blade|fan blades|turbofan blade|fan hub|engine fan hub|fan rotor|fan stage|fan stator|mistuned fan|variable pitch fan|fan disc|fan disk)\b/i, "Fan / fan blade"],
   [/\b(fan case|fan casing|fan containment|fan cowl)\b/i, "Fan case"],
   [/\b(gearbox|gear box|accessory gearbox|reduction gearbox|gear)\b/i, "Gearbox / accessory gearbox"],
-  [/\b(high[- ]pressure compressor|hpc|compressor blade)\b/i, "High-pressure compressor"],
-  [/\b(high[- ]pressure turbine|hpt|hp turbine|turbine blade|turbine components?|turbine disk|turbine disc|disk posts?|firtree)\b/i, "High-pressure turbine"],
-  [/\b(low[- ]pressure compressor|lpc)\b/i, "Low-pressure compressor"],
-  [/\b(low[- ]pressure turbine|lpt|lp turbine)\b/i, "Low-pressure turbine"],
+  [/\b(high[- ]pressure(?:\s*\([^)]+\))?\s+compressor|hpc|compressor blade)\b/i, "High-pressure compressor"],
+  [/\b(high[- ]pressure(?:\s*\([^)]+\))?\s+turbine|hpt|hp turbine|turbine blade|turbine components?|turbine disk|turbine disc|disk posts?|firtree)\b/i, "High-pressure turbine"],
+  [/\b(low[- ]pressure(?:\s*\([^)]+\))?\s+compressor|lpc)\b/i, "Low-pressure compressor"],
+  [/\b(low[- ]pressure(?:\s*\([^)]+\))?\s+turbine|lpt|lp turbine)\b/i, "Low-pressure turbine"],
   [/\b(nacelle|cowling|cowl)\b/i, "Nacelle"],
   [/\b(fuel nozzle|fuel injector|injector|nozzle|fuel manifold|fuel metering)\b/i, "Nozzle / fuel injector"],
   [/\b(oil system|lubrication|lubricant|engine oil|oil filter|oil strainer|air\/oil|heat exchanger)\b/i, "Oil system / lubrication"],
@@ -670,7 +670,7 @@ export default function Home() {
 
   const includedRows = rows.filter((row) => row.included);
   const incompleteRows = includedRows.filter((row) => !isComplete(row));
-  const canExport = includedRows.length > 0 && incompleteRows.length === 0;
+  const canExport = includedRows.length > 0;
 
   // Pagination keeps component groups intact, so related failure modes do not split oddly.
   const visibleGroupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
@@ -1526,7 +1526,7 @@ export default function Home() {
                 </button>
                 {!canExport && (
                   <span id="export-disabled-reason" className="visually-hidden">
-                    Complete required fields for included rows before exporting.
+                    Include at least one row before exporting.
                   </span>
                 )}
                 {showExportDropdown && (
@@ -1546,6 +1546,11 @@ export default function Home() {
                       Export as CSV
                     </button>
                   </div>
+                )}
+                {canExport && incompleteRows.length > 0 && (
+                  <span className="export-hint" role="status">
+                    {incompleteRows.length} included row{incompleteRows.length === 1 ? "" : "s"} export with blanks.
+                  </span>
                 )}
               </div>
             </div>
