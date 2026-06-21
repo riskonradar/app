@@ -244,6 +244,37 @@ const componentFamilies: Array<[RegExp, string | null]> = [
   [/\b(operability bleed valve|obv|bleed valve|valve|valves|bypass valve)\b/i, "Valve"],
 ];
 
+const failureModeFamilies: Array<[RegExp, string | null]> = [
+  [/\b(noise|acoustic issue|acoustic propagation)\b/i, null],
+  [/\b(rotor\/engine vibration|high vibration)\b/i, null],
+  [/\b(low[- ]cycle fatigue|lcf|high[- ]cycle fatigue|hcf|very[- ]high[- ]cycle fatigue|vhcf|thermo[- ]mechanical fatigue|tmf|thermal fatigue|fretting fatigue|dwell fatigue|fatigue failure|fatigue life|fatigue crack)\b/i, "Fatigue"],
+  [/\b(crack|cracks|cracking|fracture|rupture|burst|breakage|burned-through|burn-through)\b/i, "Crack / fracture"],
+  [/\b(bird strike|impact damage|ingestion damage|ice ingestion|particle ingestion|sand ingestion|foreign object|fod)\b/i, "Foreign object damage (FOD)"],
+  [/\b(compressor stall|rotating stall|stall|surge)\b/i, "Stall / surge"],
+  [/\b(flow turbulence|flow disturbance|flow distortion|potential-flow disturbance|potential flow disturbance|flow instability|swirl distortion)\b/i, "Flow disturbance / distortion"],
+  [/\b(blade flexural vibration|blade\/rotor flutter|blade flutter|rotor flutter|blade\/rotor vibration|aeroelastic|flutter|mistuning)\b/i, "Blade vibration / flutter"],
+  [/\b(bending deformation|flexural deformation|flexural vibration|deformation|buckling|bulging)\b/i, "Deformation / buckling"],
+  [/\b(bearing wear|abrasive wear|fretting wear|wear|rubbing|tip rub|scuffing|scuff)\b/i, "Wear / rubbing"],
+  [/\b(hot corrosion|corrosion|rusting|rustiness|pitting)\b/i, "Corrosion / pitting"],
+  [/\b(fuel coking|coking|carbon deposition|carbon deposits|deposits|fouling|clogging|blockage|blocked)\b/i, "Deposits / blockage"],
+  [/\b(oil leak|oil leakage|fuel leak|fuel leakage|leakage|leak)\b/i, "Leakage"],
+  [/\b(overheating|overtemperature|over-temperature)\b/i, "Overheating / overtemperature"],
+  [/\b(bearing fault|bearing faults|bearing defect|ball[- ]bearing faults?)\b/i, "Bearing fault"],
+  [/\b(bearing spallation|thermal barrier coating spallation|spallation|spalling)\b/i, "Spallation"],
+  [/\b(bearing seizure|seizure)\b/i, "Seizure"],
+  [/\bcreep\b/i, "Creep"],
+  [/\berosion\b/i, "Erosion"],
+  [/\boxidation\b/i, "Oxidation"],
+  [/\bdelamination\b/i, "Delamination"],
+  [/\bdebonding\b/i, "Debonding"],
+  [/\bcoating failure\b/i, "Coating failure"],
+  [/\bthermal shock\b/i, "Thermal shock"],
+  [/\bcombustion instability\b/i, "Combustion instability"],
+  [/\b(rotor imbalance|imbalance)\b/i, "Rotor imbalance"],
+  [/\bmisalignment\b/i, "Misalignment"],
+  [/\b(overspeed|over-speed)\b/i, "Overspeed"],
+];
+
 function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
   return `${row.component}-${row.failureMode}-${index}`
     .toLowerCase()
@@ -260,6 +291,15 @@ function canonicalComponentName(component: string) {
     if (pattern.test(normalized)) return family;
   }
   return normalized || null;
+}
+
+function canonicalFailureModeName(failureMode: string) {
+  const normalized = failureMode.replace(/[_/]+/g, " / ").split(/\s+/).join(" ");
+  if (!normalized) return null;
+  for (const [pattern, family] of failureModeFamilies) {
+    if (pattern.test(normalized)) return family;
+  }
+  return normalized;
 }
 
 function sortedComponentNames(names: string[]) {
@@ -296,14 +336,16 @@ function mergeEvidenceRows(rows: EvidenceRow[]) {
 
   rows.forEach((row) => {
     const component = canonicalComponentName(row.component);
-    if (!component || !row.failureMode.trim()) return;
-    const key = `${component.toLowerCase()}::${row.failureMode.trim().toLowerCase()}`;
+    const failureMode = canonicalFailureModeName(row.failureMode);
+    if (!component || !failureMode) return;
+    const key = `${component.toLowerCase()}::${failureMode.toLowerCase()}`;
     const existing = merged.get(key);
 
     if (!existing) {
       merged.set(key, {
         ...row,
         component,
+        failureMode,
         effect: mergeListValues(row.effect),
         cause: mergeListValues(row.cause),
         correctiveAction: mergeListValues(row.correctiveAction),
@@ -362,7 +404,7 @@ function normalizeSavedRows(rows: FmeaRow[]) {
   const mergedRows = toFmeaRows(rows);
   const savedByKey = new Map(
     rows.map((row) => [
-      `${canonicalComponentName(row.component) ?? row.component}::${row.failureMode}`.toLowerCase(),
+      `${canonicalComponentName(row.component) ?? row.component}::${canonicalFailureModeName(row.failureMode) ?? row.failureMode}`.toLowerCase(),
       row,
     ]),
   );
