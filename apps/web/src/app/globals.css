@@ -729,6 +729,7 @@ input[type="checkbox"]:focus {
   white-space: normal;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  overflow: visible;
 }
 
 .fmea-table td input:hover,
@@ -796,6 +797,9 @@ input[type="checkbox"]:focus {
   font-size: 0.78rem;
   font-weight: 800;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .evidence-button:hover {
@@ -1215,7 +1219,8 @@ input[type="checkbox"]:focus {
 .table-scroll {
   position: relative;
   height: 100%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .table-loading {
@@ -1492,6 +1497,27 @@ input[type="checkbox"]:focus {
   color: var(--color-accent);
   font-weight: 600;
   margin-left: var(--space-md);
+}
+
+.cell-viewer-textarea {
+  width: 100%;
+  min-width: 400px;
+  max-width: 600px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  padding: var(--space-md);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.cell-viewer-textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(232, 86, 52, 0.2);
 }
 
 .auth-page {

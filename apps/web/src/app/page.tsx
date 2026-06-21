@@ -470,6 +470,7 @@ export default function Home() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [cellViewer, setCellViewer] = useState<{ rowId: string; field: string; value: string } | null>(null);
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
@@ -559,6 +560,29 @@ export default function Home() {
     setExpandedComponents(new Set(components));
   }
 
+  function openCellViewer(rowId: string, field: string, value: string) {
+    setCellViewer({ rowId, field, value });
+  }
+
+  function closeCellViewer() {
+    setCellViewer(null);
+  }
+
+  function saveCellViewer(newValue: string) {
+    if (!cellViewer) return;
+    const fieldMap: Record<string, keyof FmeaRow> = {
+      "Effect": "effect",
+      "Cause": "cause",
+      "Controls": "currentControl",
+      "Action": "correctiveAction",
+    };
+    const field = fieldMap[cellViewer.field];
+    if (field) {
+      updateRow(cellViewer.rowId, { [field]: newValue });
+    }
+    setCellViewer(null);
+  }
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -631,6 +655,8 @@ export default function Home() {
           setShowExportDropdown(false);
         } else if (focusedCellId) {
           setFocusedCellId(null);
+        } else if (cellViewer) {
+          setCellViewer(null);
         }
       }
 
@@ -670,7 +696,7 @@ export default function Home() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedSourceRow, showExportDropdown, visibleRows, selectedRowIds, focusedCellId, showHelpModal, rows]);
+  }, [selectedSourceRow, showExportDropdown, visibleRows, selectedRowIds, focusedCellId, showHelpModal, rows, cellViewer]);
 
   const isLoading = loadingAction !== null;
 
@@ -954,12 +980,11 @@ export default function Home() {
             ref={(element) => registerCell(row.original.id, "effect", element)}
             type="text"
             value={row.original.effect}
-            onChange={(e) => updateRow(row.original.id, { effect: e.target.value })}
+            readOnly
             className={`fmea-cell-control ${editableCellClass(row.original.id, "effect")}`}
             aria-label={`Effect for ${row.original.component} - ${row.original.failureMode}`}
-            onFocus={() => setFocusedCellId(`${row.original.id}:effect`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "effect")}
+            onClick={() => openCellViewer(row.original.id, "Effect", row.original.effect)}
+            title={row.original.effect || "Click to edit"}
           />
         ),
         size: 250,
@@ -996,12 +1021,11 @@ export default function Home() {
             ref={(element) => registerCell(row.original.id, "cause", element)}
             type="text"
             value={row.original.cause}
-            onChange={(e) => updateRow(row.original.id, { cause: e.target.value })}
+            readOnly
             className={`fmea-cell-control ${editableCellClass(row.original.id, "cause")}`}
             aria-label={`Cause for ${row.original.component} - ${row.original.failureMode}`}
-            onFocus={() => setFocusedCellId(`${row.original.id}:cause`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "cause")}
+            onClick={() => openCellViewer(row.original.id, "Cause", row.original.cause)}
+            title={row.original.cause || "Click to edit"}
           />
         ),
         size: 250,
@@ -1038,12 +1062,11 @@ export default function Home() {
             ref={(element) => registerCell(row.original.id, "currentControl", element)}
             type="text"
             value={row.original.currentControl}
-            onChange={(e) => updateRow(row.original.id, { currentControl: e.target.value })}
+            readOnly
             className={`fmea-cell-control ${editableCellClass(row.original.id, "currentControl")}`}
             aria-label={`Controls for ${row.original.component} - ${row.original.failureMode}`}
-            onFocus={() => setFocusedCellId(`${row.original.id}:currentControl`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "currentControl")}
+            onClick={() => openCellViewer(row.original.id, "Controls", row.original.currentControl)}
+            title={row.original.currentControl || "Click to edit"}
           />
         ),
         size: 250,
@@ -1086,12 +1109,11 @@ export default function Home() {
             ref={(element) => registerCell(row.original.id, "correctiveAction", element)}
             type="text"
             value={row.original.correctiveAction}
-            onChange={(e) => updateRow(row.original.id, { correctiveAction: e.target.value })}
+            readOnly
             className={`fmea-cell-control ${editableCellClass(row.original.id, "correctiveAction")}`}
             aria-label={`Corrective action for ${row.original.component} - ${row.original.failureMode}`}
-            onFocus={() => setFocusedCellId(`${row.original.id}:correctiveAction`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "correctiveAction")}
+            onClick={() => openCellViewer(row.original.id, "Action", row.original.correctiveAction)}
+            title={row.original.correctiveAction || "Click to edit"}
           />
         ),
         size: 250,
@@ -1759,6 +1781,47 @@ export default function Home() {
                 <span>Row has been reviewed and rejected</span>
               </li>
             </ul>
+          </section>
+        </div>
+      )}
+
+      {cellViewer && (
+        <div className="source-dialog-backdrop" role="presentation" onClick={() => setCellViewer(null)}>
+          <section
+            className="source-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Edit ${cellViewer.field}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setCellViewer(null)}>
+              ×
+            </button>
+            <span className="metric-label">Edit</span>
+            <h3>{cellViewer.field}</h3>
+            <textarea
+              value={cellViewer.value}
+              onChange={(e) => setCellViewer({ ...cellViewer, value: e.target.value })}
+              className="cell-viewer-textarea"
+              rows={6}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: "12px", marginTop: "20px", justifyContent: "flex-end" }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                type="button"
+                onClick={() => setCellViewer(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                type="button"
+                onClick={() => saveCellViewer(cellViewer.value)}
+              >
+                Save
+              </button>
+            </div>
           </section>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { getCurrentClerkUserId } from "@/lib/auth/server";
 import { isMollieConfigured } from "@/lib/config";
 import { getMollieClient } from "@/lib/mollie/server";
+import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   if (!isMollieConfigured()) {
@@ -38,6 +39,36 @@ export async function POST(request: Request) {
   });
 
   const checkoutUrl = payment._links.checkout?.href;
+  const supabase = getSupabaseServiceClient();
+
+  // Find user account by clerk user ID
+  const { data: userAccount, error: userError } = await supabase
+    .from("user_accounts")
+    .select("id")
+    .eq("clerk_user_id", userId)
+    .single() as any;
+
+  if (userError || !userAccount) {
+    return Response.json({ error: "User account not found." }, { status: 404 });
+  }
+
+  // Create initial payment record in database
+  const { error: paymentError } = await supabase
+    .from("billing_payments")
+    .insert({
+      user_account_id: userAccount.id,
+      mollie_payment_id: payment.id,
+      status: payment.status,
+      amount_value: parseFloat(payment.amount?.value || "0"),
+      amount_currency: payment.amount?.currency || "EUR",
+      checkout_url: checkoutUrl,
+      metadata: payment.metadata || {},
+    });
+
+  if (paymentError) {
+    console.error("Failed to create payment record:", paymentError);
+    return Response.json({ error: "Failed to create payment record." }, { status: 500 });
+  }
 
   return Response.json({
     id: payment.id,
