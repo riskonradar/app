@@ -2006,15 +2006,19 @@ export default function Home() {
 
       <main id="main-content" className="app-main">
         <section className="workflow-card worksheet-workspace">
-          {/* Header with Export */}
+          {/* Worksheet header actions */}
           <div className="fmea-header">
             <div>
               <button
                 onClick={exitToDashboard}
                 className="worksheet-exit"
                 type="button"
+                aria-label="Exit to dashboard"
               >
-                Exit to dashboard
+                <svg aria-hidden="true" viewBox="0 0 20 20" focusable="false">
+                  <path d="M8.8 4.2 3 10l5.8 5.8 1.2-1.2L6.3 10.9H17V9.1H6.3L10 5.4 8.8 4.2Z" />
+                </svg>
+                <span>Exit to dashboard</span>
               </button>
               <span className="metric-label">Failure Mode and Effects Analysis worksheet</span>
               <label className="analysis-name-field">
