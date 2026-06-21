@@ -519,6 +519,39 @@ button:disabled {
   font-size: 0.8rem;
 }
 
+.system-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-border);
+}
+
+.system-card-stats div {
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.025);
+  padding: var(--space-md);
+}
+
+.system-card-stats dt {
+  color: var(--color-text-light);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.system-card-stats dd {
+  margin-top: var(--space-xs);
+  color: var(--color-text);
+  font-size: 1.22rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .workspace-start-panel .btn {
   margin-top: auto;
 }

@@ -62,6 +62,13 @@ type SystemTemplate = {
   source: string;
   description: string;
   components: string[];
+  stats: {
+    sourceRecords: number;
+    relevantRecords?: number;
+    rows: number;
+    components: number;
+    sourceType: string;
+  };
 };
 
 type FmeaDataset = {
@@ -117,42 +124,13 @@ const systemTemplates: SystemTemplate[] = [
     description:
       "A preloaded reliability workspace built from the turbofan prototype corpus.",
     components: fmeaData.components as string[],
-  },
-  {
-    id: "pump-train",
-    name: "Centrifugal pump train",
-    domain: "Process equipment",
-    source: "Template system",
-    description:
-      "Starter structure for pump, seal, bearing, coupling, motor, and instrumentation FMEAs.",
-    components: [
-      "Pump casing",
-      "Impeller",
-      "Mechanical seal",
-      "Shaft",
-      "Bearing",
-      "Coupling",
-      "Electric motor",
-      "Vibration sensor",
-    ],
-  },
-  {
-    id: "wind-drivetrain",
-    name: "Wind turbine drivetrain",
-    domain: "Renewable energy",
-    source: "Template system",
-    description:
-      "Starter structure for gearbox, blade, bearing, generator, converter, brake, and tower interfaces.",
-    components: [
-      "Blade",
-      "Pitch bearing",
-      "Main shaft",
-      "Main bearing",
-      "Gearbox",
-      "Generator",
-      "Power converter",
-      "Brake system",
-    ],
+    stats: {
+      sourceRecords: fmeaData.recordCount,
+      relevantRecords: fmeaData.relevantRecordCount,
+      rows: fmeaData.rowCount,
+      components: (fmeaData.components as string[]).length,
+      sourceType: fmeaData.sourceType,
+    },
   },
 ];
 
@@ -1452,33 +1430,21 @@ export default function Home() {
     setComponentFilter("All");
     setComponentQuery("");
     try {
-      if (systemId === "turbofan") {
-        const liveDataset = await fetchLiveTurbofanDataset();
-        const nextRows = toFmeaRows(liveDataset.rows);
-        setRowFilter("all");
-        setRows(nextRows);
-        setAnalysisName(defaultAnalysisName(nextRows));
-        setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${nextRows.length} merged analysis rows.`);
-      } else {
-        const nextRows = templateRowsForComponents(nextSystem.components);
-        setRowFilter("all");
-        setRows(nextRows);
-        setAnalysisName(`${nextSystem.name} Failure Mode and Effects Analysis`);
-        setNotice(`Loaded ${nextSystem.name}. Edit the generated worksheet, then export when required fields are complete.`);
-      }
+      const liveDataset = await fetchLiveTurbofanDataset();
+      const nextRows = toFmeaRows(liveDataset.rows);
+      setRowFilter("all");
+      setRows(nextRows);
+      setAnalysisName(defaultAnalysisName(nextRows));
+      setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${nextRows.length} merged analysis rows.`);
       setSelectionStep("table");
       setHasUnsavedChanges(true);
     } catch {
-      if (systemId === "turbofan") {
-        setRowFilter("all");
-        const nextRows = toFmeaRows(bundledTurbofanData.rows);
-        setRows(nextRows);
-        setAnalysisName(defaultAnalysisName(nextRows));
-        setSelectionStep("table");
-        setNotice("Could not load live turbofan evidence. Using bundled worksheet snapshot.");
-      } else {
-        setNotice("Failed to load the selected system.");
-      }
+      setRowFilter("all");
+      const nextRows = toFmeaRows(bundledTurbofanData.rows);
+      setRows(nextRows);
+      setAnalysisName(defaultAnalysisName(nextRows));
+      setSelectionStep("table");
+      setNotice("Could not load live turbofan evidence. Using bundled worksheet snapshot.");
     } finally {
       setLoadingAction(null);
     }
@@ -1833,21 +1799,6 @@ export default function Home() {
                     or import a BOM to generate an editable Failure Mode and Effects Analysis worksheet with citations.
                   </p>
                 </div>
-
-                <dl className="workspace-start-facts" aria-label="Loaded evidence snapshot">
-                  <div>
-                    <dt>Evidence records</dt>
-                    <dd>{bundledTurbofanData.recordCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Merged rows</dt>
-                    <dd>{bundledTurbofanData.rowCount}</dd>
-                  </div>
-                  <div>
-                    <dt>Components</dt>
-                    <dd>{bundledTurbofanData.components.length}</dd>
-                  </div>
-                </dl>
               </div>
 
               <div className="workspace-start-actions">
@@ -1871,7 +1822,25 @@ export default function Home() {
                     ))}
                   </select>
                   <p>{selectedTemplate.description}</p>
-                  <span>{selectedTemplate.source}</span>
+                  <dl className="system-card-stats" aria-label={`${selectedTemplate.name} evidence statistics`}>
+                    <div>
+                      <dt>Papers and ADs</dt>
+                      <dd>{selectedTemplate.stats.sourceRecords}</dd>
+                    </div>
+                    <div>
+                      <dt>Relevant records</dt>
+                      <dd>{selectedTemplate.stats.relevantRecords ?? selectedTemplate.stats.sourceRecords}</dd>
+                    </div>
+                    <div>
+                      <dt>FMEA rows</dt>
+                      <dd>{selectedTemplate.stats.rows}</dd>
+                    </div>
+                    <div>
+                      <dt>Components</dt>
+                      <dd>{selectedTemplate.stats.components}</dd>
+                    </div>
+                  </dl>
+                  <span>{selectedTemplate.stats.sourceType}</span>
                   <button
                     className="btn btn-primary btn-full"
                     type="button"
