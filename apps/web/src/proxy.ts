@@ -5,10 +5,6 @@ import type { NextFetchEvent, NextRequest } from "next/server";
 import { isClerkConfigured } from "@/lib/config";
 
 export default function proxy(request: NextRequest, event: NextFetchEvent) {
-  if (request.nextUrl.pathname === "/api/billing/create-payment") {
-    return NextResponse.next();
-  }
-
   if (!isClerkConfigured()) {
     return NextResponse.next();
   }

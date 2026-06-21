@@ -16,6 +16,9 @@ importers:
       '@mollie/api-client':
         specifier: ^4.5.0
         version: 4.5.0
+      '@revolist/react-datagrid':
+        specifier: ^4.23.16
+        version: 4.23.16
       '@supabase/supabase-js':
         specifier: ^2.108.2
         version: 2.108.2
@@ -1144,6 +1147,12 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
+
+  '@revolist/react-datagrid@4.23.16':
+    resolution: {integrity: sha512-VGvHss6/STeZBHSbMqpM82P9gwvZXekihMKCzDrv7mbsWyeJXGos43rVzt+sf6NoD6Ya4d+JPHgL5OTWlk1tcA==}
+
+  '@revolist/revogrid@4.23.16':
+    resolution: {integrity: sha512-V0jQrX2Im+gWiHyoxQu2h43+z0knQGG5y0Npe0rV4g4tN7fbRPImhlG8/eO1hO4aON1dNfbqk7b3x/w1f46/JA==}
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
@@ -4819,6 +4828,12 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
+
+  '@revolist/react-datagrid@4.23.16':
+    dependencies:
+      '@revolist/revogrid': 4.23.16
+
+  '@revolist/revogrid@4.23.16': {}
 
   '@rtsao/scc@1.1.0': {}
 

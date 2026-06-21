@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { RevoGrid } from "@revolist/react-datagrid";
+import type { AfterEditEvent, ColumnRegular, RevoGridCustomEvent } from "@revolist/react-datagrid";
 import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 
-import { AuthControls } from "@/components/auth/auth-controls";
+import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
 
 type Source = {
@@ -36,6 +37,26 @@ type FmeaRow = EvidenceRow & {
   owner: string;
   status: "needs_review" | "accepted" | "rejected";
   included: boolean;
+};
+
+type GridRow = {
+  id: string;
+  included: string;
+  component: string;
+  function: string;
+  requirement: string;
+  failureMode: string;
+  effect: string;
+  severity: string;
+  cause: string;
+  occurrence: string;
+  currentControl: string;
+  detection: string;
+  rpn: string;
+  correctiveAction: string;
+  owner: string;
+  status: FmeaRow["status"];
+  evidenceCount: number;
 };
 
 type SystemTemplate = {
@@ -105,6 +126,24 @@ const defaultControls = [
 ];
 
 const scoreOptions = Array.from({ length: 10 }, (_, index) => String(index + 1));
+const gridColumns: ColumnRegular[] = [
+  { prop: "included", name: "Use", size: 72, pin: "colPinStart" },
+  { prop: "component", name: "Component", size: 230, pin: "colPinStart", readonly: true },
+  { prop: "function", name: "Function", size: 260 },
+  { prop: "requirement", name: "Requirement", size: 310 },
+  { prop: "failureMode", name: "Failure mode", size: 230 },
+  { prop: "effect", name: "Effect", size: 290 },
+  { prop: "severity", name: "S", size: 70 },
+  { prop: "cause", name: "Cause", size: 280 },
+  { prop: "occurrence", name: "O", size: 70 },
+  { prop: "currentControl", name: "Controls", size: 260 },
+  { prop: "detection", name: "D", size: 70 },
+  { prop: "rpn", name: "RPN", size: 82, readonly: true },
+  { prop: "correctiveAction", name: "Recommended action", size: 290 },
+  { prop: "owner", name: "Owner", size: 150 },
+  { prop: "status", name: "Review status", size: 160 },
+  { prop: "evidenceCount", name: "Sources", size: 100, readonly: true },
+];
 
 function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
   return `${row.component}-${row.failureMode}-${index}`
@@ -219,6 +258,48 @@ function rowRpn(row: FmeaRow) {
   return String(s * o * d);
 }
 
+function toGridRow(row: FmeaRow): GridRow {
+  return {
+    id: row.id,
+    included: row.included ? "Yes" : "No",
+    component: row.component,
+    function: row.function,
+    requirement: row.requirement,
+    failureMode: row.failureMode,
+    effect: row.effect,
+    severity: row.severity,
+    cause: row.cause,
+    occurrence: row.occurrence,
+    currentControl: row.currentControl,
+    detection: row.detection,
+    rpn: rowRpn(row),
+    correctiveAction: row.correctiveAction,
+    owner: row.owner,
+    status: row.status,
+    evidenceCount: row.evidenceCount,
+  };
+}
+
+function gridRowToUpdate(row: GridRow): Partial<FmeaRow> {
+  return {
+    included: /^y|true|1$/i.test(String(row.included).trim()),
+    function: String(row.function ?? ""),
+    requirement: String(row.requirement ?? ""),
+    failureMode: String(row.failureMode ?? ""),
+    effect: String(row.effect ?? ""),
+    severity: scoreOptions.includes(String(row.severity ?? "")) ? String(row.severity) : "",
+    cause: String(row.cause ?? ""),
+    occurrence: scoreOptions.includes(String(row.occurrence ?? "")) ? String(row.occurrence) : "",
+    currentControl: String(row.currentControl ?? ""),
+    detection: scoreOptions.includes(String(row.detection ?? "")) ? String(row.detection) : "",
+    correctiveAction: String(row.correctiveAction ?? ""),
+    owner: String(row.owner ?? ""),
+    status: ["needs_review", "accepted", "rejected"].includes(String(row.status))
+      ? row.status
+      : "needs_review",
+  };
+}
+
 function isComplete(row: FmeaRow) {
   if (!row.included) return true;
   return Boolean(
@@ -328,91 +409,35 @@ function buildExcelHtml(rows: FmeaRow[]) {
     .join("")}</table></body></html>`;
 }
 
-function Wordmark() {
-  return (
-    <span className="wordmark">
-      r<span className="wm-i">ı</span>sk on radar<span className="wm-dot">.</span>
-    </span>
-  );
-}
-
-function ScoreSelect({
-  value,
-  label,
-  onChange,
-}: {
-  value: string;
-  label: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <select
-      className="score-select"
-      aria-label={label}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">-</option>
-      {scoreOptions.map((score) => (
-        <option key={score} value={score}>
-          {score}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function EditableCell({
-  value,
-  placeholder,
-  onChange,
-  className = "",
-}: {
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-  className?: string;
-}) {
-  return (
-    <textarea
-      className={`cell-input ${className}`}
-      value={value}
-      placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
-      rows={2}
-    />
-  );
-}
-
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeSystemId, setActiveSystemId] = useState("turbofan");
   const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(fmeaData.rows as EvidenceRow[]));
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("with_effect");
+  const [componentQuery, setComponentQuery] = useState("");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
-  const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
-  const [notice, setNotice] = useState("Free tier: 1 saved FMEA. Upgrade for unlimited saved worksheets.");
+  const [notice, setNotice] = useState("Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.");
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
   );
-  const activeSystem =
-    systemTemplates.find((system) => system.id === activeSystemId) ??
-    ({
-      id: "custom",
-      name: "Custom BOM system",
-      domain: "Uploaded BOM",
-      source: `${rows.length} draft rows from imported components`,
-      description:
-        "A local draft created from the uploaded BOM. Use the worksheet to complete and review required fields.",
-      components,
-    } satisfies SystemTemplate);
-
   const visibleRows = useMemo(
     () =>
       rows.filter((row) => {
+        const query = componentQuery.trim().toLowerCase();
         if (componentFilter !== "All" && row.component !== componentFilter) return false;
+        if (
+          query &&
+          ![row.component, row.failureMode, row.effect, row.cause]
+            .join(" ")
+            .toLowerCase()
+            .includes(query)
+        ) {
+          return false;
+        }
         if (rowFilter === "with_effect" && !row.effect.trim()) return false;
         if (rowFilter === "missing_effect" && row.effect.trim()) return false;
         if (rowFilter === "evidence" && row.evidenceCount === 0) return false;
@@ -420,13 +445,20 @@ export default function Home() {
         if (rowFilter === "included" && !row.included) return false;
         return true;
       }),
-    [componentFilter, rowFilter, rows],
+    [componentFilter, componentQuery, rowFilter, rows],
   );
 
   const includedRows = rows.filter((row) => row.included);
   const incompleteRows = includedRows.filter((row) => !isComplete(row));
   const rowsMissingEffect = rows.filter((row) => !row.effect.trim()).length;
   const canExport = includedRows.length > 0 && incompleteRows.length === 0;
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
+  const currentPage = Math.min(pageIndex, totalPages - 1);
+  const pageStart = currentPage * pageSize;
+  const pageRows = visibleRows.slice(pageStart, pageStart + pageSize);
+  const gridRows = useMemo(() => pageRows.map(toGridRow), [pageRows]);
+  const editStepState = rows.length ? "active" : "pending";
+  const exportStepState = canExport ? "active" : "pending";
 
   function updateRow(id: string, update: Partial<FmeaRow>) {
     setRows((currentRows) =>
@@ -434,11 +466,38 @@ export default function Home() {
     );
   }
 
+  function applyGridRow(row: GridRow) {
+    updateRow(row.id, gridRowToUpdate(row));
+  }
+
+  function handleGridEdit(event: RevoGridCustomEvent<AfterEditEvent>) {
+    const detail = event.detail as
+      | { data: Record<number, GridRow> }
+      | { model?: GridRow; prop?: keyof GridRow; val?: unknown };
+
+    if ("data" in detail) {
+      Object.values(detail.data).forEach((row) => {
+        if (row?.id) applyGridRow(row);
+      });
+      return;
+    }
+
+    if (detail.model?.id) {
+      applyGridRow({ ...detail.model, [String(detail.prop)]: detail.val } as GridRow);
+    }
+  }
+
+  function resetPaging() {
+    setPageIndex(0);
+  }
+
   function loadSystem(systemId: string) {
     const nextSystem = systemTemplates.find((system) => system.id === systemId);
     if (!nextSystem) return;
     setActiveSystemId(systemId);
     setComponentFilter("All");
+    setComponentQuery("");
+    resetPaging();
     if (systemId === "turbofan") {
       setRowFilter("with_effect");
       setRows(toFmeaRows(fmeaData.rows as EvidenceRow[]));
@@ -459,9 +518,11 @@ export default function Home() {
     }
     setActiveSystemId("custom");
     setComponentFilter("All");
+    setComponentQuery("");
     setRowFilter("all");
+    resetPaging();
     setRows(templateRowsForComponents(componentsFromBom));
-    setNotice(`Created a draft FMEA from ${componentsFromBom.length} BOM components. Review each required field before export.`);
+    setNotice(`Imported ${componentsFromBom.length} BOM components. Edit the generated worksheet, then export when required fields are complete.`);
   }
 
   function exportCsv() {
@@ -478,85 +539,132 @@ export default function Home() {
     );
   }
 
-  async function upgradePlan() {
-    setPaymentState("loading");
-    setNotice("Opening Mollie checkout...");
-    try {
-      const response = await fetch("/api/billing/create-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amountValue: "49.00",
-          description: "Risk on Radar unlimited FMEA workspace",
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as {
-        checkoutUrl?: string;
-        error?: string;
-      };
-      if (!response.ok || !payload.checkoutUrl) {
-        throw new Error(payload.error || "Payment checkout is not available yet.");
-      }
-      window.location.href = payload.checkoutUrl;
-    } catch (error) {
-      setPaymentState("error");
-      setNotice(error instanceof Error ? error.message : "Could not open Mollie checkout.");
-    }
-  }
-
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
 
-      <nav className="nav app-nav" aria-label="Primary navigation">
-        <div className="nav-container">
-          <Link href="/" className="nav-brand" aria-label="Risk on Radar app home">
-            <Wordmark />
-          </Link>
-
-          <div className="nav-actions">
-            <a className="nav-link" href="#saved-workflows">
-              Dashboard
-            </a>
-            <AuthControls />
-          </div>
-        </div>
-      </nav>
+      <AppNav />
 
       <main id="main-content" className="app-main">
-        <section className="builder-layout" id="builder">
-          <aside className="left-rail" aria-label="FMEA setup">
-            <section className="panel">
-              <div className="panel-heading">
-                <span className="metric-label">System</span>
-                <strong>{activeSystem.name}</strong>
-              </div>
-              <div className="system-options">
-                {systemTemplates.map((system) => (
-                  <button
-                    type="button"
-                    key={system.id}
-                    className={`system-option ${activeSystemId === system.id ? "active" : ""}`}
-                    onClick={() => loadSystem(system.id)}
-                  >
-                    <span>{system.name}</span>
-                    <small>{system.domain}</small>
-                  </button>
-                ))}
-              </div>
-            </section>
+        <section className="workflow-card" id="builder">
+          <div className="workflow-steps" aria-label="FMEA workflow steps">
+            <div className="workflow-step active">
+              <span>1</span>
+              <strong>Select parts</strong>
+              <small>Use the corpus, upload a BOM, or choose a component.</small>
+            </div>
+            <div className={`workflow-step ${editStepState}`}>
+              <span>2</span>
+              <strong>Edit FMEA rows</strong>
+              <small>Review effects, causes, controls, and S/O/D scores.</small>
+            </div>
+            <div className={`workflow-step ${exportStepState}`}>
+              <span>3</span>
+              <strong>Export worksheet</strong>
+              <small>Export once included rows are complete.</small>
+            </div>
+          </div>
 
-            <section className="panel">
-              <div className="panel-heading">
-                <span className="metric-label">BOM import</span>
-                <strong>Upload system parts</strong>
+          <section className="workspace-panel">
+            <div className="worksheet-controls">
+              <div className="control-field control-field-wide">
+                <label className="field-label" htmlFor="component-search">
+                  Search components
+                </label>
+                <input
+                  id="component-search"
+                  className="text-input"
+                  type="search"
+                  placeholder="Search bearing, compressor, turbine..."
+                  value={componentQuery}
+                  onChange={(event) => {
+                    setComponentQuery(event.target.value);
+                    resetPaging();
+                  }}
+                />
               </div>
-              <p className="rail-copy">
-                Upload CSV, TSV, or a simple parts list. The prototype extracts component names
-                locally and drafts starter rows for review.
-              </p>
+
+              <div className="control-field">
+                <label className="field-label" htmlFor="system-select">
+                  Evidence set
+                </label>
+                <select
+                  id="system-select"
+                  value={activeSystemId}
+                  onChange={(event) => loadSystem(event.target.value)}
+                >
+                  {systemTemplates.map((system) => (
+                    <option key={system.id} value={system.id}>
+                      {system.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="control-field">
+                <label className="field-label" htmlFor="component-filter">
+                  Component
+                </label>
+                <select
+                  id="component-filter"
+                  value={componentFilter}
+                  onChange={(event) => {
+                    setComponentFilter(event.target.value);
+                    resetPaging();
+                  }}
+                >
+                  <option value="All">All components</option>
+                  {components.map((component) => (
+                    <option key={component} value={component}>
+                      {component}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="control-field">
+                <label className="field-label" htmlFor="row-filter">
+                  Rows
+                </label>
+                <select
+                  id="row-filter"
+                  value={rowFilter}
+                  onChange={(event) => {
+                    setRowFilter(event.target.value);
+                    resetPaging();
+                  }}
+                >
+                  <option value="with_effect">With effect</option>
+                  <option value="all">All rows</option>
+                  <option value="missing_effect">Missing effect ({rowsMissingEffect})</option>
+                  <option value="included">Included only</option>
+                  <option value="evidence">Evidence-backed</option>
+                  <option value="incomplete">Incomplete</option>
+                </select>
+              </div>
+
+              <div className="control-field">
+                <label className="field-label" htmlFor="page-size">
+                  Page size
+                </label>
+                <select
+                  id="page-size"
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
+                    resetPaging();
+                  }}
+                >
+                  {[10, 25, 50, 100].map((size) => (
+                    <option key={size} value={size}>
+                      {size} rows
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <input
                 ref={fileInputRef}
                 className="visually-hidden"
@@ -564,83 +672,13 @@ export default function Home() {
                 accept=".csv,.tsv,.txt"
                 onChange={handleBomUpload}
               />
-              <button className="btn btn-secondary btn-full" type="button" onClick={() => fileInputRef.current?.click()}>
+              <button
+                className="btn btn-secondary control-button"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 Upload BOM
               </button>
-            </section>
-
-            <section className="panel">
-              <div className="panel-heading">
-                <span className="metric-label">Filters</span>
-                <strong>Worksheet rows</strong>
-              </div>
-              <label className="field-label" htmlFor="component-filter">
-                Component
-              </label>
-              <select
-                id="component-filter"
-                className="rail-select"
-                value={componentFilter}
-                onChange={(event) => setComponentFilter(event.target.value)}
-                aria-label="Filter by component"
-              >
-                <option value="All">All components</option>
-                {components.map((component) => (
-                  <option key={component} value={component}>
-                    {component}
-                  </option>
-                ))}
-              </select>
-
-              <div className="filter-buttons" aria-label="Filter rows">
-                {[
-                  ["with_effect", "With effect"],
-                  ["all", "All rows"],
-                  ["missing_effect", `Missing effect (${rowsMissingEffect})`],
-                  ["included", "Included"],
-                  ["evidence", "Evidence-backed"],
-                  ["incomplete", "Incomplete"],
-                ].map(([value, label]) => (
-                  <button
-                    type="button"
-                    key={value}
-                    className={`filter-button ${rowFilter === value ? "active" : ""}`}
-                    onClick={() => setRowFilter(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="panel plan-panel">
-              <div className="panel-heading">
-                <span className="metric-label">Plan</span>
-                <strong>Free tier</strong>
-              </div>
-              <div className="usage-bar" aria-hidden="true">
-                <span />
-              </div>
-              <p className="rail-copy">1 saved FMEA available. Paid tier unlocks unlimited saved FMEAs.</p>
-              <button
-                className="btn btn-primary btn-full"
-                type="button"
-                onClick={upgradePlan}
-                disabled={paymentState === "loading"}
-              >
-                {paymentState === "loading" ? "Opening checkout" : "Upgrade with Mollie"}
-              </button>
-            </section>
-          </aside>
-
-          <section className="workspace-panel">
-            <div className="workspace-toolbar">
-              <div>
-                <span className="metric-label">FMEA worksheet</span>
-                <h2>{activeSystem.name}</h2>
-                <p>{activeSystem.description}</p>
-              </div>
-              <span className="row-count">{visibleRows.length} shown</span>
             </div>
 
             <div className={`completion-banner ${canExport ? "ready" : "blocked"}`} role="status">
@@ -662,151 +700,68 @@ export default function Home() {
               </div>
             </div>
 
-            <p className={`notice ${paymentState === "error" ? "error" : ""}`}>{notice}</p>
+            <p className="notice">{notice}</p>
 
-            <div className="table-shell" id="worksheet">
-              <table className="fmea-table">
-                <thead>
-                  <tr>
-                    <th>Use</th>
-                    <th>Component / function</th>
-                    <th>Requirement</th>
-                    <th>Failure mode</th>
-                    <th>Effect</th>
-                    <th>S</th>
-                    <th>Cause</th>
-                    <th>O</th>
-                    <th>Controls</th>
-                    <th>D</th>
-                    <th>RPN</th>
-                    <th>Action / evidence</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleRows.map((row) => {
-                    const complete = isComplete(row);
-                    return (
-                      <tr key={row.id} className={!complete ? "row-incomplete" : ""}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={row.included}
-                            aria-label={`Include ${row.component} ${row.failureMode}`}
-                            onChange={(event) => updateRow(row.id, { included: event.target.checked })}
-                          />
-                        </td>
-                        <td className="component-cell">
-                          <strong>{row.component}</strong>
-                          <EditableCell
-                            value={row.function}
-                            placeholder="Function"
-                            onChange={(value) => updateRow(row.id, { function: value })}
-                          />
-                        </td>
-                        <td>
-                          <EditableCell
-                            value={row.requirement}
-                            placeholder="Requirement"
-                            onChange={(value) => updateRow(row.id, { requirement: value })}
-                          />
-                        </td>
-                        <td>
-                          <EditableCell
-                            value={row.failureMode}
-                            placeholder="Failure mode"
-                            onChange={(value) => updateRow(row.id, { failureMode: value })}
-                          />
-                        </td>
-                        <td>
-                          <EditableCell
-                            value={row.effect}
-                            placeholder="Effect required"
-                            onChange={(value) => updateRow(row.id, { effect: value })}
-                          />
-                        </td>
-                        <td>
-                          <ScoreSelect
-                            label={`Severity for ${row.failureMode}`}
-                            value={row.severity}
-                            onChange={(value) => updateRow(row.id, { severity: value })}
-                          />
-                        </td>
-                        <td>
-                          <EditableCell
-                            value={row.cause}
-                            placeholder="Cause required"
-                            onChange={(value) => updateRow(row.id, { cause: value })}
-                          />
-                        </td>
-                        <td>
-                          <ScoreSelect
-                            label={`Occurrence for ${row.failureMode}`}
-                            value={row.occurrence}
-                            onChange={(value) => updateRow(row.id, { occurrence: value })}
-                          />
-                        </td>
-                        <td>
-                          <EditableCell
-                            value={row.currentControl}
-                            placeholder="Current control"
-                            onChange={(value) => updateRow(row.id, { currentControl: value })}
-                          />
-                        </td>
-                        <td>
-                          <ScoreSelect
-                            label={`Detection for ${row.failureMode}`}
-                            value={row.detection}
-                            onChange={(value) => updateRow(row.id, { detection: value })}
-                          />
-                        </td>
-                        <td className="rpn-cell">{rowRpn(row) || "-"}</td>
-                        <td className="action-cell">
-                          <EditableCell
-                            value={row.correctiveAction}
-                            placeholder="Recommended action"
-                            onChange={(value) => updateRow(row.id, { correctiveAction: value })}
-                          />
-                          <div className="row-actions">
-                            <select
-                              value={row.status}
-                              aria-label={`Review status for ${row.failureMode}`}
-                              onChange={(event) =>
-                                updateRow(row.id, { status: event.target.value as FmeaRow["status"] })
-                              }
-                            >
-                              <option value="needs_review">Needs review</option>
-                              <option value="accepted">Accepted</option>
-                              <option value="rejected">Rejected</option>
-                            </select>
-                            <button
-                              type="button"
-                              className="evidence-link"
-                              onClick={() => setSelectedSourceRow(row)}
-                              disabled={!row.sources.length}
-                            >
-                              {row.evidenceCount ? `${row.evidenceCount} sources` : "No source"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="grid-shell" id="worksheet">
+              <RevoGrid
+                className="fmea-grid"
+                columns={gridColumns}
+                source={gridRows}
+                resize
+                range
+                canFocus
+                useClipboard
+                theme="default"
+                onAfteredit={handleGridEdit}
+              />
               {!visibleRows.length && <p className="empty-state">No rows match the current filters.</p>}
             </div>
-          </section>
-        </section>
 
-        <section className="save-note" id="saved-workflows" aria-label="Dashboard preview">
-          <div>
-            <span className="metric-label">Dashboard later</span>
-            <h2>Saved FMEAs will live in the dashboard.</h2>
-          </div>
-          <p>
-            For now this page focuses on creating and exporting one worksheet. The dashboard will
-            handle saved projects, edit history, and paid plan limits.
-          </p>
+            <div className="table-pagination" aria-label="Table pagination">
+              <span>
+                {visibleRows.length
+                  ? `${pageStart + 1}-${Math.min(pageStart + pageRows.length, visibleRows.length)} of ${visibleRows.length}`
+                  : "0 rows"}
+              </span>
+              <div className="pagination-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  onClick={() => setPageIndex(0)}
+                  disabled={currentPage === 0}
+                >
+                  First
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  onClick={() => setPageIndex((page) => Math.max(0, page - 1))}
+                  disabled={currentPage === 0}
+                >
+                  Previous
+                </button>
+                <strong>
+                  Page {currentPage + 1} of {totalPages}
+                </strong>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  onClick={() => setPageIndex((page) => Math.min(totalPages - 1, page + 1))}
+                  disabled={currentPage >= totalPages - 1}
+                >
+                  Next
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  onClick={() => setPageIndex(totalPages - 1)}
+                  disabled={currentPage >= totalPages - 1}
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          </section>
         </section>
       </main>
 

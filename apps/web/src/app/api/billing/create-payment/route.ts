@@ -11,6 +11,13 @@ export async function POST(request: Request) {
   }
 
   const userId = await getCurrentClerkUserId();
+  if (!userId) {
+    return Response.json(
+      { error: "Sign in before opening Mollie checkout." },
+      { status: 401 },
+    );
+  }
+
   const body = await request.json().catch(() => ({}));
   const amountValue = String(body.amountValue ?? "49.00");
   const description = String(body.description ?? "Risk on Radar MVP access");
@@ -25,8 +32,8 @@ export async function POST(request: Request) {
       process.env.MOLLIE_REDIRECT_URL ?? "http://localhost:3000/billing/return",
     webhookUrl: process.env.MOLLIE_WEBHOOK_URL,
     metadata: {
-      clerkUserId: userId ?? null,
-      checkoutContext: userId ? "signed_in" : "anonymous_prototype",
+      clerkUserId: userId,
+      checkoutContext: "signed_in",
     },
   });
 
