@@ -7,8 +7,8 @@ import {
   type ColumnDef,
   flexRender,
 } from "@tanstack/react-table";
-import { Fragment, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, DragEvent, MouseEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent, MouseEvent, KeyboardEvent } from "react";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
@@ -400,6 +400,13 @@ export default function Home() {
   const [notice, setNotice] = useState("Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [focusedCellId, setFocusedCellId] = useState<string | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
@@ -436,24 +443,128 @@ export default function Home() {
   // Group visible rows by component for tree structure
   const groupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
 
+  // Load saved data from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem("riskonradar-fmea-data");
+      if (savedData) {
+        const parsedRows = JSON.parse(savedData) as FmeaRow[];
+        if (parsedRows.length > 0) {
+          setRows(parsedRows);
+          const savedTime = localStorage.getItem("riskonradar-fmea-saved-at");
+          if (savedTime) {
+            setLastSavedAt(savedTime);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load saved FMEA data:", error);
+    }
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl+S or Cmd+S to save
+      if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+        event.preventDefault();
+        saveFmea();
+      }
+
+      // Ctrl+? or Ctrl+H to open help
+      if ((event.ctrlKey || event.metaKey) && (event.key === "?" || event.key === "h")) {
+        event.preventDefault();
+        setShowHelpModal(true);
+      }
+
+      // Escape to close dialog
+      if (event.key === "Escape") {
+        if (selectedSourceRow) {
+          setSelectedSourceRow(null);
+        } else if (showExportDropdown) {
+          setShowExportDropdown(false);
+        } else if (focusedCellId) {
+          setFocusedCellId(null);
+        }
+      }
+
+      // Ctrl+A to select all visible rows
+      if ((event.ctrlKey || event.metaKey) && event.key === "a") {
+        event.preventDefault();
+        const newSelection = new Set(visibleRows.map(row => row.id));
+        setSelectedRowIds(newSelection);
+      }
+
+      // Delete to remove selected rows
+      if (event.key === "Delete" && selectedRowIds.size > 0) {
+        event.preventDefault();
+        if (confirm(`Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? "" : "s"}?`)) {
+          setRows(currentRows => currentRows.filter(row => !selectedRowIds.has(row.id)));
+          setSelectedRowIds(new Set());
+        }
+      }
+
+      // Ctrl+D to toggle include on selected rows
+      if ((event.ctrlKey || event.metaKey) && event.key === "d") {
+        event.preventDefault();
+        setRows(currentRows => 
+          currentRows.map(row => 
+            selectedRowIds.has(row.id) 
+              ? { ...row, included: !row.included }
+              : row
+          )
+        );
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown as unknown as EventListener);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown as unknown as EventListener);
+    };
+  }, [selectedSourceRow, showExportDropdown, visibleRows, selectedRowIds, focusedCellId, showHelpModal]);
+
   function updateRow(id: string, update: Partial<FmeaRow>) {
     setRows((currentRows) =>
       currentRows.map((row) => (row.id === id ? { ...row, ...update } : row)),
     );
   }
 
+  function toggleRowSelection(rowId: string, event: MouseEvent | KeyboardEvent) {
+    if (event.ctrlKey || event.metaKey) {
+      // Multi-selection
+      setSelectedRowIds(current => {
+        const newSet = new Set(current);
+        if (newSet.has(rowId)) {
+          newSet.delete(rowId);
+        } else {
+          newSet.add(rowId);
+        }
+        return newSet;
+      });
+    } else {
+      // Single selection (Ctrl+not held)
+      setSelectedRowIds(new Set([rowId]));
+    }
+  }
+
   function importBomFile(file: File) {
     if (!file) return;
+    setIsLoading(true);
     const text = file.text();
     text.then((text) => {
       const componentsFromBom = parseBom(text);
       if (!componentsFromBom.length) {
         setNotice("Could not detect components from that BOM. Try CSV, TSV, or one component per line.");
+        setIsLoading(false);
         return;
       }
       setRows(templateRowsForComponents(componentsFromBom));
       setSelectionStep("table");
       setNotice(`Imported ${componentsFromBom.length} BOM components. Edit the generated worksheet, then export when required fields are complete.`);
+      setIsLoading(false);
+    }).catch(() => {
+      setNotice("Failed to read file. Please try again.");
+      setIsLoading(false);
     });
   }
 
@@ -489,17 +600,21 @@ export default function Home() {
   function loadSystem(systemId: string) {
     const nextSystem = systemTemplates.find((system) => system.id === systemId);
     if (!nextSystem) return;
+    setIsLoading(true);
     setSelectedSystemId(systemId);
     setComponentFilter("All");
     setComponentQuery("");
-    if (systemId === "turbofan") {
-      setRowFilter("all");
-      setRows(toFmeaRows(fmeaData.rows as EvidenceRow[]));
-    } else {
-      setRowFilter("all");
-      setRows(templateRowsForComponents(nextSystem.components));
-    }
-    setSelectionStep("table");
+    setTimeout(() => {
+      if (systemId === "turbofan") {
+        setRowFilter("all");
+        setRows(toFmeaRows(fmeaData.rows as EvidenceRow[]));
+      } else {
+        setRowFilter("all");
+        setRows(templateRowsForComponents(nextSystem.components));
+      }
+      setSelectionStep("table");
+      setIsLoading(false);
+    }, 100);
   }
 
   function handleManualSelection() {
@@ -513,22 +628,37 @@ export default function Home() {
       return;
     }
 
-    if (format === "csv") {
-      downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
-    } else {
-      downloadFile(
-        "risk-on-radar-fmea.xls",
-        "application/vnd.ms-excel;charset=utf-8",
-        buildExcelHtml(includedRows),
-      );
-    }
-    setShowExportDropdown(false);
+    setIsExporting(true);
+    setTimeout(() => {
+      if (format === "csv") {
+        downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
+      } else {
+        downloadFile(
+          "risk-on-radar-fmea.xls",
+          "application/vnd.ms-excel;charset=utf-8",
+          buildExcelHtml(includedRows),
+        );
+      }
+      setShowExportDropdown(false);
+      setIsExporting(false);
+    }, 100);
   }
 
   function saveFmea() {
-    // TODO: Implement save functionality (persist to backend/localStorage)
-    setNotice("FMEA saved successfully!");
-    setTimeout(() => setNotice(""), 3000);
+    setIsSaving(true);
+    try {
+      localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
+      const now = new Date().toLocaleString();
+      localStorage.setItem("riskonradar-fmea-saved-at", now);
+      setLastSavedAt(now);
+      setNotice("FMEA saved successfully!");
+      setTimeout(() => setNotice(""), 3000);
+    } catch (error) {
+      setNotice("Failed to save FMEA data.");
+      setTimeout(() => setNotice(""), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   // TanStack Table columns
@@ -542,7 +672,8 @@ export default function Home() {
             type="checkbox"
             checked={row.original.included}
             onChange={(e) => updateRow(row.original.id, { included: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+            className="fmea-checkbox"
+            aria-label={`Include ${row.original.component} - ${row.original.failureMode}`}
           />
         ),
         size: 50,
@@ -580,6 +711,7 @@ export default function Home() {
             value={row.original.effect}
             onChange={(e) => updateRow(row.original.id, { effect: e.target.value })}
             className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Effect for ${row.original.component} - ${row.original.failureMode}`}
           />
         ),
         size: 250,
@@ -592,6 +724,7 @@ export default function Home() {
             value={row.original.severity}
             onChange={(e) => updateRow(row.original.id, { severity: e.target.value })}
             className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Severity score for ${row.original.component} - ${row.original.failureMode}`}
           >
             <option value="">-</option>
             {scoreOptions.map((score) => (
@@ -612,6 +745,7 @@ export default function Home() {
             value={row.original.cause}
             onChange={(e) => updateRow(row.original.id, { cause: e.target.value })}
             className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Cause for ${row.original.component} - ${row.original.failureMode}`}
           />
         ),
         size: 250,
@@ -624,6 +758,7 @@ export default function Home() {
             value={row.original.occurrence}
             onChange={(e) => updateRow(row.original.id, { occurrence: e.target.value })}
             className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Occurrence score for ${row.original.component} - ${row.original.failureMode}`}
           >
             <option value="">-</option>
             {scoreOptions.map((score) => (
@@ -644,6 +779,7 @@ export default function Home() {
             value={row.original.currentControl}
             onChange={(e) => updateRow(row.original.id, { currentControl: e.target.value })}
             className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Controls for ${row.original.component} - ${row.original.failureMode}`}
           />
         ),
         size: 250,
@@ -656,6 +792,7 @@ export default function Home() {
             value={row.original.detection}
             onChange={(e) => updateRow(row.original.id, { detection: e.target.value })}
             className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Detection score for ${row.original.component} - ${row.original.failureMode}`}
           >
             <option value="">-</option>
             {scoreOptions.map((score) => (
@@ -682,6 +819,7 @@ export default function Home() {
             value={row.original.correctiveAction}
             onChange={(e) => updateRow(row.original.id, { correctiveAction: e.target.value })}
             className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Corrective action for ${row.original.component} - ${row.original.failureMode}`}
           />
         ),
         size: 250,
@@ -697,6 +835,7 @@ export default function Home() {
               event.stopPropagation();
               setSelectedSourceRow(row.original);
             }}
+            aria-label={`View evidence sources for ${row.original.component} - ${row.original.failureMode}`}
           >
             {row.original.evidenceCount || row.original.sources.length} sources
           </button>
@@ -713,6 +852,7 @@ export default function Home() {
               updateRow(row.original.id, { status: e.target.value as FmeaRow["status"] })
             }
             className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            aria-label={`Review status for ${row.original.component} - ${row.original.failureMode}`}
           >
             <option value="needs_review">Needs Review</option>
             <option value="accepted">Accepted</option>
@@ -779,8 +919,9 @@ export default function Home() {
                   className="btn btn-primary btn-full"
                   type="button"
                   onClick={() => loadSystem(selectedSystemId)}
+                  disabled={isLoading}
                 >
-                  Open selected system
+                  {isLoading ? "Loading..." : "Open selected system"}
                 </button>
               </div>
 
@@ -820,8 +961,9 @@ export default function Home() {
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={handleDrop}
+                disabled={isLoading}
               >
-                <strong>Drop BOM or component list here</strong>
+                <strong>{isLoading ? "Processing..." : "Drop BOM or component list here"}</strong>
                 <span>CSV, TSV, or text. The first column is treated as component name.</span>
               </button>
 
@@ -831,6 +973,7 @@ export default function Home() {
                 type="file"
                 accept=".csv,.tsv,.txt"
                 onChange={handleBomUpload}
+                aria-label="Upload BOM or component list file"
               />
             </div>
           </section>
@@ -872,19 +1015,44 @@ export default function Home() {
       <main id="main-content" className="app-main">
         <section className="workflow-card">
           {/* Header with Export */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--color-border)", background: "var(--color-deep)" }}>
+          <div className="fmea-header">
             <div>
               <span className="metric-label">FMEA Worksheet</span>
               <h1 style={{ fontSize: "1.5rem", marginTop: "4px" }}>Edit reliability analysis</h1>
             </div>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <div className="fmea-header-actions">
+              <button
+                onClick={() => setShowHelpModal(true)}
+                className="btn btn-secondary btn-sm"
+                type="button"
+                aria-label="Keyboard shortcuts and help"
+              >
+                ?
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm("Are you sure you want to change systems? Unsaved changes will be lost.")) {
+                    setSelectionStep("initial");
+                  }
+                }}
+                className="btn btn-secondary btn-sm"
+                type="button"
+              >
+                Change system
+              </button>
               <button
                 onClick={saveFmea}
                 className="btn btn-secondary btn-sm"
                 type="button"
+                disabled={isSaving}
               >
-                Save
+                {isSaving ? "Saving..." : "Save"}
               </button>
+              {lastSavedAt && (
+                <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                  Last saved: {lastSavedAt}
+                </span>
+              )}
               <div style={{ position: "relative" }}>
                 <button
                   onClick={() => setShowExportDropdown(!showExportDropdown)}
@@ -894,50 +1062,14 @@ export default function Home() {
                       Export ▾
                 </button>
                 {showExportDropdown && (
-                  <div style={{
-                    position: "absolute",
-                    top: "100%",
-                    right: 0,
-                    marginTop: "8px",
-                    background: "var(--color-surface)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius-md)",
-                    padding: "8px 0",
-                    minWidth: "150px",
-                    zIndex: 10,
-                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
-                  }}>
+                  <div className="export-dropdown">
                     <button
                       onClick={() => exportData("excel")}
-                      style={{
-                        width: "100%",
-                        padding: "8px 16px",
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--color-text)",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       Export as Excel
                     </button>
                     <button
                       onClick={() => exportData("csv")}
-                      style={{
-                        width: "100%",
-                        padding: "8px 16px",
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--color-text)",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       Export as CSV
                     </button>
@@ -949,13 +1081,7 @@ export default function Home() {
 
           {/* Validation Error */}
           {validationError && (
-            <div style={{
-              padding: "12px 24px",
-              background: "rgba(252, 165, 165, 0.1)",
-              borderBottom: "1px solid var(--color-border)",
-              color: "var(--color-danger)",
-              fontSize: "0.9rem",
-            }}>
+            <div className="validation-error">
               {validationError}
             </div>
           )}
@@ -1059,8 +1185,11 @@ export default function Home() {
                       {childRows.map((row) => (
                         <tr
                           key={row.id}
-                          className="fmea-data-row"
-                          onClick={() => setSelectedSourceRow(row)}
+                          className={`fmea-data-row ${selectedRowIds.has(row.id) ? "row-selected" : ""}`}
+                          onClick={(event) => {
+                            toggleRowSelection(row.id, event);
+                            setSelectedSourceRow(row);
+                          }}
                         >
                           {table.getRowModel().rows.find(r => r.original.id === row.id)?.getVisibleCells()
                             .filter((cell) => cell.column.id !== "component")
@@ -1094,6 +1223,11 @@ export default function Home() {
             <span>
               {incompleteRows.length} incomplete row{incompleteRows.length === 1 ? "" : "s"}
             </span>
+            {selectedRowIds.size > 0 && (
+              <span style={{ color: "var(--color-accent)" }}>
+                {selectedRowIds.size} selected
+              </span>
+            )}
           </div>
         </section>
       </main>
@@ -1140,6 +1274,92 @@ export default function Home() {
                   )}
                 </li>
               ))}
+            </ul>
+          </section>
+        </div>
+      )}
+
+      {showHelpModal && (
+        <div className="source-dialog-backdrop" role="presentation" onClick={() => setShowHelpModal(false)}>
+          <section
+            className="source-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Keyboard shortcuts and help"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setShowHelpModal(false)}>
+              ×
+            </button>
+            <span className="metric-label">Help</span>
+            <h3>Keyboard Shortcuts</h3>
+            <ul className="source-list">
+              <li>
+                <strong>Ctrl+S / Cmd+S</strong>
+                <span>Save FMEA data</span>
+              </li>
+              <li>
+                <strong>Ctrl+A / Cmd+A</strong>
+                <span>Select all visible rows</span>
+              </li>
+              <li>
+                <strong>Ctrl+Click / Cmd+Click</strong>
+                <span>Add/remove row from selection (multi-select). Click without Ctrl for single selection.</span>
+              </li>
+              <li>
+                <strong>Delete</strong>
+                <span>Delete selected rows (with confirmation)</span>
+              </li>
+              <li>
+                <strong>Ctrl+D / Cmd+D</strong>
+                <span>Toggle include/exclude on selected rows</span>
+              </li>
+              <li>
+                <strong>Escape</strong>
+                <span>Close dialogs, dropdowns, or clear selection</span>
+              </li>
+            </ul>
+            <h3>FMEA Field Explanations</h3>
+            <ul className="source-list">
+              <li>
+                <strong>Severity (S)</strong>
+                <span>How severe the effect is if the failure occurs (1 = minor, 10 = catastrophic)</span>
+              </li>
+              <li>
+                <strong>Occurrence (O)</strong>
+                <span>How often the failure is likely to occur (1 = rare, 10 = very frequent)</span>
+              </li>
+              <li>
+                <strong>Detection (D)</strong>
+                <span>How likely the failure is to be detected before causing harm (1 = certain, 10 = impossible)</span>
+              </li>
+              <li>
+                <strong>RPN</strong>
+                <span>Risk Priority Number = S × O × D. Higher values indicate higher risk priority.</span>
+              </li>
+              <li>
+                <strong>Controls</strong>
+                <span>Preventive measures to prevent the failure or reduce its likelihood</span>
+              </li>
+              <li>
+                <strong>Action</strong>
+                <span>Corrective action to take after the failure has occurred</span>
+              </li>
+            </ul>
+            <h3>Row Status</h3>
+            <ul className="source-list">
+              <li>
+                <strong>Needs Review</strong>
+                <span>Row requires engineer review and validation</span>
+              </li>
+              <li>
+                <strong>Accepted</strong>
+                <span>Row has been reviewed and validated</span>
+              </li>
+              <li>
+                <strong>Rejected</strong>
+                <span>Row has been reviewed and rejected</span>
+              </li>
             </ul>
           </section>
         </div>
