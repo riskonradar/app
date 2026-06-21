@@ -55,13 +55,9 @@ Python 3.12+ CLI. Runs continuously on DigitalOcean, polling every 5 minutes.
 
 | `LLM_PROVIDER` | Default model | API |
 |---|---|---|
-| `gemini` | `gemini-2.5-flash-lite` | Gemini generateContent, `thinkingBudget: 0` |
-| `groq` | `llama-3.3-70b-versatile` | OpenAI-compatible chat completions |
 | `openai` | `gpt-5.4-nano` | OpenAI Responses API (`/v1/responses`) |
-| `anthropic` | `claude-haiku-4-5` | Anthropic Messages API |
-| `ollama` | `llama3.1:8b` | Local Ollama chat API |
 
-All LLM calls use `temperature = 0`. Groq rate-limits to ~17 papers/min on the free tier (3.5s forced delay between calls). Failed calls retry with exponential backoff: 10s, 20s, 40s.
+All LLM calls use `temperature = 0`.
 
 **What gets extracted per paper:**
 
@@ -109,8 +105,6 @@ Plans are defined in `apps/web/src/lib/billing/plans.ts`. Payment processing via
 |---|---|---|---|---|
 | Free | EUR 0 | user | 1 | 1 saved FMEA table |
 | Individual (Pro) | EUR 49 / month | user | 1 | Unlimited saved analyses, evidence-linked exports |
-| Team | EUR 399 / month | organization | 3 included | Shared FMEA projects, member roles, audit trail |
-| Enterprise | Custom | organization | Custom | SAML/OIDC SSO readiness, domain rollout, custom billing |
 
 `billing_status` on `app.organizations` drives plan enforcement: `active` and `comped` are treated as Pro; anything else falls back to free limits.
 
@@ -268,6 +262,4 @@ Queue handoff is database state, not a direct service call. Discovery sets `life
 - Every suggestion is tied to a source span or explicitly marked as inference — nothing is presented as verified engineering truth.
 - Raw paper data (`papers_raw`) and classified knowledge (`knowledge`) are in separate schemas.
 - Review state (`review_status` on `fmea_rows`) is stored separately from model output.
-- Papers are never hard-deleted; lifecycle state preserves evidence auditability.
 - Classifier version, LLM provider, LLM model, and paper input hash are recorded with every classification job for full audit trail.
-- Human approval is required before classifier output becomes validated FMEA content.
