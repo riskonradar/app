@@ -2,7 +2,6 @@
 
 import {
   SignInButton,
-  SignUpButton,
   UserButton,
   useUser,
 } from "@clerk/nextjs";
@@ -14,11 +13,8 @@ export function AuthControls() {
   if (!publishableKey) {
     return (
       <div className="auth-controls">
-        <Link href="/sign-in" className="btn btn-secondary btn-sm">
-          Sign in
-        </Link>
-        <Link href="/sign-up" className="btn btn-primary btn-sm">
-          Create account
+        <Link href="/sign-in" className="btn btn-primary btn-sm">
+          Sign in or create account
         </Link>
       </div>
     );
@@ -28,25 +24,28 @@ export function AuthControls() {
 }
 
 function ConfiguredAuthControls() {
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
+
+  if (!isLoaded) {
+    return (
+      <div className="auth-controls">
+        <button type="button" className="btn btn-primary btn-sm" disabled>
+          Sign in or create account
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-controls">
       {isSignedIn ? (
         <UserButton />
       ) : (
-        <>
         <SignInButton mode="modal">
-          <button type="button" className="btn btn-secondary btn-sm">
-            Sign in
+          <button type="button" className="btn btn-primary btn-sm">
+            Sign in or create account
           </button>
         </SignInButton>
-        <SignUpButton mode="modal">
-          <button type="button" className="btn btn-primary btn-sm">
-            Create account
-          </button>
-        </SignUpButton>
-        </>
       )}
     </div>
   );

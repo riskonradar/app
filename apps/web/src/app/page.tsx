@@ -1,9 +1,14 @@
 "use client";
 
-import { RevoGrid } from "@revolist/react-datagrid";
-import type { AfterEditEvent, ColumnRegular, RevoGridCustomEvent } from "@revolist/react-datagrid";
-import { useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getExpandedRowModel,
+  type ColumnDef,
+  flexRender,
+} from "@tanstack/react-table";
+import { Fragment, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent, MouseEvent } from "react";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
@@ -17,6 +22,11 @@ type Source = {
   year?: string;
   doi?: string;
   url?: string;
+  category?: string;
+  evidenceText?: string;
+  sourceField?: string;
+  charStart?: number;
+  charEnd?: number;
 };
 
 type EvidenceRow = {
@@ -43,26 +53,6 @@ type FmeaRow = EvidenceRow & {
   included: boolean;
 };
 
-type GridRow = {
-  id: string;
-  included: string;
-  component: string;
-  function: string;
-  requirement: string;
-  failureMode: string;
-  effect: string;
-  severity: string;
-  cause: string;
-  occurrence: string;
-  currentControl: string;
-  detection: string;
-  rpn: string;
-  correctiveAction: string;
-  owner: string;
-  status: FmeaRow["status"];
-  evidenceCount: number;
-};
-
 type SystemTemplate = {
   id: string;
   name: string;
@@ -71,6 +61,8 @@ type SystemTemplate = {
   description: string;
   components: string[];
 };
+
+type SelectionStep = "initial" | "table";
 
 const systemTemplates: SystemTemplate[] = [
   {
@@ -130,24 +122,6 @@ const defaultControls = [
 ];
 
 const scoreOptions = Array.from({ length: 10 }, (_, index) => String(index + 1));
-const gridColumns: ColumnRegular[] = [
-  { prop: "included", name: "Use", size: 72, pin: "colPinStart" },
-  { prop: "component", name: "Component", size: 230, pin: "colPinStart", readonly: true },
-  { prop: "function", name: "Function", size: 260 },
-  { prop: "requirement", name: "Requirement", size: 310 },
-  { prop: "failureMode", name: "Failure mode", size: 230 },
-  { prop: "effect", name: "Effect", size: 290 },
-  { prop: "severity", name: "S", size: 70 },
-  { prop: "cause", name: "Cause", size: 280 },
-  { prop: "occurrence", name: "O", size: 70 },
-  { prop: "currentControl", name: "Controls", size: 260 },
-  { prop: "detection", name: "D", size: 70 },
-  { prop: "rpn", name: "RPN", size: 82, readonly: true },
-  { prop: "correctiveAction", name: "Recommended action", size: 290 },
-  { prop: "owner", name: "Owner", size: 150 },
-  { prop: "status", name: "Review status", size: 160 },
-  { prop: "evidenceCount", name: "Sources", size: 100, readonly: true },
-];
 
 function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
   return `${row.component}-${row.failureMode}-${index}`
@@ -216,6 +190,16 @@ function templateRowsForComponents(components: string[]): FmeaRow[] {
   );
 }
 
+function normalizeComponentList(components: string[]) {
+  return Array.from(
+    new Set(
+      components
+        .map((component) => component.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 function parseBom(text: string) {
   return Array.from(
     new Set(
@@ -226,6 +210,22 @@ function parseBom(text: string) {
         .slice(0, 18),
     ),
   );
+}
+
+function sourceLabel(source: Source) {
+  if (source.doi) return `DOI: ${source.doi}`;
+  if (source.url) return source.url;
+  return source.category ? source.category.replace(/_/g, " ") : "Source record";
+}
+
+function evidenceSummary(row: FmeaRow) {
+  return [
+    ["Component", row.component],
+    ["Failure mode", row.failureMode],
+    ["Cause", row.cause],
+    ["Effect", row.effect],
+    ["Control / action", row.correctiveAction || row.currentControl],
+  ].filter(([, value]) => String(value || "").trim());
 }
 
 function csvEscape(value: string | number | undefined) {
@@ -260,48 +260,6 @@ function rowRpn(row: FmeaRow) {
   const d = Number(row.detection);
   if (!s || !o || !d) return "";
   return String(s * o * d);
-}
-
-function toGridRow(row: FmeaRow): GridRow {
-  return {
-    id: row.id,
-    included: row.included ? "Yes" : "No",
-    component: row.component,
-    function: row.function,
-    requirement: row.requirement,
-    failureMode: row.failureMode,
-    effect: row.effect,
-    severity: row.severity,
-    cause: row.cause,
-    occurrence: row.occurrence,
-    currentControl: row.currentControl,
-    detection: row.detection,
-    rpn: rowRpn(row),
-    correctiveAction: row.correctiveAction,
-    owner: row.owner,
-    status: row.status,
-    evidenceCount: row.evidenceCount,
-  };
-}
-
-function gridRowToUpdate(row: GridRow): Partial<FmeaRow> {
-  return {
-    included: /^y|true|1$/i.test(String(row.included).trim()),
-    function: String(row.function ?? ""),
-    requirement: String(row.requirement ?? ""),
-    failureMode: String(row.failureMode ?? ""),
-    effect: String(row.effect ?? ""),
-    severity: scoreOptions.includes(String(row.severity ?? "")) ? String(row.severity) : "",
-    cause: String(row.cause ?? ""),
-    occurrence: scoreOptions.includes(String(row.occurrence ?? "")) ? String(row.occurrence) : "",
-    currentControl: String(row.currentControl ?? ""),
-    detection: scoreOptions.includes(String(row.detection ?? "")) ? String(row.detection) : "",
-    correctiveAction: String(row.correctiveAction ?? ""),
-    owner: String(row.owner ?? ""),
-    status: ["needs_review", "accepted", "rejected"].includes(String(row.status))
-      ? row.status
-      : "needs_review",
-  };
 }
 
 function isComplete(row: FmeaRow) {
@@ -413,21 +371,40 @@ function buildExcelHtml(rows: FmeaRow[]) {
     .join("")}</table></body></html>`;
 }
 
+// Group rows by component for tree structure
+function groupRowsByComponent(rows: FmeaRow[]) {
+  const grouped = new Map<string, FmeaRow[]>();
+  rows.forEach((row) => {
+    if (!grouped.has(row.component)) {
+      grouped.set(row.component, []);
+    }
+    grouped.get(row.component)!.push(row);
+  });
+  return Array.from(grouped.entries()).map(([component, childRows]) => ({
+    component,
+    childRows,
+  }));
+}
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [activeSystemId, setActiveSystemId] = useState("turbofan");
+  const [selectionStep, setSelectionStep] = useState<SelectionStep>("initial");
   const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(fmeaData.rows as EvidenceRow[]));
   const [componentFilter, setComponentFilter] = useState("All");
-  const [rowFilter, setRowFilter] = useState("with_effect");
+  const [rowFilter, setRowFilter] = useState("all");
   const [componentQuery, setComponentQuery] = useState("");
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const [selectedSystemId, setSelectedSystemId] = useState("turbofan");
+  const [manualComponent, setManualComponent] = useState("");
+  const [manualComponents, setManualComponents] = useState<string[]>([]);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
   const [notice, setNotice] = useState("Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.");
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
   );
+
   const visibleRows = useMemo(
     () =>
       rows.filter((row) => {
@@ -454,15 +431,10 @@ export default function Home() {
 
   const includedRows = rows.filter((row) => row.included);
   const incompleteRows = includedRows.filter((row) => !isComplete(row));
-  const rowsMissingEffect = rows.filter((row) => !row.effect.trim()).length;
   const canExport = includedRows.length > 0 && incompleteRows.length === 0;
-  const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
-  const currentPage = Math.min(pageIndex, totalPages - 1);
-  const pageStart = currentPage * pageSize;
-  const pageRows = visibleRows.slice(pageStart, pageStart + pageSize);
-  const gridRows = useMemo(() => pageRows.map(toGridRow), [pageRows]);
-  const editStepState = rows.length ? "active" : "pending";
-  const exportStepState = canExport ? "active" : "pending";
+
+  // Group visible rows by component for tree structure
+  const groupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
 
   function updateRow(id: string, update: Partial<FmeaRow>) {
     setRows((currentRows) =>
@@ -470,76 +442,422 @@ export default function Home() {
     );
   }
 
-  function applyGridRow(row: GridRow) {
-    updateRow(row.id, gridRowToUpdate(row));
+  function importBomFile(file: File) {
+    if (!file) return;
+    const text = file.text();
+    text.then((text) => {
+      const componentsFromBom = parseBom(text);
+      if (!componentsFromBom.length) {
+        setNotice("Could not detect components from that BOM. Try CSV, TSV, or one component per line.");
+        return;
+      }
+      setRows(templateRowsForComponents(componentsFromBom));
+      setSelectionStep("table");
+      setNotice(`Imported ${componentsFromBom.length} BOM components. Edit the generated worksheet, then export when required fields are complete.`);
+    });
   }
 
-  function handleGridEdit(event: RevoGridCustomEvent<AfterEditEvent>) {
-    const detail = event.detail as
-      | { data: Record<number, GridRow> }
-      | { model?: GridRow; prop?: keyof GridRow; val?: unknown };
-
-    if ("data" in detail) {
-      Object.values(detail.data).forEach((row) => {
-        if (row?.id) applyGridRow(row);
-      });
-      return;
-    }
-
-    if (detail.model?.id) {
-      applyGridRow({ ...detail.model, [String(detail.prop)]: detail.val } as GridRow);
-    }
+  function handleBomUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    importBomFile(file);
   }
 
-  function resetPaging() {
-    setPageIndex(0);
+  function handleDrop(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    importBomFile(file);
+  }
+
+  function handleManualComponentChange(component: string) {
+    if (!component) return;
+    setManualComponent(component);
+    setManualComponents((current) => normalizeComponentList([...current, component]));
+  }
+
+  function startManualWorksheet() {
+    const nextComponents = manualComponents.length ? manualComponents : components.slice(0, 5);
+    setRows(templateRowsForComponents(nextComponents));
+    setComponentFilter("All");
+    setComponentQuery("");
+    setRowFilter("all");
+    setSelectionStep("table");
+    setNotice(`Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`);
   }
 
   function loadSystem(systemId: string) {
     const nextSystem = systemTemplates.find((system) => system.id === systemId);
     if (!nextSystem) return;
-    setActiveSystemId(systemId);
+    setSelectedSystemId(systemId);
     setComponentFilter("All");
     setComponentQuery("");
-    resetPaging();
     if (systemId === "turbofan") {
-      setRowFilter("with_effect");
+      setRowFilter("all");
       setRows(toFmeaRows(fmeaData.rows as EvidenceRow[]));
     } else {
       setRowFilter("all");
       setRows(templateRowsForComponents(nextSystem.components));
     }
+    setSelectionStep("table");
   }
 
-  async function handleBomUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    const componentsFromBom = parseBom(text);
-    if (!componentsFromBom.length) {
-      setNotice("Could not detect components from that BOM. Try CSV, TSV, or one component per line.");
+  function handleManualSelection() {
+    startManualWorksheet();
+  }
+
+  function exportData(format: "csv" | "excel") {
+    if (!canExport) {
+      setValidationError(`Cannot export: ${incompleteRows.length} included row${incompleteRows.length === 1 ? "" : "s"} still need function, effect, cause, controls, or S/O/D scores.`);
+      setTimeout(() => setValidationError(null), 5000);
       return;
     }
-    setActiveSystemId("custom");
-    setComponentFilter("All");
-    setComponentQuery("");
-    setRowFilter("all");
-    resetPaging();
-    setRows(templateRowsForComponents(componentsFromBom));
-    setNotice(`Imported ${componentsFromBom.length} BOM components. Edit the generated worksheet, then export when required fields are complete.`);
+
+    if (format === "csv") {
+      downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
+    } else {
+      downloadFile(
+        "risk-on-radar-fmea.xls",
+        "application/vnd.ms-excel;charset=utf-8",
+        buildExcelHtml(includedRows),
+      );
+    }
+    setShowExportDropdown(false);
   }
 
-  function exportCsv() {
-    if (!canExport) return;
-    downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
+  function saveFmea() {
+    // TODO: Implement save functionality (persist to backend/localStorage)
+    setNotice("FMEA saved successfully!");
+    setTimeout(() => setNotice(""), 3000);
   }
 
-  function exportExcel() {
-    if (!canExport) return;
-    downloadFile(
-      "risk-on-radar-fmea.xls",
-      "application/vnd.ms-excel;charset=utf-8",
-      buildExcelHtml(includedRows),
+  // TanStack Table columns
+  const columns = useMemo<ColumnDef<FmeaRow>[]>(
+    () => [
+      {
+        id: "included",
+        header: "",
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={row.original.included}
+            onChange={(e) => updateRow(row.original.id, { included: e.target.checked })}
+            className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+          />
+        ),
+        size: 50,
+      },
+      {
+        accessorKey: "component",
+        header: "Component",
+        cell: ({ row }) => <span className="visually-hidden">{row.original.component}</span>,
+        size: 200,
+      },
+      {
+        accessorKey: "function",
+        header: "Function",
+        cell: ({ row }) => <span>{row.original.function}</span>,
+        size: 250,
+      },
+      {
+        accessorKey: "requirement",
+        header: "Requirement",
+        cell: ({ row }) => <span>{row.original.requirement}</span>,
+        size: 300,
+      },
+      {
+        accessorKey: "failureMode",
+        header: "Failure Mode",
+        cell: ({ row }) => <span>{row.original.failureMode}</span>,
+        size: 200,
+      },
+      {
+        accessorKey: "effect",
+        header: "Effect",
+        cell: ({ row }) => (
+          <input
+            type="text"
+            value={row.original.effect}
+            onChange={(e) => updateRow(row.original.id, { effect: e.target.value })}
+            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          />
+        ),
+        size: 250,
+      },
+      {
+        accessorKey: "severity",
+        header: "S",
+        cell: ({ row }) => (
+          <select
+            value={row.original.severity}
+            onChange={(e) => updateRow(row.original.id, { severity: e.target.value })}
+            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          >
+            <option value="">-</option>
+            {scoreOptions.map((score) => (
+              <option key={score} value={score}>
+                {score}
+              </option>
+            ))}
+          </select>
+        ),
+        size: 60,
+      },
+      {
+        accessorKey: "cause",
+        header: "Cause",
+        cell: ({ row }) => (
+          <input
+            type="text"
+            value={row.original.cause}
+            onChange={(e) => updateRow(row.original.id, { cause: e.target.value })}
+            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          />
+        ),
+        size: 250,
+      },
+      {
+        accessorKey: "occurrence",
+        header: "O",
+        cell: ({ row }) => (
+          <select
+            value={row.original.occurrence}
+            onChange={(e) => updateRow(row.original.id, { occurrence: e.target.value })}
+            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          >
+            <option value="">-</option>
+            {scoreOptions.map((score) => (
+              <option key={score} value={score}>
+                {score}
+              </option>
+            ))}
+          </select>
+        ),
+        size: 60,
+      },
+      {
+        accessorKey: "currentControl",
+        header: "Controls",
+        cell: ({ row }) => (
+          <input
+            type="text"
+            value={row.original.currentControl}
+            onChange={(e) => updateRow(row.original.id, { currentControl: e.target.value })}
+            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          />
+        ),
+        size: 250,
+      },
+      {
+        accessorKey: "detection",
+        header: "D",
+        cell: ({ row }) => (
+          <select
+            value={row.original.detection}
+            onChange={(e) => updateRow(row.original.id, { detection: e.target.value })}
+            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          >
+            <option value="">-</option>
+            {scoreOptions.map((score) => (
+              <option key={score} value={score}>
+                {score}
+              </option>
+            ))}
+          </select>
+        ),
+        size: 60,
+      },
+      {
+        accessorKey: "rpn",
+        header: "RPN",
+        cell: ({ row }) => <span className="font-mono">{rowRpn(row.original)}</span>,
+        size: 80,
+      },
+      {
+        accessorKey: "correctiveAction",
+        header: "Action",
+        cell: ({ row }) => (
+          <input
+            type="text"
+            value={row.original.correctiveAction}
+            onChange={(e) => updateRow(row.original.id, { correctiveAction: e.target.value })}
+            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          />
+        ),
+        size: 250,
+      },
+      {
+        id: "evidence",
+        header: "Evidence",
+        cell: ({ row }) => (
+          <button
+            type="button"
+            className="evidence-button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedSourceRow(row.original);
+            }}
+          >
+            {row.original.evidenceCount || row.original.sources.length} sources
+          </button>
+        ),
+        size: 120,
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <select
+            value={row.original.status}
+            onChange={(e) =>
+              updateRow(row.original.id, { status: e.target.value as FmeaRow["status"] })
+            }
+            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+          >
+            <option value="needs_review">Needs Review</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        ),
+        size: 120,
+      },
+    ],
+    [],
+  );
+
+  const visibleColumnCount = columns.length - 1;
+
+  const table = useReactTable({
+    data: visibleRows,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+  });
+
+  if (selectionStep === "initial") {
+    return (
+      <div className="app-shell">
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
+
+        <AppNav />
+
+        <main id="main-content" className="app-main">
+          <section className="workflow-card">
+            <div className="page-heading workspace-start-heading">
+              <span className="metric-label">FMEA Workspace</span>
+              <h1>Start your reliability analysis</h1>
+              <p>
+                Upload a component file, select a known system, or pick components manually.
+              </p>
+            </div>
+
+            <div className="workspace-start-grid">
+              <div className="workspace-start-panel">
+                <label className="field-label" htmlFor="system-template">
+                  Select system
+                </label>
+                <select
+                  id="system-template"
+                  value={selectedSystemId}
+                  onChange={(event) => setSelectedSystemId(event.target.value)}
+                >
+                  {systemTemplates.map((system) => (
+                    <option key={system.id} value={system.id}>
+                      {system.name} - {system.domain}
+                    </option>
+                  ))}
+                </select>
+                <p>
+                  {systemTemplates.find((system) => system.id === selectedSystemId)?.description}
+                </p>
+                <span>
+                  {systemTemplates.find((system) => system.id === selectedSystemId)?.source}
+                </span>
+                <button
+                  className="btn btn-primary btn-full"
+                  type="button"
+                  onClick={() => loadSystem(selectedSystemId)}
+                >
+                  Open selected system
+                </button>
+              </div>
+
+              <div className="workspace-start-panel">
+                <label className="field-label" htmlFor="manual-component">
+                  Select components manually
+                </label>
+                <select
+                  id="manual-component"
+                  value={manualComponent}
+                  onChange={(event) => handleManualComponentChange(event.target.value)}
+                >
+                  <option value="">Choose a component</option>
+                  {components.map((component) => (
+                    <option key={component} value={component}>
+                      {component}
+                    </option>
+                  ))}
+                </select>
+                <div className="component-chip-list" aria-label="Selected components">
+                  {(manualComponents.length ? manualComponents : ["No components selected yet"]).map((component) => (
+                    <span key={component}>{component}</span>
+                  ))}
+                </div>
+                <button
+                  className="btn btn-secondary btn-full"
+                  type="button"
+                  onClick={handleManualSelection}
+                >
+                  Start manual worksheet
+                </button>
+              </div>
+
+              <button
+                className="dropzone"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleDrop}
+              >
+                <strong>Drop BOM or component list here</strong>
+                <span>CSV, TSV, or text. The first column is treated as component name.</span>
+              </button>
+
+              <input
+                ref={fileInputRef}
+                className="visually-hidden"
+                type="file"
+                accept=".csv,.tsv,.txt"
+                onChange={handleBomUpload}
+              />
+            </div>
+          </section>
+        </main>
+
+        <footer className="footer">
+          <div className="container">
+            <div className="footer-inner">
+              <span className="wordmark wordmark-light">
+                r<span className="wm-i">ı</span>sk on radar<span className="wm-dot">.</span>
+              </span>
+              <div className="footer-links">
+                <a href="https://riskonradar.com/whitepaper.pdf" target="_blank" rel="noopener noreferrer" className="footer-link">
+                  Whitepaper
+                </a>
+                <a href="https://www.linkedin.com/company/riskonradar/" target="_blank" rel="noopener noreferrer" className="footer-link">
+                  LinkedIn
+                </a>
+                <a href="mailto:contact@riskonradar.com" className="footer-link">
+                  contact@riskonradar.com
+                </a>
+              </div>
+              <p className="footer-copy">© 2026 Risk on Radar. All rights reserved.</p>
+            </div>
+          </div>
+        </footer>
+      </div>
     );
   }
 
@@ -552,220 +870,231 @@ export default function Home() {
       <AppNav />
 
       <main id="main-content" className="app-main">
-        <section className="workflow-card" id="builder">
-          <div className="workflow-steps" aria-label="FMEA workflow steps">
-            <div className="workflow-step active">
-              <span>1</span>
-              <strong>Select parts</strong>
-              <small>Use the corpus, upload a BOM, or choose a component.</small>
+        <section className="workflow-card">
+          {/* Header with Export */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid var(--color-border)", background: "var(--color-deep)" }}>
+            <div>
+              <span className="metric-label">FMEA Worksheet</span>
+              <h1 style={{ fontSize: "1.5rem", marginTop: "4px" }}>Edit reliability analysis</h1>
             </div>
-            <div className={`workflow-step ${editStepState}`}>
-              <span>2</span>
-              <strong>Edit FMEA rows</strong>
-              <small>Review effects, causes, controls, and S/O/D scores.</small>
-            </div>
-            <div className={`workflow-step ${exportStepState}`}>
-              <span>3</span>
-              <strong>Export worksheet</strong>
-              <small>Export once included rows are complete.</small>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <button
+                onClick={saveFmea}
+                className="btn btn-secondary btn-sm"
+                type="button"
+              >
+                Save
+              </button>
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowExportDropdown(!showExportDropdown)}
+                  className="btn btn-primary btn-sm"
+                  type="button"
+                    >
+                      Export ▾
+                </button>
+                {showExportDropdown && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    right: 0,
+                    marginTop: "8px",
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-md)",
+                    padding: "8px 0",
+                    minWidth: "150px",
+                    zIndex: 10,
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
+                  }}>
+                    <button
+                      onClick={() => exportData("excel")}
+                      style={{
+                        width: "100%",
+                        padding: "8px 16px",
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--color-text)",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      Export as Excel
+                    </button>
+                    <button
+                      onClick={() => exportData("csv")}
+                      style={{
+                        width: "100%",
+                        padding: "8px 16px",
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--color-text)",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      Export as CSV
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <section className="workspace-panel">
-            <div className="worksheet-controls">
-              <div className="control-field control-field-wide">
-                <label className="field-label" htmlFor="component-search">
-                  Search components
-                </label>
-                <input
-                  id="component-search"
-                  className="text-input"
-                  type="search"
-                  placeholder="Search bearing, compressor, turbine..."
-                  value={componentQuery}
-                  onChange={(event) => {
-                    setComponentQuery(event.target.value);
-                    resetPaging();
-                  }}
-                />
-              </div>
+          {/* Validation Error */}
+          {validationError && (
+            <div style={{
+              padding: "12px 24px",
+              background: "rgba(252, 165, 165, 0.1)",
+              borderBottom: "1px solid var(--color-border)",
+              color: "var(--color-danger)",
+              fontSize: "0.9rem",
+            }}>
+              {validationError}
+            </div>
+          )}
 
-              <div className="control-field">
-                <label className="field-label" htmlFor="system-select">
-                  Evidence set
-                </label>
-                <select
-                  id="system-select"
-                  value={activeSystemId}
-                  onChange={(event) => loadSystem(event.target.value)}
-                >
-                  {systemTemplates.map((system) => (
-                    <option key={system.id} value={system.id}>
-                      {system.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="control-field">
-                <label className="field-label" htmlFor="component-filter">
-                  Component
-                </label>
-                <select
-                  id="component-filter"
-                  value={componentFilter}
-                  onChange={(event) => {
-                    setComponentFilter(event.target.value);
-                    resetPaging();
-                  }}
-                >
-                  <option value="All">All components</option>
-                  {components.map((component) => (
-                    <option key={component} value={component}>
-                      {component}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="control-field">
-                <label className="field-label" htmlFor="row-filter">
-                  Rows
-                </label>
-                <select
-                  id="row-filter"
-                  value={rowFilter}
-                  onChange={(event) => {
-                    setRowFilter(event.target.value);
-                    resetPaging();
-                  }}
-                >
-                  <option value="with_effect">With effect</option>
-                  <option value="all">All rows</option>
-                  <option value="missing_effect">Missing effect ({rowsMissingEffect})</option>
-                  <option value="included">Included only</option>
-                  <option value="evidence">Evidence-backed</option>
-                  <option value="incomplete">Incomplete</option>
-                </select>
-              </div>
-
-              <div className="control-field">
-                <label className="field-label" htmlFor="page-size">
-                  Page size
-                </label>
-                <select
-                  id="page-size"
-                  value={pageSize}
-                  onChange={(event) => {
-                    setPageSize(Number(event.target.value));
-                    resetPaging();
-                  }}
-                >
-                  {[10, 25, 50, 100].map((size) => (
-                    <option key={size} value={size}>
-                      {size} rows
-                    </option>
-                  ))}
-                </select>
-              </div>
-
+          {/* Worksheet Controls */}
+          <div className="worksheet-controls">
+            <div className="control-field control-field-wide">
+              <label className="field-label" htmlFor="component-search">
+                Search components
+              </label>
               <input
-                ref={fileInputRef}
-                className="visually-hidden"
-                type="file"
-                accept=".csv,.tsv,.txt"
-                onChange={handleBomUpload}
+                id="component-search"
+                className="text-input"
+                type="search"
+                placeholder="Search bearing, compressor, turbine..."
+                value={componentQuery}
+                onChange={(event) => setComponentQuery(event.target.value)}
               />
-              <button
-                className="btn btn-secondary control-button"
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
+            </div>
+
+            <div className="control-field">
+              <label className="field-label" htmlFor="component-filter">
+                Component
+              </label>
+              <select
+                id="component-filter"
+                value={componentFilter}
+                onChange={(event) => setComponentFilter(event.target.value)}
               >
-                Upload BOM
-              </button>
+                <option value="All">All components</option>
+                {components.map((component) => (
+                  <option key={component} value={component}>
+                    {component}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className={`completion-banner ${canExport ? "ready" : "blocked"}`} role="status">
-              <div>
-                <strong>{canExport ? "Ready to export" : "Worksheet incomplete"}</strong>
-                <span>
-                  {canExport
-                    ? "All included rows have required FMEA fields."
-                    : `${incompleteRows.length} included row${incompleteRows.length === 1 ? "" : "s"} still need function, effect, cause, controls, or S/O/D scores.`}
-                </span>
-              </div>
-              <div className="export-actions">
-                <button className="btn btn-secondary btn-sm" type="button" onClick={exportCsv} disabled={!canExport}>
-                  Export CSV
-                </button>
-                <button className="btn btn-primary btn-sm" type="button" onClick={exportExcel} disabled={!canExport}>
-                  Export Excel
-                </button>
-              </div>
+            <div className="control-field">
+              <label className="field-label" htmlFor="row-filter">
+                Rows
+              </label>
+              <select
+                id="row-filter"
+                value={rowFilter}
+                onChange={(event) => setRowFilter(event.target.value)}
+              >
+                <option value="all">All rows</option>
+                <option value="with_effect">With effect</option>
+                <option value="included">Included only</option>
+                <option value="evidence">Evidence-backed</option>
+                <option value="incomplete">Incomplete</option>
+              </select>
             </div>
+          </div>
 
+          {/* Notice */}
+          {notice && (
             <p className="notice">{notice}</p>
+          )}
 
-            <div className="grid-shell" id="worksheet">
-              <RevoGrid
-                className="fmea-grid"
-                columns={gridColumns}
-                source={gridRows}
-                resize
-                range
-                canFocus
-                useClipboard
-                theme="default"
-                onAfteredit={handleGridEdit}
-              />
+          {/* Table */}
+          <div className="grid-shell" id="worksheet">
+            <div style={{ overflow: "auto", height: "100%" }}>
+              <table className="fmea-table">
+                <thead style={{ position: "sticky", top: 0, background: "var(--color-deep)", zIndex: 5 }}>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers
+                        .filter((header) => header.column.id !== "component")
+                        .map((header) => (
+                        <th
+                          key={header.id}
+                          style={{
+                            padding: "12px",
+                            textAlign: "left",
+                            borderBottom: "1px solid var(--color-border)",
+                            color: "var(--color-text-muted)",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                            width: header.getSize(),
+                          }}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {groupedData.map(({ component, childRows }) => (
+                    <Fragment key={component}>
+                      <tr className="component-section-row">
+                        <td colSpan={visibleColumnCount}>
+                          <span>Component</span>
+                          {component}
+                        </td>
+                      </tr>
+                      {childRows.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="fmea-data-row"
+                          onClick={() => setSelectedSourceRow(row)}
+                        >
+                          {table.getRowModel().rows.find(r => r.original.id === row.id)?.getVisibleCells()
+                            .filter((cell) => cell.column.id !== "component")
+                            .map((cell) => (
+                            <td
+                              key={cell.id}
+                              onClick={(event: MouseEvent<HTMLTableCellElement>) => {
+                                if (["INPUT", "SELECT", "BUTTON"].includes((event.target as HTMLElement).tagName)) {
+                                  event.stopPropagation();
+                                }
+                              }}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
               {!visibleRows.length && <p className="empty-state">No rows match the current filters.</p>}
             </div>
+          </div>
 
-            <div className="table-pagination" aria-label="Table pagination">
-              <span>
-                {visibleRows.length
-                  ? `${pageStart + 1}-${Math.min(pageStart + pageRows.length, visibleRows.length)} of ${visibleRows.length}`
-                  : "0 rows"}
-              </span>
-              <div className="pagination-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  type="button"
-                  onClick={() => setPageIndex(0)}
-                  disabled={currentPage === 0}
-                >
-                  First
-                </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  type="button"
-                  onClick={() => setPageIndex((page) => Math.max(0, page - 1))}
-                  disabled={currentPage === 0}
-                >
-                  Previous
-                </button>
-                <strong>
-                  Page {currentPage + 1} of {totalPages}
-                </strong>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  type="button"
-                  onClick={() => setPageIndex((page) => Math.min(totalPages - 1, page + 1))}
-                  disabled={currentPage >= totalPages - 1}
-                >
-                  Next
-                </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  type="button"
-                  onClick={() => setPageIndex(totalPages - 1)}
-                  disabled={currentPage >= totalPages - 1}
-                >
-                  Last
-                </button>
-              </div>
-            </div>
-          </section>
+          {/* Footer Info */}
+          <div className="table-pagination">
+            <span>
+              {visibleRows.length} rows ({includedRows.filter((r) => visibleRows.includes(r)).length} included)
+            </span>
+            <span>
+              {incompleteRows.length} incomplete row{incompleteRows.length === 1 ? "" : "s"}
+            </span>
+          </div>
         </section>
       </main>
 
@@ -789,13 +1118,26 @@ export default function Home() {
               Source-linked evidence remains review-required until an engineer accepts the row.
             </p>
             <ul className="source-list">
+              <li>
+                <strong>Extracted FMEA fields</strong>
+                {evidenceSummary(selectedSourceRow).map(([label, value]) => (
+                  <span key={label}>
+                    {label}: {value}
+                  </span>
+                ))}
+              </li>
               {selectedSourceRow.sources.map((source) => (
                 <li key={[source.doi, source.title].filter(Boolean).join("|")}>
                   <strong>{source.title}</strong>
                   <span>
-                    {source.doi ? `DOI: ${source.doi}` : source.url || "Source record"}
+                    {sourceLabel(source)}
                     {source.year ? ` · ${source.year}` : ""}
                   </span>
+                  {source.evidenceText ? (
+                    <blockquote>{source.evidenceText}</blockquote>
+                  ) : (
+                    <span>Exact evidence span is not included in this bundled snapshot.</span>
+                  )}
                 </li>
               ))}
             </ul>

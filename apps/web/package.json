@@ -14,8 +14,8 @@
   "dependencies": {
     "@clerk/nextjs": "^7.5.7",
     "@mollie/api-client": "^4.5.0",
-    "@revolist/react-datagrid": "^4.23.16",
     "@supabase/supabase-js": "^2.108.2",
+    "@tanstack/react-table": "^8.21.3",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
