@@ -8,14 +8,10 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, DragEvent, MouseEvent, KeyboardEvent } from "react";
+import type { ChangeEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
-import severityReference from "@/data/fmea-severity-reference.json";
-import occurrenceReference from "@/data/fmea-occurrence-reference.json";
-import detectionReference from "@/data/fmea-detection-reference.json";
-import propagationPaths from "@/data/turbofan-propagation-paths.json";
 
 type Source = {
   title: string;
@@ -62,7 +58,29 @@ type SystemTemplate = {
   components: string[];
 };
 
+type FmeaDataset = {
+  system?: string;
+  sourceType?: string;
+  recordCount: number;
+  relevantRecordCount?: number;
+  rowCount: number;
+  components: string[];
+  rows: EvidenceRow[];
+};
+
 type SelectionStep = "initial" | "table";
+type EditableField =
+  | "included"
+  | "effect"
+  | "severity"
+  | "cause"
+  | "occurrence"
+  | "currentControl"
+  | "detection"
+  | "correctiveAction"
+  | "status";
+
+type LoadingAction = "upload" | "system" | "export" | null;
 
 const systemTemplates: SystemTemplate[] = [
   {
@@ -122,6 +140,36 @@ const defaultControls = [
 ];
 
 const scoreOptions = Array.from({ length: 10 }, (_, index) => String(index + 1));
+const bundledTurbofanData = fmeaData as FmeaDataset;
+const editableFields: EditableField[] = [
+  "included",
+  "effect",
+  "severity",
+  "cause",
+  "occurrence",
+  "currentControl",
+  "detection",
+  "correctiveAction",
+  "status",
+];
+
+const fieldHelp: Record<string, string> = {
+  included: "Include or exclude this row from save/export decisions.",
+  component: "Physical engineering part or subsystem being analyzed.",
+  function: "Intended function the component must perform.",
+  requirement: "Operating requirement or condition the function must satisfy.",
+  failureMode: "How the component or function can fail.",
+  effect: "Consequence if the failure mode occurs.",
+  severity: "Severity score: 1 is minor, 10 is hazardous or catastrophic.",
+  cause: "Why the failure mode occurs.",
+  occurrence: "Occurrence score: 1 is rare, 10 is frequent.",
+  currentControl: "Existing prevention, detection, inspection, design, or maintenance control.",
+  detection: "Detection score: 1 is easily detected before harm, 10 is unlikely to be detected.",
+  rpn: "Risk Priority Number calculated as Severity x Occurrence x Detection.",
+  correctiveAction: "Recommended action to reduce risk or correct a confirmed issue.",
+  evidence: "Source count and citations behind the extracted FMEA fields.",
+  status: "Human review state for this row.",
+};
 
 function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
   return `${row.component}-${row.failureMode}-${index}`
@@ -129,9 +177,16 @@ function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: numbe
     .replace(/[^a-z0-9]+/g, "-");
 }
 
+function scoreValue(value: string) {
+  return scoreOptions.includes(value) ? value : "";
+}
+
 function toFmeaRows(rows: EvidenceRow[]): FmeaRow[] {
   return rows.map((row, index) => ({
     ...row,
+    severity: scoreValue(row.severity),
+    occurrence: scoreValue(row.occurrence),
+    detection: scoreValue(row.detection),
     id: makeRowId(row, index),
     function: functionForComponent(row.component),
     requirement: "Maintain intended system function under defined operating conditions",
@@ -388,8 +443,10 @@ function groupRowsByComponent(rows: FmeaRow[]) {
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [selectionStep, setSelectionStep] = useState<SelectionStep>("initial");
-  const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(fmeaData.rows as EvidenceRow[]));
+  const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(bundledTurbofanData.rows));
+  const [turbofanDataset, setTurbofanDataset] = useState<FmeaDataset>(bundledTurbofanData);
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("all");
   const [componentQuery, setComponentQuery] = useState("");
@@ -402,15 +459,21 @@ export default function Home() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [focusedCellId, setFocusedCellId] = useState<string | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
   );
+  const selectedSystem = systemTemplates.find((system) => system.id === selectedSystemId);
+  const selectedSystemSource =
+    selectedSystemId === "turbofan"
+      ? `${turbofanDataset.recordCount} classified turbofan records; ${turbofanDataset.relevantRecordCount ?? 0} records with FMEA links; ${turbofanDataset.rowCount} assembled rows`
+      : selectedSystem?.source;
 
   const visibleRows = useMemo(
     () =>
@@ -455,6 +518,7 @@ export default function Home() {
           if (savedTime) {
             setLastSavedAt(savedTime);
           }
+          setHasUnsavedChanges(false);
         }
       }
     } catch (error) {
@@ -462,9 +526,23 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    fetchLiveTurbofanDataset()
+      .then((dataset) => {
+        if (!ignore) setTurbofanDataset(dataset);
+      })
+      .catch(() => {
+        // The bundled snapshot remains available when Supabase is unreachable.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       // Ctrl+S or Cmd+S to save
       if ((event.ctrlKey || event.metaKey) && event.key === "s") {
         event.preventDefault();
@@ -481,6 +559,8 @@ export default function Home() {
       if (event.key === "Escape") {
         if (selectedSourceRow) {
           setSelectedSourceRow(null);
+        } else if (showHelpModal) {
+          setShowHelpModal(false);
         } else if (showExportDropdown) {
           setShowExportDropdown(false);
         } else if (focusedCellId) {
@@ -497,10 +577,12 @@ export default function Home() {
 
       // Delete to remove selected rows
       if (event.key === "Delete" && selectedRowIds.size > 0) {
+        if ((event.target as HTMLElement | null)?.closest("input, textarea, select")) return;
         event.preventDefault();
         if (confirm(`Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? "" : "s"}?`)) {
           setRows(currentRows => currentRows.filter(row => !selectedRowIds.has(row.id)));
           setSelectedRowIds(new Set());
+          setHasUnsavedChanges(true);
         }
       }
 
@@ -514,22 +596,64 @@ export default function Home() {
               : row
           )
         );
+        setHasUnsavedChanges(true);
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown as unknown as EventListener);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("keydown", handleKeyDown as unknown as EventListener);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedSourceRow, showExportDropdown, visibleRows, selectedRowIds, focusedCellId, showHelpModal]);
+  }, [selectedSourceRow, showExportDropdown, visibleRows, selectedRowIds, focusedCellId, showHelpModal, rows]);
+
+  const isLoading = loadingAction !== null;
 
   function updateRow(id: string, update: Partial<FmeaRow>) {
     setRows((currentRows) =>
       currentRows.map((row) => (row.id === id ? { ...row, ...update } : row)),
     );
+    setHasUnsavedChanges(true);
   }
 
-  function toggleRowSelection(rowId: string, event: MouseEvent | KeyboardEvent) {
+  function registerCell(rowId: string, field: EditableField, element: HTMLElement | null) {
+    const key = `${rowId}:${field}`;
+    if (element) {
+      cellRefs.current.set(key, element);
+    } else {
+      cellRefs.current.delete(key);
+    }
+  }
+
+  function focusCell(rowId: string, field: EditableField) {
+    const target = cellRefs.current.get(`${rowId}:${field}`);
+    target?.focus();
+  }
+
+  function handleTableCellKeyDown(
+    event: ReactKeyboardEvent<HTMLElement>,
+    rowId: string,
+    field: EditableField,
+  ) {
+    if (event.key !== "Tab") return;
+    const rowIndex = visibleRows.findIndex((row) => row.id === rowId);
+    const fieldIndex = editableFields.indexOf(field);
+    if (rowIndex < 0 || fieldIndex < 0) return;
+
+    event.preventDefault();
+    const flatIndex = rowIndex * editableFields.length + fieldIndex;
+    const nextFlatIndex = flatIndex + (event.shiftKey ? -1 : 1);
+    const maxIndex = visibleRows.length * editableFields.length - 1;
+    const clampedIndex = Math.max(0, Math.min(maxIndex, nextFlatIndex));
+    const nextRow = visibleRows[Math.floor(clampedIndex / editableFields.length)];
+    const nextField = editableFields[clampedIndex % editableFields.length];
+    if (nextRow && nextField) focusCell(nextRow.id, nextField);
+  }
+
+  function editableCellClass(rowId: string, field: EditableField) {
+    return focusedCellId === `${rowId}:${field}` ? "cell-focused" : "";
+  }
+
+  function toggleRowSelection(rowId: string, event: MouseEvent | ReactKeyboardEvent) {
     if (event.ctrlKey || event.metaKey) {
       // Multi-selection
       setSelectedRowIds(current => {
@@ -549,22 +673,23 @@ export default function Home() {
 
   function importBomFile(file: File) {
     if (!file) return;
-    setIsLoading(true);
+    setLoadingAction("upload");
     const text = file.text();
     text.then((text) => {
       const componentsFromBom = parseBom(text);
       if (!componentsFromBom.length) {
         setNotice("Could not detect components from that BOM. Try CSV, TSV, or one component per line.");
-        setIsLoading(false);
+        setLoadingAction(null);
         return;
       }
       setRows(templateRowsForComponents(componentsFromBom));
       setSelectionStep("table");
       setNotice(`Imported ${componentsFromBom.length} BOM components. Edit the generated worksheet, then export when required fields are complete.`);
-      setIsLoading(false);
+      setHasUnsavedChanges(true);
+      setLoadingAction(null);
     }).catch(() => {
       setNotice("Failed to read file. Please try again.");
-      setIsLoading(false);
+      setLoadingAction(null);
     });
   }
 
@@ -597,24 +722,59 @@ export default function Home() {
     setNotice(`Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`);
   }
 
-  function loadSystem(systemId: string) {
+  async function fetchLiveTurbofanDataset() {
+    const response = await fetch("/api/knowledge/fmea?limit=1000", {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load turbofan evidence (${response.status})`);
+    }
+    return (await response.json()) as FmeaDataset;
+  }
+
+  async function loadSystem(systemId: string) {
     const nextSystem = systemTemplates.find((system) => system.id === systemId);
     if (!nextSystem) return;
-    setIsLoading(true);
+    setLoadingAction("system");
     setSelectedSystemId(systemId);
     setComponentFilter("All");
     setComponentQuery("");
-    setTimeout(() => {
+    try {
       if (systemId === "turbofan") {
+        const liveDataset = await fetchLiveTurbofanDataset();
+        setTurbofanDataset(liveDataset);
         setRowFilter("all");
-        setRows(toFmeaRows(fmeaData.rows as EvidenceRow[]));
+        setRows(toFmeaRows(liveDataset.rows));
+        setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${liveDataset.rowCount} assembled FMEA rows.`);
       } else {
         setRowFilter("all");
         setRows(templateRowsForComponents(nextSystem.components));
+        setNotice(`Loaded ${nextSystem.name}. Edit the generated worksheet, then export when required fields are complete.`);
       }
       setSelectionStep("table");
-      setIsLoading(false);
-    }, 100);
+      setHasUnsavedChanges(true);
+    } catch (error) {
+      if (systemId === "turbofan") {
+        setRowFilter("all");
+        setRows(toFmeaRows(bundledTurbofanData.rows));
+        setSelectionStep("table");
+        setNotice("Could not load live turbofan evidence. Using bundled worksheet snapshot.");
+      } else {
+        setNotice("Failed to load the selected system.");
+      }
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  function changeSystem() {
+    if (hasUnsavedChanges) {
+      const shouldContinue = confirm("You have unsaved worksheet changes. Change systems anyway?");
+      if (!shouldContinue) return;
+    }
+    setSelectionStep("initial");
+    setShowExportDropdown(false);
   }
 
   function handleManualSelection() {
@@ -629,6 +789,7 @@ export default function Home() {
     }
 
     setIsExporting(true);
+    setLoadingAction("export");
     setTimeout(() => {
       if (format === "csv") {
         downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
@@ -641,24 +802,49 @@ export default function Home() {
       }
       setShowExportDropdown(false);
       setIsExporting(false);
+      setLoadingAction(null);
     }, 100);
   }
 
   function saveFmea() {
     setIsSaving(true);
-    try {
-      localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
-      const now = new Date().toLocaleString();
-      localStorage.setItem("riskonradar-fmea-saved-at", now);
-      setLastSavedAt(now);
-      setNotice("FMEA saved successfully!");
-      setTimeout(() => setNotice(""), 3000);
-    } catch (error) {
-      setNotice("Failed to save FMEA data.");
-      setTimeout(() => setNotice(""), 3000);
-    } finally {
-      setIsSaving(false);
-    }
+    window.setTimeout(() => {
+      try {
+        localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
+        const now = new Date().toLocaleString();
+        localStorage.setItem("riskonradar-fmea-saved-at", now);
+        setLastSavedAt(now);
+        setHasUnsavedChanges(false);
+        setNotice("FMEA saved successfully.");
+        setTimeout(() => setNotice(""), 3000);
+      } catch (error) {
+        setNotice("Failed to save FMEA data.");
+        setTimeout(() => setNotice(""), 3000);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 150);
+  }
+
+  function HeaderLabel({ field, label }: { field: string; label: string }) {
+    return (
+      <span className="header-label">
+        {label}
+        <button
+          type="button"
+          className="field-help"
+          title={fieldHelp[field]}
+          aria-label={`${label} help: ${fieldHelp[field]}`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setShowHelpModal(true);
+          }}
+        >
+          ?
+        </button>
+      </span>
+    );
   }
 
   // TanStack Table columns
@@ -666,65 +852,77 @@ export default function Home() {
     () => [
       {
         id: "included",
-        header: "",
+        header: () => <HeaderLabel field="included" label="Use" />,
         cell: ({ row }) => (
           <input
+            ref={(element) => registerCell(row.original.id, "included", element)}
             type="checkbox"
             checked={row.original.included}
             onChange={(e) => updateRow(row.original.id, { included: e.target.checked })}
             className="fmea-checkbox"
             aria-label={`Include ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:included`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "included")}
           />
         ),
         size: 50,
       },
       {
         accessorKey: "component",
-        header: "Component",
+        header: () => <HeaderLabel field="component" label="Component" />,
         cell: ({ row }) => <span className="visually-hidden">{row.original.component}</span>,
         size: 200,
       },
       {
         accessorKey: "function",
-        header: "Function",
+        header: () => <HeaderLabel field="function" label="Function" />,
         cell: ({ row }) => <span>{row.original.function}</span>,
         size: 250,
       },
       {
         accessorKey: "requirement",
-        header: "Requirement",
+        header: () => <HeaderLabel field="requirement" label="Requirement" />,
         cell: ({ row }) => <span>{row.original.requirement}</span>,
         size: 300,
       },
       {
         accessorKey: "failureMode",
-        header: "Failure Mode",
+        header: () => <HeaderLabel field="failureMode" label="Failure Mode" />,
         cell: ({ row }) => <span>{row.original.failureMode}</span>,
         size: 200,
       },
       {
         accessorKey: "effect",
-        header: "Effect",
+        header: () => <HeaderLabel field="effect" label="Effect" />,
         cell: ({ row }) => (
           <input
+            ref={(element) => registerCell(row.original.id, "effect", element)}
             type="text"
             value={row.original.effect}
             onChange={(e) => updateRow(row.original.id, { effect: e.target.value })}
-            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control ${editableCellClass(row.original.id, "effect")}`}
             aria-label={`Effect for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:effect`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "effect")}
           />
         ),
         size: 250,
       },
       {
         accessorKey: "severity",
-        header: "S",
+        header: () => <HeaderLabel field="severity" label="S" />,
         cell: ({ row }) => (
           <select
+            ref={(element) => registerCell(row.original.id, "severity", element)}
             value={row.original.severity}
             onChange={(e) => updateRow(row.original.id, { severity: e.target.value })}
-            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "severity")}`}
             aria-label={`Severity score for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:severity`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "severity")}
           >
             <option value="">-</option>
             {scoreOptions.map((score) => (
@@ -738,27 +936,35 @@ export default function Home() {
       },
       {
         accessorKey: "cause",
-        header: "Cause",
+        header: () => <HeaderLabel field="cause" label="Cause" />,
         cell: ({ row }) => (
           <input
+            ref={(element) => registerCell(row.original.id, "cause", element)}
             type="text"
             value={row.original.cause}
             onChange={(e) => updateRow(row.original.id, { cause: e.target.value })}
-            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control ${editableCellClass(row.original.id, "cause")}`}
             aria-label={`Cause for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:cause`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "cause")}
           />
         ),
         size: 250,
       },
       {
         accessorKey: "occurrence",
-        header: "O",
+        header: () => <HeaderLabel field="occurrence" label="O" />,
         cell: ({ row }) => (
           <select
+            ref={(element) => registerCell(row.original.id, "occurrence", element)}
             value={row.original.occurrence}
             onChange={(e) => updateRow(row.original.id, { occurrence: e.target.value })}
-            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "occurrence")}`}
             aria-label={`Occurrence score for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:occurrence`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "occurrence")}
           >
             <option value="">-</option>
             {scoreOptions.map((score) => (
@@ -772,27 +978,35 @@ export default function Home() {
       },
       {
         accessorKey: "currentControl",
-        header: "Controls",
+        header: () => <HeaderLabel field="currentControl" label="Controls" />,
         cell: ({ row }) => (
           <input
+            ref={(element) => registerCell(row.original.id, "currentControl", element)}
             type="text"
             value={row.original.currentControl}
             onChange={(e) => updateRow(row.original.id, { currentControl: e.target.value })}
-            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control ${editableCellClass(row.original.id, "currentControl")}`}
             aria-label={`Controls for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:currentControl`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "currentControl")}
           />
         ),
         size: 250,
       },
       {
         accessorKey: "detection",
-        header: "D",
+        header: () => <HeaderLabel field="detection" label="D" />,
         cell: ({ row }) => (
           <select
+            ref={(element) => registerCell(row.original.id, "detection", element)}
             value={row.original.detection}
             onChange={(e) => updateRow(row.original.id, { detection: e.target.value })}
-            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "detection")}`}
             aria-label={`Detection score for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:detection`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "detection")}
           >
             <option value="">-</option>
             {scoreOptions.map((score) => (
@@ -806,27 +1020,31 @@ export default function Home() {
       },
       {
         accessorKey: "rpn",
-        header: "RPN",
-        cell: ({ row }) => <span className="font-mono">{rowRpn(row.original)}</span>,
+        header: () => <HeaderLabel field="rpn" label="RPN" />,
+        cell: ({ row }) => <span className="rpn-value">{rowRpn(row.original)}</span>,
         size: 80,
       },
       {
         accessorKey: "correctiveAction",
-        header: "Action",
+        header: () => <HeaderLabel field="correctiveAction" label="Action" />,
         cell: ({ row }) => (
           <input
+            ref={(element) => registerCell(row.original.id, "correctiveAction", element)}
             type="text"
             value={row.original.correctiveAction}
             onChange={(e) => updateRow(row.original.id, { correctiveAction: e.target.value })}
-            className="w-full px-2 py-1 bg-transparent border border-transparent hover:border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control ${editableCellClass(row.original.id, "correctiveAction")}`}
             aria-label={`Corrective action for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:correctiveAction`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "correctiveAction")}
           />
         ),
         size: 250,
       },
       {
         id: "evidence",
-        header: "Evidence",
+        header: () => <HeaderLabel field="evidence" label="Evidence" />,
         cell: ({ row }) => (
           <button
             type="button"
@@ -844,15 +1062,19 @@ export default function Home() {
       },
       {
         accessorKey: "status",
-        header: "Status",
+        header: () => <HeaderLabel field="status" label="Status" />,
         cell: ({ row }) => (
           <select
+            ref={(element) => registerCell(row.original.id, "status", element)}
             value={row.original.status}
             onChange={(e) =>
               updateRow(row.original.id, { status: e.target.value as FmeaRow["status"] })
             }
-            className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded focus:border-orange-500 focus:outline-none"
+            className={`fmea-cell-control status-control ${editableCellClass(row.original.id, "status")}`}
             aria-label={`Review status for ${row.original.component} - ${row.original.failureMode}`}
+            onFocus={() => setFocusedCellId(`${row.original.id}:status`)}
+            onBlur={() => setFocusedCellId(null)}
+            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "status")}
           >
             <option value="needs_review">Needs Review</option>
             <option value="accepted">Accepted</option>
@@ -862,7 +1084,7 @@ export default function Home() {
         size: 120,
       },
     ],
-    [],
+    [focusedCellId, visibleRows],
   );
 
   const visibleColumnCount = columns.length - 1;
@@ -910,10 +1132,10 @@ export default function Home() {
                   ))}
                 </select>
                 <p>
-                  {systemTemplates.find((system) => system.id === selectedSystemId)?.description}
+                  {selectedSystem?.description}
                 </p>
                 <span>
-                  {systemTemplates.find((system) => system.id === selectedSystemId)?.source}
+                  {selectedSystemSource}
                 </span>
                 <button
                   className="btn btn-primary btn-full"
@@ -1018,7 +1240,7 @@ export default function Home() {
           <div className="fmea-header">
             <div>
               <span className="metric-label">FMEA Worksheet</span>
-              <h1 style={{ fontSize: "1.5rem", marginTop: "4px" }}>Edit reliability analysis</h1>
+              <h1 className="fmea-title">Edit reliability analysis</h1>
             </div>
             <div className="fmea-header-actions">
               <button
@@ -1030,11 +1252,7 @@ export default function Home() {
                 ?
               </button>
               <button
-                onClick={() => {
-                  if (confirm("Are you sure you want to change systems? Unsaved changes will be lost.")) {
-                    setSelectionStep("initial");
-                  }
-                }}
+                onClick={changeSystem}
                 className="btn btn-secondary btn-sm"
                 type="button"
               >
@@ -1049,17 +1267,18 @@ export default function Home() {
                 {isSaving ? "Saving..." : "Save"}
               </button>
               {lastSavedAt && (
-                <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
-                  Last saved: {lastSavedAt}
+                <span className="save-status">
+                  Last saved: {lastSavedAt}{hasUnsavedChanges ? " · unsaved changes" : ""}
                 </span>
               )}
-              <div style={{ position: "relative" }}>
+              <div className="export-menu">
                 <button
                   onClick={() => setShowExportDropdown(!showExportDropdown)}
                   className="btn btn-primary btn-sm"
                   type="button"
-                    >
-                      Export ▾
+                  disabled={isExporting}
+                >
+                  {isExporting ? "Exporting..." : "Export"}
                 </button>
                 {showExportDropdown && (
                   <div className="export-dropdown">
@@ -1145,9 +1364,21 @@ export default function Home() {
 
           {/* Table */}
           <div className="grid-shell" id="worksheet">
-            <div style={{ overflow: "auto", height: "100%" }}>
-              <table className="fmea-table">
-                <thead style={{ position: "sticky", top: 0, background: "var(--color-deep)", zIndex: 5 }}>
+            <div className="table-scroll">
+              {isLoading && (
+                <div className="table-loading" role="status">
+                  {loadingAction === "upload" && "Processing file..."}
+                  {loadingAction === "system" && "Loading system..."}
+                  {loadingAction === "export" && "Preparing export..."}
+                </div>
+              )}
+              <table className={`fmea-table ${focusedCellId ? "focus-mode" : ""}`}>
+                <thead>
+                  <tr className="column-group-row">
+                    <th colSpan={4}>Component details</th>
+                    <th colSpan={6}>Failure analysis and scoring</th>
+                    <th colSpan={4}>Evidence and review</th>
+                  </tr>
                   {table.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
                       {headerGroup.headers
@@ -1155,17 +1386,7 @@ export default function Home() {
                         .map((header) => (
                         <th
                           key={header.id}
-                          style={{
-                            padding: "12px",
-                            textAlign: "left",
-                            borderBottom: "1px solid var(--color-border)",
-                            color: "var(--color-text-muted)",
-                            fontWeight: 600,
-                            fontSize: "0.8rem",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.08em",
-                            width: header.getSize(),
-                          }}
+                          className={`col-${header.column.id}`}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                         </th>
@@ -1188,7 +1409,6 @@ export default function Home() {
                           className={`fmea-data-row ${selectedRowIds.has(row.id) ? "row-selected" : ""}`}
                           onClick={(event) => {
                             toggleRowSelection(row.id, event);
-                            setSelectedSourceRow(row);
                           }}
                         >
                           {table.getRowModel().rows.find(r => r.original.id === row.id)?.getVisibleCells()
@@ -1196,6 +1416,7 @@ export default function Home() {
                             .map((cell) => (
                             <td
                               key={cell.id}
+                              className={`col-${cell.column.id} ${focusedCellId?.startsWith(`${row.id}:`) && !cell.id.includes(focusedCellId.split(":")[1] ?? "") ? "cell-dimmed" : ""}`}
                               onClick={(event: MouseEvent<HTMLTableCellElement>) => {
                                 if (["INPUT", "SELECT", "BUTTON"].includes((event.target as HTMLElement).tagName)) {
                                   event.stopPropagation();
@@ -1224,7 +1445,7 @@ export default function Home() {
               {incompleteRows.length} incomplete row{incompleteRows.length === 1 ? "" : "s"}
             </span>
             {selectedRowIds.size > 0 && (
-              <span style={{ color: "var(--color-accent)" }}>
+              <span className="selection-count">
                 {selectedRowIds.size} selected
               </span>
             )}
@@ -1295,6 +1516,10 @@ export default function Home() {
             <h3>Keyboard Shortcuts</h3>
             <ul className="source-list">
               <li>
+                <strong>Tab / Shift+Tab</strong>
+                <span>Navigate between editable cells</span>
+              </li>
+              <li>
                 <strong>Ctrl+S / Cmd+S</strong>
                 <span>Save FMEA data</span>
               </li>
@@ -1315,6 +1540,10 @@ export default function Home() {
                 <span>Toggle include/exclude on selected rows</span>
               </li>
               <li>
+                <strong>Ctrl+H / Ctrl+?</strong>
+                <span>Open help modal</span>
+              </li>
+              <li>
                 <strong>Escape</strong>
                 <span>Close dialogs, dropdowns, or clear selection</span>
               </li>
@@ -1322,28 +1551,60 @@ export default function Home() {
             <h3>FMEA Field Explanations</h3>
             <ul className="source-list">
               <li>
+                <strong>Component</strong>
+                <span>Physical engineering part or subsystem being analyzed</span>
+              </li>
+              <li>
+                <strong>Function</strong>
+                <span>Intended function the component must perform</span>
+              </li>
+              <li>
+                <strong>Requirement</strong>
+                <span>Operating requirement or condition the function must satisfy</span>
+              </li>
+              <li>
+                <strong>Failure Mode</strong>
+                <span>How the component or function can fail</span>
+              </li>
+              <li>
+                <strong>Effect</strong>
+                <span>Consequence if the failure mode occurs</span>
+              </li>
+              <li>
                 <strong>Severity (S)</strong>
-                <span>How severe the effect is if the failure occurs (1 = minor, 10 = catastrophic)</span>
+                <span>Severity score: 1 is minor, 10 is hazardous or catastrophic</span>
+              </li>
+              <li>
+                <strong>Cause</strong>
+                <span>Why the failure mode occurs</span>
               </li>
               <li>
                 <strong>Occurrence (O)</strong>
-                <span>How often the failure is likely to occur (1 = rare, 10 = very frequent)</span>
-              </li>
-              <li>
-                <strong>Detection (D)</strong>
-                <span>How likely the failure is to be detected before causing harm (1 = certain, 10 = impossible)</span>
-              </li>
-              <li>
-                <strong>RPN</strong>
-                <span>Risk Priority Number = S × O × D. Higher values indicate higher risk priority.</span>
+                <span>Occurrence score: 1 is rare, 10 is frequent</span>
               </li>
               <li>
                 <strong>Controls</strong>
-                <span>Preventive measures to prevent the failure or reduce its likelihood</span>
+                <span>Existing prevention, detection, inspection, design, or maintenance control</span>
+              </li>
+              <li>
+                <strong>Detection (D)</strong>
+                <span>Detection score: 1 is easily detected before harm, 10 is unlikely to be detected</span>
+              </li>
+              <li>
+                <strong>RPN</strong>
+                <span>Risk Priority Number = S × O × D. Higher values indicate higher risk priority</span>
               </li>
               <li>
                 <strong>Action</strong>
-                <span>Corrective action to take after the failure has occurred</span>
+                <span>Recommended action to reduce risk or correct a confirmed issue</span>
+              </li>
+              <li>
+                <strong>Evidence</strong>
+                <span>Source count and citations behind the extracted FMEA fields</span>
+              </li>
+              <li>
+                <strong>Status</strong>
+                <span>Human review state for this row</span>
               </li>
             </ul>
             <h3>Row Status</h3>
