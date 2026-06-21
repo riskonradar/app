@@ -93,7 +93,7 @@ export default function PricingPage() {
               </SignInButton>
             )}
             <Link href="/" className="btn btn-secondary btn-sm">
-              Back to worksheet
+              Back to home
             </Link>
           </div>
         </section>

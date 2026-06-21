@@ -466,6 +466,10 @@ export default function Home() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set());
+  const [componentDropdownOpen, setComponentDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
@@ -504,6 +508,16 @@ export default function Home() {
   const incompleteRows = includedRows.filter((row) => !isComplete(row));
   const canExport = includedRows.length > 0 && incompleteRows.length === 0;
 
+  // Pagination
+  const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
+  const paginatedRows = visibleRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  const paginatedGroupedData = useMemo(() => groupRowsByComponent(paginatedRows), [paginatedRows]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [componentFilter, componentQuery, rowFilter]);
+
   // Group visible rows by component for tree structure
   const groupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
 
@@ -524,6 +538,31 @@ export default function Home() {
       return newSet;
     });
   }
+
+  function toggleManualComponent(componentName: string) {
+    setManualComponents(current => {
+      const newSet = new Set(current);
+      if (newSet.has(componentName)) {
+        newSet.delete(componentName);
+      } else {
+        newSet.add(componentName);
+      }
+      return Array.from(newSet);
+    });
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setComponentDropdownOpen(false);
+      }
+    }
+    if (componentDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [componentDropdownOpen]);
 
   // Load saved data from localStorage on mount
   useEffect(() => {
@@ -1164,22 +1203,50 @@ export default function Home() {
                 <label className="field-label" htmlFor="manual-component">
                   Select components manually
                 </label>
-                <select
-                  id="manual-component"
-                  value={manualComponent}
-                  onChange={(event) => handleManualComponentChange(event.target.value)}
-                >
-                  <option value="">Choose a component</option>
-                  {components.map((component) => (
-                    <option key={component} value={component}>
-                      {component}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ position: "relative" }} ref={dropdownRef}>
+                  <button
+                    type="button"
+                    id="manual-component"
+                    className="text-input"
+                    style={{ textAlign: "left", cursor: "pointer" }}
+                    onClick={() => setComponentDropdownOpen(!componentDropdownOpen)}
+                  >
+                    {manualComponents.length > 0
+                      ? `${manualComponents.length} component${manualComponents.length === 1 ? "" : "s"} selected`
+                      : "Choose components"
+                    }
+                    <span style={{ float: "right", fontSize: "0.8rem" }}>▼</span>
+                  </button>
+                  {componentDropdownOpen && (
+                    <div className="component-dropdown">
+                      {components.map((component) => (
+                        <label key={component} className="dropdown-option">
+                          <input
+                            type="checkbox"
+                            checked={manualComponents.includes(component)}
+                            onChange={() => toggleManualComponent(component)}
+                          />
+                          <span>{component}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="component-chip-list" aria-label="Selected components">
-                  {(manualComponents.length ? manualComponents : ["No components selected yet"]).map((component) => (
-                    <span key={component}>{component}</span>
+                  {manualComponents.map((component) => (
+                    <span key={component} className="component-chip">
+                      {component}
+                      <button
+                        type="button"
+                        className="chip-remove"
+                        onClick={() => toggleManualComponent(component)}
+                        aria-label={`Remove ${component}`}
+                      >
+                        ×
+                      </button>
+                    </span>
                   ))}
+                  {manualComponents.length === 0 && <span>No components selected yet</span>}
                 </div>
                 <button
                   className="btn btn-secondary btn-full"
@@ -1408,7 +1475,7 @@ export default function Home() {
                   ))}
                 </thead>
                 <tbody>
-                  {groupedData.map(({ component, childRows }) => (
+                  {paginatedGroupedData.map(({ component, childRows }) => (
                     <Fragment key={component}>
                       <tr className="component-section-row">
                         <td colSpan={visibleColumnCount}>
@@ -1469,6 +1536,31 @@ export default function Home() {
               <span className="selection-count">
                 {selectedRowIds.size} selected
               </span>
+            )}
+            {totalPages > 1 && (
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  className="pagination-btn"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  aria-label="Previous page"
+                >
+                  ←
+                </button>
+                <span className="pagination-info">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="pagination-btn"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  aria-label="Next page"
+                >
+                  →
+                </button>
+              </div>
             )}
           </div>
         </section>
