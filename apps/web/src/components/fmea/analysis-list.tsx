@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 type SavedFmeaAnalysis = {
   id: string;
@@ -49,9 +49,25 @@ const defaultAnalyses: SavedFmeaAnalysis[] = [
   },
 ];
 
-function readSavedAnalyses() {
+function subscribeToAnalyses(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("riskonradar-fmea-analyses-change", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("riskonradar-fmea-analyses-change", callback);
+  };
+}
+
+function getAnalysesSnapshot() {
+  return window.localStorage.getItem("riskonradar-fmea-analyses");
+}
+
+function getServerAnalysesSnapshot() {
+  return null;
+}
+
+function parseSavedAnalyses(saved: string | null) {
   try {
-    const saved = window.localStorage.getItem("riskonradar-fmea-analyses");
     if (!saved) return defaultAnalyses;
     const parsed = JSON.parse(saved) as SavedFmeaAnalysis[];
     if (Array.isArray(parsed) && parsed.length > 0) {
@@ -64,9 +80,12 @@ function readSavedAnalyses() {
 }
 
 export function AnalysisList() {
-  const [analyses, setAnalyses] = useState<SavedFmeaAnalysis[]>(() =>
-    typeof window === "undefined" ? defaultAnalyses : readSavedAnalyses(),
+  const analysesSnapshot = useSyncExternalStore(
+    subscribeToAnalyses,
+    getAnalysesSnapshot,
+    getServerAnalysesSnapshot,
   );
+  const analyses = useMemo(() => parseSavedAnalyses(analysesSnapshot), [analysesSnapshot]);
 
   function deleteAnalysis(analysis: SavedFmeaAnalysis) {
     if (analysis.id === "turbofan-default") return;
@@ -74,7 +93,6 @@ export function AnalysisList() {
     if (!confirmed) return;
 
     const nextAnalyses = analyses.filter((item) => item.id !== analysis.id);
-    setAnalyses(nextAnalyses.length ? nextAnalyses : defaultAnalyses);
 
     if (nextAnalyses.length) {
       window.localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify(nextAnalyses));
@@ -85,6 +103,7 @@ export function AnalysisList() {
     window.localStorage.removeItem("riskonradar-fmea-data");
     window.localStorage.removeItem("riskonradar-fmea-saved-at");
     window.localStorage.removeItem("riskonradar-fmea-name");
+    window.dispatchEvent(new Event("riskonradar-fmea-analyses-change"));
   }
 
   return (
