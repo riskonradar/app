@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 
 type SavedFmeaAnalysis = {
   id: string;
@@ -86,6 +86,17 @@ export function AnalysisList() {
     getServerAnalysesSnapshot,
   );
   const analyses = useMemo(() => parseSavedAnalyses(analysesSnapshot), [analysesSnapshot]);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+
+  function writeAnalyses(nextAnalyses: SavedFmeaAnalysis[]) {
+    if (nextAnalyses.length) {
+      window.localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify(nextAnalyses));
+    } else {
+      window.localStorage.removeItem("riskonradar-fmea-analyses");
+    }
+    window.dispatchEvent(new Event("riskonradar-fmea-analyses-change"));
+  }
 
   function deleteAnalysis(analysis: SavedFmeaAnalysis) {
     if (analysis.id === "turbofan-default") return;
@@ -93,17 +104,38 @@ export function AnalysisList() {
     if (!confirmed) return;
 
     const nextAnalyses = analyses.filter((item) => item.id !== analysis.id);
-
-    if (nextAnalyses.length) {
-      window.localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify(nextAnalyses));
-    } else {
-      window.localStorage.removeItem("riskonradar-fmea-analyses");
-    }
+    writeAnalyses(nextAnalyses);
 
     window.localStorage.removeItem("riskonradar-fmea-data");
     window.localStorage.removeItem("riskonradar-fmea-saved-at");
     window.localStorage.removeItem("riskonradar-fmea-name");
-    window.dispatchEvent(new Event("riskonradar-fmea-analyses-change"));
+  }
+
+  function startRenaming(analysis: SavedFmeaAnalysis) {
+    setRenamingId(analysis.id);
+    setDraftName(analysis.name);
+  }
+
+  function cancelRename() {
+    setRenamingId(null);
+    setDraftName("");
+  }
+
+  function saveRename(analysis: SavedFmeaAnalysis) {
+    const nextName = draftName.trim();
+    if (!nextName) return;
+
+    const nextAnalyses = analyses.map((item) =>
+      item.id === analysis.id ? { ...item, name: nextName } : item,
+    );
+    writeAnalyses(nextAnalyses);
+
+    if (analysis.id === "current-fmea") {
+      window.localStorage.setItem("riskonradar-fmea-name", nextName);
+    }
+
+    setRenamingId(null);
+    setDraftName("");
   }
 
   return (
@@ -113,7 +145,28 @@ export function AnalysisList() {
           <div className="fmea-analysis-main">
             <Link href="/fmea" className="fmea-analysis-link">
               <span>
-                <strong>{analysis.name}</strong>
+                {renamingId === analysis.id ? (
+                  <input
+                    className="fmea-analysis-name-input"
+                    value={draftName}
+                    onChange={(event) => setDraftName(event.target.value)}
+                    onClick={(event) => event.preventDefault()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        saveRename(analysis);
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelRename();
+                      }
+                    }}
+                    aria-label={`Rename ${analysis.name}`}
+                    autoFocus
+                  />
+                ) : (
+                  <strong>{analysis.name}</strong>
+                )}
                 <small>
                   {analysis.componentCount} component{analysis.componentCount === 1 ? "" : "s"} ·{" "}
                   {analysis.rowCount} rows · {analysis.includedCount} spreadsheet rows
@@ -123,14 +176,43 @@ export function AnalysisList() {
               <em>Max RPN {analysis.highestRpn || "-"}</em>
             </Link>
             {analysis.id !== "turbofan-default" && (
-              <button
-                type="button"
-                className="fmea-analysis-delete"
-                onClick={() => deleteAnalysis(analysis)}
-                aria-label={`Delete ${analysis.name}`}
-              >
-                Delete
-              </button>
+              <div className="fmea-analysis-actions">
+                {renamingId === analysis.id ? (
+                  <>
+                    <button
+                      type="button"
+                      className="fmea-analysis-action"
+                      onClick={() => saveRename(analysis)}
+                      disabled={!draftName.trim()}
+                    >
+                      Save name
+                    </button>
+                    <button
+                      type="button"
+                      className="fmea-analysis-action muted"
+                      onClick={cancelRename}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="fmea-analysis-action"
+                    onClick={() => startRenaming(analysis)}
+                  >
+                    Rename
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="fmea-analysis-delete"
+                  onClick={() => deleteAnalysis(analysis)}
+                  aria-label={`Delete ${analysis.name}`}
+                >
+                  Delete
+                </button>
+              </div>
             )}
           </div>
           <details className="fmea-analysis-risks">

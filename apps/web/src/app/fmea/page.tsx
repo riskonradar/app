@@ -1092,14 +1092,17 @@ export default function Home() {
     setIsSaving(true);
     window.setTimeout(() => {
       try {
+        const savedName = analysisName.trim() || defaultAnalysisName(rows);
         localStorage.setItem("riskonradar-fmea-data", JSON.stringify(rows));
         const now = new Date().toLocaleString();
         localStorage.setItem("riskonradar-fmea-saved-at", now);
-        localStorage.setItem("riskonradar-fmea-name", analysisName.trim() || defaultAnalysisName(rows));
-        localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify([analysisSummary(rows, analysisName, now)]));
+        localStorage.setItem("riskonradar-fmea-name", savedName);
+        localStorage.setItem("riskonradar-fmea-analyses", JSON.stringify([analysisSummary(rows, savedName, now)]));
+        window.dispatchEvent(new Event("riskonradar-fmea-analyses-change"));
+        setAnalysisName(savedName);
         setLastSavedAt(now);
         setHasUnsavedChanges(false);
-        setNotice("FMEA saved successfully.");
+        setNotice(`Saved "${savedName}".`);
         setTimeout(() => setNotice(""), 3000);
         if (options?.redirectToDashboard) {
           router.push("/dashboard");
