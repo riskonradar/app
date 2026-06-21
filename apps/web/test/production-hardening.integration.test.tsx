@@ -144,6 +144,14 @@ describe("production hardening flows", () => {
     expect(source).toContain("/api/fmea/analyses/${analysis.id}");
   });
 
+  test("saved FMEA analysis queries match organization or user ownership", async () => {
+    const source = await readFile("src/lib/fmea/server.ts", "utf8");
+
+    expect(source).toContain("organization_id.eq.${workspace.organization.id}");
+    expect(source).toContain("user_account_id.eq.${workspace.userAccount.id}");
+    expect(source.match(/\.or\(ownerFilterForWorkspace/g)?.length).toBeGreaterThanOrEqual(5);
+  });
+
   test("account membership display prefers server billing status over localStorage", async () => {
     window.localStorage.setItem(
       "riskonradar-membership",

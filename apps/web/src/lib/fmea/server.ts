@@ -37,6 +37,10 @@ function appSchema() {
   return (getSupabaseServiceClient() as any).schema("app");
 }
 
+function ownerFilterForWorkspace(workspace: Workspace) {
+  return `organization_id.eq.${workspace.organization.id},user_account_id.eq.${workspace.userAccount.id}`;
+}
+
 function isProWorkspace(workspace: Workspace) {
   return ["active", "comped"].includes(workspace.organization.billing_status);
 }
@@ -151,7 +155,7 @@ async function getOwnedAnalysis(workspace: Workspace, analysisId: string) {
     .from("fmea_analyses")
     .select("id, name, status, metadata, created_at, updated_at")
     .eq("id", analysisId)
-    .eq("organization_id", workspace.organization.id)
+    .or(ownerFilterForWorkspace(workspace))
     .maybeSingle();
 
   if (error) {
@@ -183,8 +187,8 @@ export async function listFmeaAnalyses(request?: Request) {
   const { data: analyses, error: analysesError } = await appSchema()
     .from("fmea_analyses")
     .select("id, name, status, metadata, created_at, updated_at")
-    .eq("organization_id", workspace.organization.id)
     .neq("status", "archived")
+    .or(ownerFilterForWorkspace(workspace))
     .order("updated_at", { ascending: false });
 
   if (analysesError) {
@@ -272,6 +276,8 @@ export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPa
     const { error } = await appSchema()
       .from("fmea_analyses")
       .update({
+        organization_id: workspace.organization.id,
+        user_account_id: workspace.userAccount.id,
         name,
         metadata: {
           rowCount: rows.length,
@@ -279,7 +285,7 @@ export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPa
         },
       })
       .eq("id", analysisId)
-      .eq("organization_id", workspace.organization.id);
+      .or(ownerFilterForWorkspace(workspace));
 
     if (error) {
       console.error("Failed to update FMEA analysis:", error);
@@ -289,8 +295,8 @@ export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPa
     const { count, error: countError } = await appSchema()
       .from("fmea_analyses")
       .select("id", { count: "exact", head: true })
-      .eq("organization_id", workspace.organization.id)
-      .neq("status", "archived");
+      .neq("status", "archived")
+      .or(ownerFilterForWorkspace(workspace));
 
     if (countError) {
       console.error("Failed to count FMEA analyses:", countError);
@@ -362,7 +368,7 @@ export async function renameFmeaAnalysis(request: Request, analysisId: string, n
     .from("fmea_analyses")
     .update({ name: name.trim() || ownedAnalysis.name })
     .eq("id", analysisId)
-    .eq("organization_id", resolved.workspace.organization.id);
+    .or(ownerFilterForWorkspace(resolved.workspace));
 
   if (error) {
     console.error("Failed to rename FMEA analysis:", error);
@@ -383,7 +389,7 @@ export async function deleteFmeaAnalysis(request: Request, analysisId: string) {
     .from("fmea_analyses")
     .delete()
     .eq("id", analysisId)
-    .eq("organization_id", resolved.workspace.organization.id);
+    .or(ownerFilterForWorkspace(resolved.workspace));
 
   if (error) {
     console.error("Failed to delete FMEA analysis:", error);
