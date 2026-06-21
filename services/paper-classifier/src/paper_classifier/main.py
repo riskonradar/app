@@ -11,6 +11,7 @@ from paper_classifier.easa_importer import import_easa_ads
 from paper_classifier.extractor import CLASSIFIER_VERSION as KEYWORD_CLASSIFIER_VERSION
 from paper_classifier.extractor import classify_paper
 from paper_classifier.fmea_ris_classifier import classify_ris
+from paper_classifier.fmea_supabase_exporter import export_fmea_from_supabase
 from paper_classifier.llm import (
     LLM_CLASSIFIER_VERSION,
     LlmConfig,
@@ -33,6 +34,12 @@ def main() -> None:
     )
     prototype_parser.add_argument("--ris", type=Path, required=True)
     prototype_parser.add_argument("--output", type=Path, required=True)
+
+    supabase_fmea_parser = subparsers.add_parser(
+        "export-fmea-supabase",
+        help="Regenerate the prototype FMEA JSON from Supabase paper and EASA evidence.",
+    )
+    supabase_fmea_parser.add_argument("--output", type=Path, required=True)
 
     import_parser = subparsers.add_parser(
         "import-corpus",
@@ -77,6 +84,8 @@ def main() -> None:
 
     if args.command == "prototype-ris":
         _classify_prototype_ris(args.ris, args.output)
+    elif args.command == "export-fmea-supabase":
+        _export_fmea_supabase(args.output)
     elif args.command == "import-corpus":
         _import_corpus(args.corpus_db, args.limit, args.dry_run)
     elif args.command == "import-easa":
@@ -101,6 +110,13 @@ def _classify_prototype_ris(ris: Path, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"paper-classifier wrote {payload['rowCount']} FMEA rows to {output}")
+
+
+def _export_fmea_supabase(output: Path) -> None:
+    payload = export_fmea_from_supabase()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"paper-classifier wrote {payload['rowCount']} Supabase FMEA rows to {output}")
 
 
 def _import_corpus(corpus_db: Path, limit: int | None, dry_run: bool) -> None:
