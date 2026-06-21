@@ -1,3 +1,4 @@
+import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
@@ -6,13 +7,16 @@ import { billingPlans, getBillingPlan } from "@/lib/billing/plans";
 import { getWorkspaceSummary } from "@/lib/account/server";
 
 export const dynamic = "force-dynamic";
+const demoPlans = billingPlans.filter((plan) => plan.key === "individual");
 
 export default async function AccountPage() {
+  const user = await currentUser().catch(() => null);
   const summary = await getWorkspaceSummary().catch((error) => {
     console.error("Failed to load workspace summary:", error);
     return null;
   });
   const activePlan = getBillingPlan(summary?.organization.plan_key);
+  const displayName = user?.firstName || user?.emailAddresses[0]?.emailAddress || "Signed-in user";
 
   return (
     <div className="app-shell">
@@ -51,10 +55,32 @@ export default async function AccountPage() {
                 <small>{summary.organization.seat_limit ?? "custom"} seats</small>
               </div>
             </div>
+          ) : user ? (
+            <div className="account-summary-grid">
+              <div className="summary-tile">
+                <span>Workspace</span>
+                <strong>{displayName}</strong>
+                <small>Personal demo workspace</small>
+              </div>
+              <div className="summary-tile">
+                <span>Plan</span>
+                <strong>Demo checkout</strong>
+                <small>Mollie test flow enabled</small>
+              </div>
+              <div className="summary-tile">
+                <span>Members</span>
+                <strong>1</strong>
+                <small>Individual user</small>
+              </div>
+              <div className="summary-tile">
+                <span>Role</span>
+                <strong>Owner</strong>
+                <small>Hackathon demo mode</small>
+              </div>
+            </div>
           ) : (
             <p className="notice standalone">
-              Sign in to create or manage a workspace. Individual users can start with a personal
-              workspace; teams should create an organization before buying the Team plan.
+              Sign in to open the demo workspace and launch the Mollie checkout flow.
             </p>
           )}
         </section>
@@ -63,11 +89,11 @@ export default async function AccountPage() {
 
         <section className="page-card account-pricing-summary">
           <div className="section-heading">
-            <span className="metric-label">Packaging Direction</span>
-            <h2>Plans aligned to B2B engineering buyers</h2>
+            <span className="metric-label">Demo Billing</span>
+            <h2>One-user Mollie checkout flow</h2>
           </div>
           <div className="plan-strip">
-            {billingPlans.map((plan) => (
+            {demoPlans.map((plan) => (
               <article key={plan.key} className="plan-strip-item">
                 <span>{plan.name}</span>
                 <strong>{plan.priceLabel}</strong>

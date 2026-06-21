@@ -7,13 +7,15 @@ import { useState } from "react";
 import { AppNav } from "@/components/app-nav";
 import { type BillingPlanKey, billingPlans } from "@/lib/billing/plans";
 
+const demoPlans = billingPlans.filter((plan) => plan.key === "individual");
+
 export default function PricingPage() {
   const { isLoaded, isSignedIn } = useUser();
   const { getToken } = useAuth();
   const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
   const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey | null>(null);
   const [message, setMessage] = useState(
-    "Individual is for pilots. Team is the default workspace plan for B2B engineering teams.",
+    "Demo checkout uses one signed-in user and opens Mollie test checkout.",
   );
 
   async function startCheckout(planKey: BillingPlanKey) {
@@ -58,16 +60,15 @@ export default function PricingPage() {
         <section className="page-card pricing-card pricing-card-wide">
           <div className="page-heading">
             <span className="metric-label">Pricing</span>
-            <h1>Workspace plans for reliability teams</h1>
+            <h1>Demo checkout</h1>
             <p>
-              Price around the reviewed engineering workflow, not paper counts or AI calls. Use
-              Individual for pilots, Team for shared FMEA review, and Enterprise when procurement
-              requires SSO or custom terms.
+              Use one signed-in personal workspace for the hackathon flow. This opens Mollie test
+              checkout without requiring an organization workspace first.
             </p>
           </div>
 
           <div className="pricing-grid">
-            {billingPlans.map((plan) => (
+            {demoPlans.map((plan) => (
               <article key={plan.key} className={`pricing-plan ${plan.key === "team" ? "primary" : ""}`}>
                 <div>
                   <span className="metric-label">{plan.name}</span>
@@ -93,9 +94,7 @@ export default function PricingPage() {
                   >
                     {paymentState === "loading" && selectedPlan === plan.key
                       ? "Opening checkout"
-                      : plan.key === "team"
-                        ? "Buy team plan"
-                        : "Buy individual"}
+                      : "Open Mollie test checkout"}
                   </button>
                 ) : (
                   <Link href="/account" className="btn btn-secondary btn-sm btn-full">

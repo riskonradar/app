@@ -15,9 +15,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const workspace = await ensureCurrentWorkspace(request);
   const clerkContext = await getCurrentClerkContext(request);
-  if (!workspace || !clerkContext.userId) {
+  if (!clerkContext.userId) {
     return Response.json(
       { error: "Sign in before opening Mollie checkout." },
       { status: 401 },
@@ -25,18 +24,15 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const plan = getBillingPlan(String(body.planKey ?? workspace.organization.plan_key));
+  const workspace = await ensureCurrentWorkspace(request).catch((error) => {
+    console.error("Checkout will continue without persisted workspace:", error);
+    return null;
+  });
+  const plan = getBillingPlan(String(body.planKey ?? workspace?.organization.plan_key ?? "individual"));
 
   if (!plan || !plan.amountValue) {
     return Response.json(
       { error: "This plan requires a sales-led billing setup." },
-      { status: 400 },
-    );
-  }
-
-  if (plan.billingScope === "organization" && !clerkContext.orgId) {
-    return Response.json(
-      { error: "Create or switch to an organization workspace before buying a team plan." },
       { status: 400 },
     );
   }
@@ -60,56 +56,57 @@ export async function POST(request: Request) {
     ...(webhookUrl ? { webhookUrl } : {}),
     metadata: {
       clerkUserId: clerkContext.userId,
-      clerkOrganizationId: clerkContext.orgId,
-      organizationId: workspace.organization.id,
-      userAccountId: workspace.userAccount.id,
+      clerkOrganizationId: clerkContext.orgId ?? null,
+      organizationId: workspace?.organization.id ?? `demo-${clerkContext.userId}`,
+      userAccountId: workspace?.userAccount.id ?? clerkContext.userId,
       planKey: plan.key,
       billingScope: plan.billingScope,
       seats,
-      checkoutContext: "signed_in",
+      checkoutContext: workspace ? "signed_in" : "signed_in_demo",
     },
   });
 
   const checkoutUrl = payment._links.checkout?.href;
-  const supabase = getSupabaseServiceClient();
 
   // Create initial payment record in database
-  const { error: paymentError } = await (supabase as any).schema("app")
-    .from("billing_payments")
-    .insert({
-      user_account_id: workspace.userAccount.id,
-      organization_id: workspace.organization.id,
-      plan_key: plan.key,
-      seats,
-      mollie_payment_id: payment.id,
-      status: payment.status,
-      amount_value: parseFloat(payment.amount?.value || "0"),
-      amount_currency: payment.amount?.currency || "EUR",
-      checkout_url: checkoutUrl,
-      metadata: payment.metadata || {},
-    });
-
-  if (paymentError) {
-    console.error("Failed to create payment record:", paymentError);
-    return Response.json({ error: "Failed to create payment record." }, { status: 500 });
-  }
-
-  const { error: auditError } = await (supabase as any).schema("app")
-    .from("account_audit_events")
-    .insert({
-      organization_id: workspace.organization.id,
-      user_account_id: workspace.userAccount.id,
-      actor_clerk_user_id: clerkContext.userId,
-      event_type: "mollie.checkout_created",
-      metadata: {
-        molliePaymentId: payment.id,
-        planKey: plan.key,
+  if (workspace) {
+    const supabase = getSupabaseServiceClient();
+    const { error: paymentError } = await (supabase as any).schema("app")
+      .from("billing_payments")
+      .insert({
+        user_account_id: workspace.userAccount.id,
+        organization_id: workspace.organization.id,
+        plan_key: plan.key,
         seats,
-      },
-    });
+        mollie_payment_id: payment.id,
+        status: payment.status,
+        amount_value: parseFloat(payment.amount?.value || "0"),
+        amount_currency: payment.amount?.currency || "EUR",
+        checkout_url: checkoutUrl,
+        metadata: payment.metadata || {},
+      });
 
-  if (auditError) {
-    console.error("Failed to record checkout audit event:", auditError);
+    if (paymentError) {
+      console.error("Failed to create payment record:", paymentError);
+    }
+
+    const { error: auditError } = await (supabase as any).schema("app")
+      .from("account_audit_events")
+      .insert({
+        organization_id: workspace.organization.id,
+        user_account_id: workspace.userAccount.id,
+        actor_clerk_user_id: clerkContext.userId,
+        event_type: "mollie.checkout_created",
+        metadata: {
+          molliePaymentId: payment.id,
+          planKey: plan.key,
+          seats,
+        },
+      });
+
+    if (auditError) {
+      console.error("Failed to record checkout audit event:", auditError);
+    }
   }
 
   return Response.json({

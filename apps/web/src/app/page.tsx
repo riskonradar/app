@@ -177,7 +177,7 @@ const fieldHelp: Record<string, string> = {
 };
 
 const worksheetColumnSpecs = [
-  { id: "included", size: 58 },
+  { id: "included", size: 76 },
   { id: "function", size: 108 },
   { id: "failureMode", size: 118 },
   { id: "effect", size: 116 },
@@ -468,8 +468,12 @@ function htmlEscape(value: string | number | undefined) {
     .replace(/"/g, "&quot;");
 }
 
-function downloadFile(filename: string, mimeType: string, content: string) {
-  const blob = new Blob([content], { type: mimeType });
+function xmlEscape(value: string | number | undefined) {
+  return htmlEscape(value).replace(/'/g, "&apos;");
+}
+
+function downloadFile(filename: string, mimeType: string, content: BlobPart | BlobPart[]) {
+  const blob = new Blob(Array.isArray(content) ? content : [content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -586,12 +590,143 @@ function buildExcelHtml(rows: FmeaRow[]) {
     row.sources.map((source) => source.doi || source.title).join("; "),
   ]);
 
-  return `<!doctype html><html><head><meta charset="utf-8" /></head><body><table>${[
-    headers,
-    ...body,
-  ]
-    .map((line) => `<tr>${line.map((cell) => `<td>${htmlEscape(cell)}</td>`).join("")}</tr>`)
-    .join("")}</table></body></html>`;
+  return buildXlsxWorkbook([headers, ...body]);
+}
+
+function crc32(bytes: Uint8Array) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function writeUint16(buffer: number[], value: number) {
+  buffer.push(value & 0xff, (value >>> 8) & 0xff);
+}
+
+function writeUint32(buffer: number[], value: number) {
+  buffer.push(value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff);
+}
+
+function zipStore(files: { name: string; content: string }[]) {
+  const encoder = new TextEncoder();
+  const output: number[] = [];
+  const centralDirectory: number[] = [];
+
+  for (const file of files) {
+    const nameBytes = encoder.encode(file.name);
+    const contentBytes = encoder.encode(file.content);
+    const checksum = crc32(contentBytes);
+    const localOffset = output.length;
+
+    writeUint32(output, 0x04034b50);
+    writeUint16(output, 20);
+    writeUint16(output, 0);
+    writeUint16(output, 0);
+    writeUint16(output, 0);
+    writeUint16(output, 0);
+    writeUint32(output, checksum);
+    writeUint32(output, contentBytes.length);
+    writeUint32(output, contentBytes.length);
+    writeUint16(output, nameBytes.length);
+    writeUint16(output, 0);
+    output.push(...nameBytes, ...contentBytes);
+
+    writeUint32(centralDirectory, 0x02014b50);
+    writeUint16(centralDirectory, 20);
+    writeUint16(centralDirectory, 20);
+    writeUint16(centralDirectory, 0);
+    writeUint16(centralDirectory, 0);
+    writeUint16(centralDirectory, 0);
+    writeUint16(centralDirectory, 0);
+    writeUint32(centralDirectory, checksum);
+    writeUint32(centralDirectory, contentBytes.length);
+    writeUint32(centralDirectory, contentBytes.length);
+    writeUint16(centralDirectory, nameBytes.length);
+    writeUint16(centralDirectory, 0);
+    writeUint16(centralDirectory, 0);
+    writeUint16(centralDirectory, 0);
+    writeUint16(centralDirectory, 0);
+    writeUint32(centralDirectory, 0);
+    writeUint32(centralDirectory, localOffset);
+    centralDirectory.push(...nameBytes);
+  }
+
+  const centralOffset = output.length;
+  output.push(...centralDirectory);
+  writeUint32(output, 0x06054b50);
+  writeUint16(output, 0);
+  writeUint16(output, 0);
+  writeUint16(output, files.length);
+  writeUint16(output, files.length);
+  writeUint32(output, centralDirectory.length);
+  writeUint32(output, centralOffset);
+  writeUint16(output, 0);
+
+  return new Uint8Array(output);
+}
+
+function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
+  const columnLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const sheetRows = rows
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((cell, columnIndex) => {
+          const ref = `${columnLetters[columnIndex] ?? "A"}${rowIndex + 1}`;
+          return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(cell)}</t></is></c>`;
+        })
+        .join("");
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    })
+    .join("");
+
+  return zipStore([
+    {
+      name: "[Content_Types].xml",
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        "</Types>",
+    },
+    {
+      name: "_rels/.rels",
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+        "</Relationships>",
+    },
+    {
+      name: "xl/workbook.xml",
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<sheets><sheet name="FMEA Export" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    },
+    {
+      name: "xl/_rels/workbook.xml.rels",
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        "</Relationships>",
+    },
+    {
+      name: "xl/worksheets/sheet1.xml",
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        `<sheetData>${sheetRows}</sheetData></worksheet>`,
+    },
+  ]);
 }
 
 // Group rows by component for tree structure
@@ -1041,8 +1176,8 @@ export default function Home() {
         downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
       } else {
         downloadFile(
-          "risk-on-radar-fmea.xls",
-          "application/vnd.ms-excel;charset=utf-8",
+          "risk-on-radar-fmea.xlsx",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           buildExcelHtml(includedRows),
         );
       }
@@ -1147,7 +1282,7 @@ export default function Home() {
             />
           );
         },
-        size: 58,
+        size: 76,
       },
       {
         accessorKey: "component",
@@ -1322,6 +1457,8 @@ export default function Home() {
     getExpandedRowModel: getExpandedRowModel(),
   });
 
+  const selectedTemplate = systemTemplates.find((system) => system.id === selectedSystemId) ?? systemTemplates[0];
+
   if (selectionStep === "initial") {
     return (
       <div className="app-shell">
@@ -1333,105 +1470,140 @@ export default function Home() {
 
         <main id="main-content" className="app-main">
           <section className="workflow-card">
-            <div className="page-heading workspace-start-heading">
-              <h1>Select a system, BOM, or components for analysis</h1>
-            </div>
+            <div className="workspace-start-layout">
+              <div className="workspace-start-intro">
+                <div className="page-heading workspace-start-heading">
+                  <span className="metric-label">Evidence-backed FMEA workspace</span>
+                  <h1>Start from a system model, then review the evidence row by row.</h1>
+                  <p>
+                    Load a prepared reliability workspace, narrow the analysis to selected components,
+                    or import a BOM to generate an editable FMEA worksheet with citations.
+                  </p>
+                </div>
 
-            <div className="workspace-start-grid">
-              <div className="workspace-start-panel">
-                <label className="field-label" htmlFor="system-template">
-                  Select system
-                </label>
-                <select
-                  id="system-template"
-                  value={selectedSystemId}
-                  onChange={(event) => setSelectedSystemId(event.target.value)}
-                >
-                  {systemTemplates.map((system) => (
-                    <option key={system.id} value={system.id}>
-                      {system.name} - {system.domain}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="btn btn-primary btn-full"
-                  type="button"
-                  onClick={() => loadSystem(selectedSystemId)}
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Loading..." : "Open selected system"}
-                </button>
+                <dl className="workspace-start-facts" aria-label="Loaded evidence snapshot">
+                  <div>
+                    <dt>Evidence records</dt>
+                    <dd>{bundledTurbofanData.recordCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Merged rows</dt>
+                    <dd>{bundledTurbofanData.rowCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Components</dt>
+                    <dd>{bundledTurbofanData.components.length}</dd>
+                  </div>
+                </dl>
               </div>
 
-              <div className="workspace-start-panel">
-                <label className="field-label" htmlFor="manual-component">
-                  Select components manually
-                </label>
-                <div style={{ position: "relative" }} ref={dropdownRef}>
-                  <button
-                    type="button"
-                    id="manual-component"
-                    className="text-input"
-                    style={{ textAlign: "left", cursor: "pointer" }}
-                    onClick={() => setComponentDropdownOpen(!componentDropdownOpen)}
-                    aria-expanded={componentDropdownOpen}
-                    aria-controls="manual-component-list"
+              <div className="workspace-start-actions">
+                <div className="workspace-start-panel workspace-start-panel-primary">
+                  <div className="workspace-panel-heading">
+                    <label className="field-label" htmlFor="system-template">
+                      Select system
+                    </label>
+                    <strong>{selectedTemplate.name}</strong>
+                    <span>{selectedTemplate.domain}</span>
+                  </div>
+                  <select
+                    id="system-template"
+                    value={selectedSystemId}
+                    onChange={(event) => setSelectedSystemId(event.target.value)}
                   >
-                    {manualComponents.length > 0
-                      ? `${manualComponents.length} component${manualComponents.length === 1 ? "" : "s"} selected`
-                      : "Choose components"
-                    }
-                    <span style={{ float: "right", fontSize: "0.8rem" }}>▼</span>
+                    {systemTemplates.map((system) => (
+                      <option key={system.id} value={system.id}>
+                        {system.name} - {system.domain}
+                      </option>
+                    ))}
+                  </select>
+                  <p>{selectedTemplate.description}</p>
+                  <span>{selectedTemplate.source}</span>
+                  <button
+                    className="btn btn-primary btn-full"
+                    type="button"
+                    onClick={() => loadSystem(selectedSystemId)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Loading..." : "Open selected system"}
                   </button>
-                  {componentDropdownOpen && (
-                    <div id="manual-component-list" className="component-dropdown" role="group" aria-label="Available components">
-                      {components.map((component) => (
-                        <label key={component} className="dropdown-option">
-                          <input
-                            type="checkbox"
-                            checked={manualComponents.includes(component)}
-                            onChange={() => toggleManualComponent(component)}
-                          />
-                          <span>{component}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
                 </div>
-                <div className="component-chip-list" aria-label="Selected components">
-                  {manualComponents.map((component) => (
-                    <span key={component} className="component-chip">
-                      {component}
+
+                <div className="workspace-start-secondary">
+                  <div className="workspace-start-panel">
+                    <label className="field-label" htmlFor="manual-component">
+                      Select components manually
+                    </label>
+                    <div className="component-picker" ref={dropdownRef}>
                       <button
                         type="button"
-                        className="chip-remove"
-                        onClick={() => toggleManualComponent(component)}
-                        aria-label={`Remove ${component}`}
+                        id="manual-component"
+                        className="text-input component-picker-trigger"
+                        onClick={() => setComponentDropdownOpen(!componentDropdownOpen)}
+                        aria-expanded={componentDropdownOpen}
+                        aria-controls="manual-component-list"
                       >
-                        ×
+                        <span>
+                          {manualComponents.length > 0
+                            ? `${manualComponents.length} component${manualComponents.length === 1 ? "" : "s"} selected`
+                            : "Choose components"
+                          }
+                        </span>
+                        <span aria-hidden="true">v</span>
                       </button>
-                    </span>
-                  ))}
-                </div>
-                <button
-                  className="btn btn-secondary btn-full"
-                  type="button"
-                  onClick={handleManualSelection}
-                >
-                  Start manual worksheet
-                </button>
-              </div>
+                      {componentDropdownOpen && (
+                        <div id="manual-component-list" className="component-dropdown" role="group" aria-label="Available components">
+                          {components.map((component) => (
+                            <label key={component} className="dropdown-option">
+                              <input
+                                type="checkbox"
+                                checked={manualComponents.includes(component)}
+                                onChange={() => toggleManualComponent(component)}
+                              />
+                              <span>{component}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="component-chip-list" aria-label="Selected components">
+                      {manualComponents.map((component) => (
+                        <span key={component} className="component-chip">
+                          {component}
+                          <button
+                            type="button"
+                            className="chip-remove"
+                            onClick={() => toggleManualComponent(component)}
+                            aria-label={`Remove ${component}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      className="btn btn-secondary btn-full"
+                      type="button"
+                      onClick={handleManualSelection}
+                    >
+                      Start manual worksheet
+                    </button>
+                  </div>
 
-              <button
-                className="dropzone"
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={handleDrop}
-                disabled={isLoading}
-              >
-                <strong>{isLoading ? "Processing..." : "Drop BOM or component list here"}</strong>
-              </button>
+                  <button
+                    className="dropzone"
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={handleDrop}
+                    disabled={isLoading}
+                  >
+                    <span>Import BOM</span>
+                    <strong>{isLoading ? "Processing..." : "Drop BOM or component list here"}</strong>
+                    <small>.csv, .tsv, or .txt</small>
+                  </button>
+                </div>
+              </div>
 
               <input
                 ref={fileInputRef}

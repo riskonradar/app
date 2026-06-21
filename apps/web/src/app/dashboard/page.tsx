@@ -1,3 +1,4 @@
+import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
@@ -33,25 +34,43 @@ const nextActions = [
     cta: "Open workspace",
   },
   {
-    title: "Set up organization",
-    description: "Create a company workspace, invite teammates, and define roles.",
-    href: "/account",
-    cta: "Manage account",
+    title: "Test Mollie checkout",
+    description: "Open the signed-in demo buying flow for one user.",
+    href: "/pricing",
+    cta: "Open checkout",
   },
   {
-    title: "Choose plan",
-    description: "Individual for pilots, Team for shared review, Enterprise for SSO-led rollout.",
-    href: "/pricing",
-    cta: "View pricing",
+    title: "Manage account",
+    description: "Confirm the signed-in personal demo workspace.",
+    href: "/account",
+    cta: "Open account",
   },
 ];
 
+function numericRpn(row: (typeof fmeaData.rows)[number]) {
+  const explicit = Number(row.rpn);
+  if (explicit) return explicit;
+  const severity = Number(row.severity);
+  const occurrence = Number(row.occurrence);
+  const detection = Number(row.detection);
+  return severity && occurrence && detection ? severity * occurrence * detection : 0;
+}
+
+const activeFmeaItems = [...fmeaData.rows]
+  .sort((a, b) => numericRpn(b) - numericRpn(a) || b.evidenceCount - a.evidenceCount)
+  .slice(0, 8);
+
 export default async function DashboardPage() {
+  const user = await currentUser().catch(() => null);
   const summary = await getWorkspaceSummary().catch((error) => {
     console.error("Failed to load dashboard workspace summary:", error);
     return null;
   });
   const plan = getBillingPlan(summary?.organization.plan_key);
+  const workspaceName =
+    summary?.organization.name ??
+    (user ? `${user.firstName || user.emailAddresses[0]?.emailAddress || "Personal"} workspace` : "Not signed in");
+  const memberCount = summary?.memberCount ?? (user ? 1 : 0);
 
   return (
     <div className="app-shell">
@@ -60,17 +79,17 @@ export default async function DashboardPage() {
         <section className="dashboard-header">
           <div className="page-heading">
             <span className="metric-label">Dashboard</span>
-            <h1>Reliability work queue</h1>
+            <h1>Current FMEA work</h1>
             <p>
-              A calmer overview for the active workspace. Use the full FMEA workspace when you are
-              ready to inspect evidence and edit rows.
+              A list of the active FMEA rows currently being reviewed. Open the workspace to inspect
+              evidence, edit fields, and export the spreadsheet.
             </p>
           </div>
           <div className="dashboard-context">
             <span>Active workspace</span>
-            <strong>{summary?.organization.name ?? "Not signed in"}</strong>
+            <strong>{workspaceName}</strong>
             <small>
-              {plan?.name ?? "No plan"} · {summary?.memberCount ?? 0} members
+              {plan?.name ?? (user ? "Demo checkout" : "No plan")} · {memberCount} member{memberCount === 1 ? "" : "s"}
             </small>
           </div>
         </section>
@@ -88,8 +107,31 @@ export default async function DashboardPage() {
         <section className="dashboard-layout">
           <div className="dashboard-panel">
             <div className="section-heading">
-              <span className="metric-label">Next Actions</span>
-              <h2>Keep setup and review separate</h2>
+              <span className="metric-label">FMEA rows in progress</span>
+              <h2>Highest-priority review queue</h2>
+            </div>
+            <div className="fmea-work-list">
+              {activeFmeaItems.map((row) => (
+                <Link
+                  key={`${row.component}-${row.failureMode}-${row.effect}`}
+                  href="/"
+                  className="fmea-work-row"
+                >
+                  <span>
+                    <strong>{row.component}</strong>
+                    <small>{row.failureMode}</small>
+                  </span>
+                  <span>{row.effect || "Effect needs review"}</span>
+                  <em>RPN {numericRpn(row) || "-"}</em>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <aside className="dashboard-panel dashboard-panel-muted">
+            <div className="section-heading">
+              <span className="metric-label">Demo flow</span>
+              <h2>Checkout and review</h2>
             </div>
             <div className="action-list">
               {nextActions.map((action) => (
@@ -102,23 +144,6 @@ export default async function DashboardPage() {
                 </Link>
               ))}
             </div>
-          </div>
-
-          <aside className="dashboard-panel dashboard-panel-muted">
-            <div className="section-heading">
-              <span className="metric-label">Account Readiness</span>
-              <h2>B2B setup</h2>
-            </div>
-            <ul className="readiness-list">
-              <li data-state={summary ? "complete" : "pending"}>Signed-in user mirror</li>
-              <li data-state={summary?.organization.clerk_organization_id ? "complete" : "pending"}>
-                Company organization
-              </li>
-              <li data-state={summary?.memberCount ? "complete" : "pending"}>Membership record</li>
-              <li data-state={summary?.organization.billing_status === "active" ? "complete" : "pending"}>
-                Active billing entitlement
-              </li>
-            </ul>
           </aside>
         </section>
       </main>
