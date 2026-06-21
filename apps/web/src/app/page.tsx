@@ -6,6 +6,8 @@ import type { ChangeEvent } from "react";
 
 import { AuthControls } from "@/components/auth/auth-controls";
 import fmeaData from "@/data/fmea-turbofan-data.json";
+import severityReference from "@/data/fmea-severity-reference.json";
+import propagationPaths from "@/data/turbofan-propagation-paths.json";
 
 type Source = {
   title: string;
@@ -831,6 +833,61 @@ export default function Home() {
           </section>
         </section>
 
+        <section className="reference-section" aria-label="Scoring references">
+          <details className="reference-disclosure">
+            <summary>severity guide score</summary>
+            <div className="reference-table-wrap">
+              <table className="reference-table severity-guide-table">
+                <thead>
+                  <tr>
+                    <th>S</th>
+                    <th>Class</th>
+                    <th>System effect</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {severityReference.map((item) => (
+                    <tr key={item.score}>
+                      <td>{item.score}</td>
+                      <td>{item.classification}</td>
+                      <td>{item.systemEffect}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details className="reference-disclosure">
+            <summary>propagation paths</summary>
+            <div className="reference-table-wrap">
+              <table className="reference-table propagation-table">
+                <thead>
+                  <tr>
+                    <th>Cause</th>
+                    <th>Component failure</th>
+                    <th>Local effect</th>
+                    <th>Engine effect</th>
+                    <th>Mission consequence</th>
+                    <th>S</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {propagationPaths.map((path) => (
+                    <tr key={`${path.cause}-${path.componentFailure}`}>
+                      <td>{path.cause}</td>
+                      <td>{path.componentFailure}</td>
+                      <td>{path.localEffect}</td>
+                      <td>{path.engineEffect}</td>
+                      <td>{path.aircraftMissionConsequence}</td>
+                      <td>{path.suggestedSeverity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </section>
         <section className="save-note" id="saved-workflows" aria-label="Dashboard preview">
           <div>
             <span className="metric-label">Dashboard later</span>

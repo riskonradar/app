@@ -1,0 +1,72 @@
+[
+  {
+    "score": 10,
+    "classification": "Catastrophic",
+    "systemEffect": "Loss of aircraft, loss of control, rotor burst, or catastrophic uncontained engine failure",
+    "typicalEvidenceTerms": ["catastrophic hazard", "rotor burst", "loss of control"],
+    "scoringGuidance": "Use when the credible propagated consequence can threaten aircraft survival."
+  },
+  {
+    "score": 9,
+    "classification": "Hazardous",
+    "systemEffect": "Uncontained release, fire hazard, severe aircraft damage, or emergency diversion condition",
+    "typicalEvidenceTerms": ["uncontained release", "fire", "aircraft damage", "safety hazard"],
+    "scoringGuidance": "Use for effects that can create hazardous aircraft-level conditions even if aircraft loss is not stated."
+  },
+  {
+    "score": 8,
+    "classification": "Major engine-level event",
+    "systemEffect": "In-flight shutdown, engine shutdown, engine failure, major thrust loss, or forced operational response",
+    "typicalEvidenceTerms": ["in-flight shutdown", "IFSD", "engine shutdown", "engine failure", "loss of thrust"],
+    "scoringGuidance": "Use when the engine can no longer provide intended propulsion or must be shut down."
+  },
+  {
+    "score": 7,
+    "classification": "Severe controllability or margin loss",
+    "systemEffect": "Surge, stall, flameout, high vibration, loss of oil pressure, or immediate crew/maintenance action",
+    "typicalEvidenceTerms": ["surge", "stall", "flameout", "high vibration", "loss of oil pressure"],
+    "scoringGuidance": "Use when the engine remains installed but safe operation margins are seriously reduced."
+  },
+  {
+    "score": 6,
+    "classification": "Performance degradation",
+    "systemEffect": "Reduced thrust or performance, overtemperature margin loss, EGT margin loss, or turbine distress",
+    "typicalEvidenceTerms": ["reduced thrust", "performance loss", "overtemperature", "EGT margin loss", "turbine distress"],
+    "scoringGuidance": "Use when dispatch or continued operation may be limited by degraded engine performance."
+  },
+  {
+    "score": 5,
+    "classification": "Significant maintenance finding",
+    "systemEffect": "Metallic particles, oil debris, downstream component damage, early shop visit, or component replacement",
+    "typicalEvidenceTerms": ["metallic particle", "oil debris", "downstream component damage", "shop visit"],
+    "scoringGuidance": "Use when the consequence is maintenance significant but not clearly an immediate operational hazard."
+  },
+  {
+    "score": 4,
+    "classification": "Local component damage",
+    "systemEffect": "Local damage, abnormal noise, leakage without fire/shutdown wording, or inspection before continued use",
+    "typicalEvidenceTerms": ["abnormal noise", "local damage", "inspection", "leakage"],
+    "scoringGuidance": "Use when the effect appears local and controlled with limited propagation."
+  },
+  {
+    "score": 3,
+    "classification": "Minor degradation",
+    "systemEffect": "Observable degradation or monitored condition with low operational impact",
+    "typicalEvidenceTerms": ["minor degradation", "monitored condition", "trend"],
+    "scoringGuidance": "Use for low-impact effects that do not require immediate removal or operational restriction."
+  },
+  {
+    "score": 2,
+    "classification": "Low operational impact",
+    "systemEffect": "Cosmetic or low-level wear with planned maintenance only",
+    "typicalEvidenceTerms": ["cosmetic", "low-level wear", "planned maintenance"],
+    "scoringGuidance": "Use when evidence indicates little effect on system function."
+  },
+  {
+    "score": 1,
+    "classification": "No meaningful system effect",
+    "systemEffect": "No credible engine, aircraft, mission, or maintenance consequence",
+    "typicalEvidenceTerms": ["no effect", "no safety effect"],
+    "scoringGuidance": "Use only when evidence explicitly supports negligible consequence."
+  }
+]

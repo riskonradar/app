@@ -1,4 +1,5 @@
 import { getSupabaseAnonClient } from "@/lib/supabase/server";
+import propagationPaths from "@/data/turbofan-propagation-paths.json";
 
 type SupabaseFmeaRow = {
   component: string;
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
       failureMode: row.failure_mode,
       effect: row.effect ?? "",
       cause: row.cause ?? "",
-      severity: row.severity ?? "",
+      severity: row.severity || inferSeverity(row),
       occurrence: row.occurrence ?? "",
       detection: row.detection ?? "",
       correctiveAction: row.corrective_action ?? "",
@@ -60,4 +61,83 @@ export async function GET(request: Request) {
       sources: Array.isArray(row.sources) ? row.sources : [],
     })),
   });
+}
+
+function inferSeverity(row: SupabaseFmeaRow) {
+  const effect = row.effect ?? "";
+  const directScore = inferSeverityFromEffect(effect);
+  if (!effect.trim()) return "";
+  if (directScore && !isVagueEffect(effect)) return directScore;
+
+  const pathScore = inferSeverityFromPropagationPath([
+    row.component,
+    row.failure_mode,
+    row.cause ?? "",
+    effect,
+  ]);
+
+  return pathScore || directScore;
+}
+
+function inferSeverityFromEffect(effect: string) {
+  const normalized = effect.toLowerCase();
+  if (!normalized.trim()) return "";
+  if (/catastrophic|rotor burst|loss of control/.test(normalized)) return "10";
+  if (/uncontained release|fire|aircraft damage|safety hazard/.test(normalized)) return "9";
+  if (/in-flight shutdown|engine shutdown|engine failure|loss of thrust|major thrust loss|forced landing/.test(normalized)) return "8";
+  if (/surge|stall|flameout|high vibration|loss of oil pressure|loss of fuel pressure/.test(normalized)) return "7";
+  if (/reduced thrust|performance loss|overtemperature|egt margin|turbine distress|thrust deterioration/.test(normalized)) return "6";
+  if (/metallic particle|oil debris|downstream component damage|shop visit|component replacement/.test(normalized)) return "5";
+  if (/abnormal noise|local damage|leakage|inspection/.test(normalized)) return "4";
+  if (/minor degradation|monitored condition|trend/.test(normalized)) return "3";
+  if (/cosmetic|low-level wear|planned maintenance/.test(normalized)) return "2";
+  if (/no effect|no safety effect/.test(normalized)) return "1";
+  return "";
+}
+
+function isVagueEffect(effect: string) {
+  return /^(damage|failure|degradation|distress|loss|reduction|wear|crack|fracture|leakage|overheating)(\b| \/|;|$)/i.test(
+    effect.trim(),
+  );
+}
+
+function inferSeverityFromPropagationPath(parts: string[]) {
+  const candidateTokens = tokenize(parts.join(" "));
+  let bestScore = 0;
+  let bestSeverity = "";
+
+  for (const path of propagationPaths) {
+    const pathText = [
+      path.cause,
+      path.componentFailure,
+      path.localEffect,
+      path.engineEffect,
+      path.aircraftMissionConsequence,
+    ].join(" ");
+    const pathTokens = tokenize(pathText);
+    const overlap = pathTokens.filter((token) => candidateTokens.includes(token)).length;
+    const componentBoost = candidateTokens.some((token) => path.componentFailure.toLowerCase().includes(token)) ? 2 : 0;
+    const causeBoost = candidateTokens.some((token) => path.cause.toLowerCase().includes(token)) ? 2 : 0;
+    const score = overlap + componentBoost + causeBoost;
+
+    if (score >= 4 && score > bestScore) {
+      bestScore = score;
+      bestSeverity = String(path.suggestedSeverity);
+    }
+  }
+
+  return bestSeverity;
+}
+
+function tokenize(value: string) {
+  const stopWords = new Set(["and", "or", "the", "with", "from", "into", "risk", "possible"]);
+  return Array.from(
+    new Set(
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .split(" ")
+        .filter((token) => token.length > 2 && !stopWords.has(token)),
+    ),
+  );
 }
