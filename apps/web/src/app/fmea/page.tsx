@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
@@ -786,13 +786,10 @@ function groupRowsByComponent(rows: FmeaRow[]) {
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const [selectionStep, setSelectionStep] = useState<SelectionStep>(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mode") === "new"
-      ? "initial"
-      : "table",
-  );
+  const [selectionStep, setSelectionStep] = useState<SelectionStep>("table");
   const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(bundledTurbofanData.rows));
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("all");
@@ -867,14 +864,15 @@ export default function Home() {
   }, [totalPages]);
 
   useEffect(() => {
-    const component =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("component")
-        : null;
+    if (searchParams.get("mode") === "new") {
+      setSelectionStep("initial");
+      return;
+    }
+    const component = searchParams.get("component");
     if (!component) return;
     setSelectionStep("table");
     setComponentFilter(component);
-  }, []);
+  }, [searchParams]);
 
   // Initialize all components as expanded
   useEffect(() => {
@@ -1670,7 +1668,10 @@ export default function Home() {
                               <input
                                 type="checkbox"
                                 checked={manualComponents.includes(component)}
-                                onChange={() => toggleManualComponent(component)}
+                                onChange={() => {
+                                  toggleManualComponent(component);
+                                  setComponentDropdownOpen(false);
+                                }}
                               />
                               <span>{component}</span>
                             </label>
