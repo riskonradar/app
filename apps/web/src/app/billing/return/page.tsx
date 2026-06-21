@@ -13,7 +13,7 @@ export default function BillingReturnPage() {
   useEffect(() => {
     async function checkPaymentStatus() {
       const paymentId = searchParams.get("payment_id");
-      
+
       if (!paymentId) {
         setStatus("error");
         setMessage("No payment ID found in return URL.");
@@ -25,6 +25,14 @@ export default function BillingReturnPage() {
         const data = await response.json();
 
         if (!response.ok) {
+          // If payment record doesn't exist yet (webhook might not have fired),
+          // show a message to wait a bit and retry
+          if (response.status === 404) {
+            setStatus("loading");
+            setMessage("Payment is being processed. Please wait...");
+            setTimeout(checkPaymentStatus, 3000);
+            return;
+          }
           throw new Error(data.error || "Could not verify payment status.");
         }
 
@@ -39,6 +47,10 @@ export default function BillingReturnPage() {
         } else if (data.status === "failed" || data.status === "expired" || data.status === "canceled") {
           setStatus("error");
           setMessage(`Payment ${data.status}. Please try again or contact support.`);
+        } else if (data.status === "open") {
+          setStatus("loading");
+          setMessage("Payment is still open. Waiting for completion...");
+          setTimeout(checkPaymentStatus, 3000);
         } else {
           setStatus("loading");
           setMessage(`Payment status: ${data.status}. Waiting for completion...`);

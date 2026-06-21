@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     description,
     redirectUrl:
       process.env.MOLLIE_REDIRECT_URL ?? "http://localhost:3000/billing/return",
-    webhookUrl: process.env.MOLLIE_WEBHOOK_URL,
+    webhookUrl: process.env.MOLLIE_WEBHOOK_URL ?? null, // Allow null for localhost testing
     metadata: {
       clerkUserId: userId,
       checkoutContext: "signed_in",

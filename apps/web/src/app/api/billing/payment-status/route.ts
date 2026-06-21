@@ -36,24 +36,53 @@ export async function GET(request: Request) {
     .eq("user_account_id", userAccount.id)
     .single() as any;
 
+  // If payment record doesn't exist, try to fetch from Mollie and create it
+  // This handles localhost testing where webhooks might not fire
   if (paymentError || !paymentRecord) {
-    return Response.json({ error: "Payment record not found." }, { status: 404 });
+    try {
+      const molliePayment = await getMollieClient().payments.get(paymentId);
+
+      // Create the payment record since it doesn't exist
+      const { error: insertError } = await supabase
+        .from("billing_payments")
+        .insert({
+          user_account_id: userAccount.id,
+          mollie_payment_id: molliePayment.id,
+          status: molliePayment.status,
+          amount_value: parseFloat(molliePayment.amount?.value || "0"),
+          amount_currency: molliePayment.amount?.currency || "EUR",
+          checkout_url: molliePayment._links.checkout?.href,
+          metadata: molliePayment.metadata || {},
+        });
+
+      if (insertError) {
+        console.error("Failed to create payment record:", insertError);
+      }
+
+      return Response.json({
+        id: paymentId,
+        status: molliePayment.status,
+      });
+    } catch (mollieError) {
+      console.error("Failed to fetch payment from Mollie:", mollieError);
+      return Response.json({ error: "Payment not found in database or Mollie." }, { status: 404 });
+    }
   }
 
   // Optionally refresh status from Mollie to ensure it's up to date
   try {
     const molliePayment = await getMollieClient().payments.get(paymentId);
-    
+
     // Update our database if the status has changed
     if (molliePayment.status !== paymentRecord.status) {
       await supabase
         .from("billing_payments")
-        .update({ 
+        .update({
           status: molliePayment.status,
           updated_at: new Date().toISOString(),
         })
         .eq("mollie_payment_id", paymentId);
-      
+
       return Response.json({
         id: paymentId,
         status: molliePayment.status,

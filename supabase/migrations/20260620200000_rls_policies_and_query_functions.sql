@@ -71,6 +71,31 @@ CREATE POLICY "open read evidence_records"
   ON knowledge.evidence_records FOR SELECT
   USING (true);
 
+-- app: billing tables - service role only (no public policies needed)
+DROP POLICY IF EXISTS "service role all billing_payments"
+  ON app.billing_payments;
+
+CREATE POLICY "service role all billing_payments"
+  ON app.billing_payments FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service role all billing_customers"
+  ON app.billing_customers;
+
+CREATE POLICY "service role all billing_customers"
+  ON app.billing_customers FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service role all user_accounts"
+  ON app.user_accounts;
+
+CREATE POLICY "service role all user_accounts"
+  ON app.user_accounts FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
 -- ============================================================
 -- QUERY FUNCTIONS (public schema, SECURITY DEFINER so they
 -- can reach knowledge.* and papers_raw.* schemas via REST)
