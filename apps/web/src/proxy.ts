@@ -4,6 +4,8 @@ import type { NextFetchEvent, NextRequest } from "next/server";
 
 import { isClerkConfigured } from "@/lib/config";
 
+export const runtime = "edge";
+
 export default function proxy(request: NextRequest, event: NextFetchEvent) {
   if (!isClerkConfigured()) {
     return NextResponse.next();
