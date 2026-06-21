@@ -52,7 +52,7 @@ const systemTemplates: SystemTemplate[] = [
     id: "turbofan",
     name: "Turbofan engine",
     domain: "Aviation propulsion",
-    source: `${fmeaData.rowCount} evidence rows from ${fmeaData.recordCount} source records`,
+    source: `${fmeaData.recordCount} evidence records from papers + EASA; ${fmeaData.rowCount} merged FMEA rows`,
     description:
       "A preloaded reliability workspace built from the turbofan prototype corpus.",
     components: fmeaData.components as string[],
@@ -427,6 +427,10 @@ export default function Home() {
     ? Math.round(((includedRows.length - incompleteRows.length) / includedRows.length) * 100)
     : 0;
   const evidenceBackedRows = includedRows.filter((row) => row.evidenceCount > 0).length;
+  const totalEvidenceRecords =
+    activeSystemId === "turbofan" ? Number(fmeaData.recordCount ?? 0) : rows.length;
+  const mergedFmeaRows =
+    activeSystemId === "turbofan" ? Number(fmeaData.rowCount ?? includedRows.length) : includedRows.length;
   const canExport = includedRows.length > 0 && incompleteRows.length === 0;
 
   function updateRow(id: string, update: Partial<FmeaRow>) {
@@ -545,12 +549,12 @@ export default function Home() {
               <strong>{completionPercent}%</strong>
             </div>
             <div>
-              <span className="metric-label">Included rows</span>
-              <strong>{includedRows.length}</strong>
+              <span className="metric-label">Evidence records</span>
+              <strong>{totalEvidenceRecords}</strong>
             </div>
             <div>
-              <span className="metric-label">Evidence-backed</span>
-              <strong>{evidenceBackedRows}</strong>
+              <span className="metric-label">Merged FMEA rows</span>
+              <strong>{mergedFmeaRows}</strong>
             </div>
             <div>
               <span className="metric-label">Open fields</span>
