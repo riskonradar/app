@@ -1,20 +1,16 @@
 import { getCurrentClerkUserId } from "@/lib/auth/server";
-import { isClerkConfigured } from "@/lib/config";
+import { isMollieConfigured } from "@/lib/config";
 import { getMollieClient } from "@/lib/mollie/server";
 
 export async function POST(request: Request) {
-  if (!isClerkConfigured()) {
+  if (!isMollieConfigured()) {
     return Response.json(
-      { error: "Clerk must be configured before creating payments." },
+      { error: "Mollie must be configured before creating payments." },
       { status: 503 },
     );
   }
 
   const userId = await getCurrentClerkUserId();
-  if (!userId) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = await request.json().catch(() => ({}));
   const amountValue = String(body.amountValue ?? "49.00");
   const description = String(body.description ?? "Risk on Radar MVP access");
@@ -29,7 +25,8 @@ export async function POST(request: Request) {
       process.env.MOLLIE_REDIRECT_URL ?? "http://localhost:3000/billing/return",
     webhookUrl: process.env.MOLLIE_WEBHOOK_URL,
     metadata: {
-      clerkUserId: userId,
+      clerkUserId: userId ?? null,
+      checkoutContext: userId ? "signed_in" : "anonymous_prototype",
     },
   });
 

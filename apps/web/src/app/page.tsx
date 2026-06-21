@@ -389,7 +389,7 @@ export default function Home() {
   const [activeSystemId, setActiveSystemId] = useState("turbofan");
   const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(fmeaData.rows as EvidenceRow[]));
   const [componentFilter, setComponentFilter] = useState("All");
-  const [evidenceFilter, setEvidenceFilter] = useState("all");
+  const [rowFilter, setRowFilter] = useState("with_effect");
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
   const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
   const [notice, setNotice] = useState("Free tier: 1 saved FMEA. Upgrade for unlimited saved worksheets.");
@@ -413,24 +413,19 @@ export default function Home() {
     () =>
       rows.filter((row) => {
         if (componentFilter !== "All" && row.component !== componentFilter) return false;
-        if (evidenceFilter === "evidence" && row.evidenceCount === 0) return false;
-        if (evidenceFilter === "incomplete" && isComplete(row)) return false;
-        if (evidenceFilter === "included" && !row.included) return false;
+        if (rowFilter === "with_effect" && !row.effect.trim()) return false;
+        if (rowFilter === "missing_effect" && row.effect.trim()) return false;
+        if (rowFilter === "evidence" && row.evidenceCount === 0) return false;
+        if (rowFilter === "incomplete" && isComplete(row)) return false;
+        if (rowFilter === "included" && !row.included) return false;
         return true;
       }),
-    [componentFilter, evidenceFilter, rows],
+    [componentFilter, rowFilter, rows],
   );
 
   const includedRows = rows.filter((row) => row.included);
   const incompleteRows = includedRows.filter((row) => !isComplete(row));
-  const completionPercent = includedRows.length
-    ? Math.round(((includedRows.length - incompleteRows.length) / includedRows.length) * 100)
-    : 0;
-  const evidenceBackedRows = includedRows.filter((row) => row.evidenceCount > 0).length;
-  const totalEvidenceRecords =
-    activeSystemId === "turbofan" ? Number(fmeaData.recordCount ?? 0) : rows.length;
-  const mergedFmeaRows =
-    activeSystemId === "turbofan" ? Number(fmeaData.rowCount ?? includedRows.length) : includedRows.length;
+  const rowsMissingEffect = rows.filter((row) => !row.effect.trim()).length;
   const canExport = includedRows.length > 0 && incompleteRows.length === 0;
 
   function updateRow(id: string, update: Partial<FmeaRow>) {
@@ -445,8 +440,10 @@ export default function Home() {
     setActiveSystemId(systemId);
     setComponentFilter("All");
     if (systemId === "turbofan") {
+      setRowFilter("with_effect");
       setRows(toFmeaRows(fmeaData.rows as EvidenceRow[]));
     } else {
+      setRowFilter("all");
       setRows(templateRowsForComponents(nextSystem.components));
     }
   }
@@ -462,6 +459,7 @@ export default function Home() {
     }
     setActiveSystemId("custom");
     setComponentFilter("All");
+    setRowFilter("all");
     setRows(templateRowsForComponents(componentsFromBom));
     setNotice(`Created a draft FMEA from ${componentsFromBom.length} BOM components. Review each required field before export.`);
   }
@@ -519,12 +517,6 @@ export default function Home() {
           </Link>
 
           <div className="nav-actions">
-            <a className="nav-link" href="#builder">
-              Builder
-            </a>
-            <a className="nav-link" href="#worksheet">
-              Worksheet
-            </a>
             <a className="nav-link" href="#saved-workflows">
               Dashboard
             </a>
@@ -534,36 +526,7 @@ export default function Home() {
       </nav>
 
       <main id="main-content" className="app-main">
-        <section className="builder-hero" id="builder">
-          <div className="hero-copy">
-            <h1>Build an evidence-backed FMEA worksheet.</h1>
-            <p>
-              Select a system, import a BOM, review failure evidence, complete S/O/D scoring,
-              and export a traceable spreadsheet for engineering review.
-            </p>
-          </div>
-
-          <div className="run-strip" aria-label="FMEA status">
-            <div>
-              <span className="metric-label">Completion</span>
-              <strong>{completionPercent}%</strong>
-            </div>
-            <div>
-              <span className="metric-label">Evidence records</span>
-              <strong>{totalEvidenceRecords}</strong>
-            </div>
-            <div>
-              <span className="metric-label">Merged FMEA rows</span>
-              <strong>{mergedFmeaRows}</strong>
-            </div>
-            <div>
-              <span className="metric-label">Open fields</span>
-              <strong>{incompleteRows.length}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="builder-layout">
+        <section className="builder-layout" id="builder">
           <aside className="left-rail" aria-label="FMEA setup">
             <section className="panel">
               <div className="panel-heading">
@@ -606,6 +569,50 @@ export default function Home() {
               </button>
             </section>
 
+            <section className="panel">
+              <div className="panel-heading">
+                <span className="metric-label">Filters</span>
+                <strong>Worksheet rows</strong>
+              </div>
+              <label className="field-label" htmlFor="component-filter">
+                Component
+              </label>
+              <select
+                id="component-filter"
+                className="rail-select"
+                value={componentFilter}
+                onChange={(event) => setComponentFilter(event.target.value)}
+                aria-label="Filter by component"
+              >
+                <option value="All">All components</option>
+                {components.map((component) => (
+                  <option key={component} value={component}>
+                    {component}
+                  </option>
+                ))}
+              </select>
+
+              <div className="filter-buttons" aria-label="Filter rows">
+                {[
+                  ["with_effect", "With effect"],
+                  ["all", "All rows"],
+                  ["missing_effect", `Missing effect (${rowsMissingEffect})`],
+                  ["included", "Included"],
+                  ["evidence", "Evidence-backed"],
+                  ["incomplete", "Incomplete"],
+                ].map(([value, label]) => (
+                  <button
+                    type="button"
+                    key={value}
+                    className={`filter-button ${rowFilter === value ? "active" : ""}`}
+                    onClick={() => setRowFilter(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <section className="panel plan-panel">
               <div className="panel-heading">
                 <span className="metric-label">Plan</span>
@@ -629,34 +636,11 @@ export default function Home() {
           <section className="workspace-panel">
             <div className="workspace-toolbar">
               <div>
-                <span className="metric-label">{activeSystem.source}</span>
+                <span className="metric-label">FMEA worksheet</span>
                 <h2>{activeSystem.name}</h2>
                 <p>{activeSystem.description}</p>
               </div>
-              <div className="toolbar-actions">
-                <select
-                  value={componentFilter}
-                  onChange={(event) => setComponentFilter(event.target.value)}
-                  aria-label="Filter by component"
-                >
-                  <option value="All">All components</option>
-                  {components.map((component) => (
-                    <option key={component} value={component}>
-                      {component}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={evidenceFilter}
-                  onChange={(event) => setEvidenceFilter(event.target.value)}
-                  aria-label="Filter rows"
-                >
-                  <option value="all">All rows</option>
-                  <option value="included">Included only</option>
-                  <option value="evidence">Evidence-backed</option>
-                  <option value="incomplete">Incomplete</option>
-                </select>
-              </div>
+              <span className="row-count">{visibleRows.length} shown</span>
             </div>
 
             <div className={`completion-banner ${canExport ? "ready" : "blocked"}`} role="status">
@@ -679,23 +663,6 @@ export default function Home() {
             </div>
 
             <p className={`notice ${paymentState === "error" ? "error" : ""}`}>{notice}</p>
-
-            <div className="component-map" aria-label="System components">
-              {components.map((component) => {
-                const count = rows.filter((row) => row.component === component).length;
-                return (
-                  <button
-                    type="button"
-                    key={component}
-                    className={`component-chip ${componentFilter === component ? "active" : ""}`}
-                    onClick={() => setComponentFilter(componentFilter === component ? "All" : component)}
-                  >
-                    <span>{component}</span>
-                    <small>{count}</small>
-                  </button>
-                );
-              })}
-            </div>
 
             <div className="table-shell" id="worksheet">
               <table className="fmea-table">
