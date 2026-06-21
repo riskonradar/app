@@ -43,6 +43,9 @@ def load_llm_config() -> LlmConfig | None:
     elif provider == "groq":
         api_key = os.environ.get("GROQ_API_KEY")
         model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    elif provider == "ollama":
+        api_key = "ollama"  # no key needed, but field is required
+        model = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
     elif provider == "openai":
         api_key = os.environ.get("OPENAI_API_KEY")
         model = os.environ.get("OPENAI_MODEL", "gpt-5.4-nano")
@@ -57,21 +60,33 @@ def load_llm_config() -> LlmConfig | None:
     return LlmConfig(provider=provider, model=model, api_key=api_key)
 
 
-def extract_with_llm(paper: Paper, config: LlmConfig) -> ClassificationResult:
+def extract_with_llm(paper: Paper, config: LlmConfig, retries: int = 3) -> ClassificationResult:
+    import time
     prompt = _prompt_for(paper)
-    if config.provider == "gemini":
-        raw_text = _call_gemini(prompt, config)
-    elif config.provider == "groq":
-        raw_text = _call_groq(prompt, config)
-    elif config.provider == "openai":
-        raw_text = _call_openai(prompt, config)
-    elif config.provider == "anthropic":
-        raw_text = _call_anthropic(prompt, config)
-    else:
-        raise LlmExtractorError(f"Unsupported LLM_PROVIDER: {config.provider}")
-
-    payload = _parse_json_object(raw_text)
-    return _result_from_payload(paper, payload, config)
+    last_error: LlmExtractorError | None = None
+    for attempt in range(retries):
+        try:
+            if config.provider == "gemini":
+                raw_text = _call_gemini(prompt, config)
+            elif config.provider == "groq":
+                raw_text = _call_groq(prompt, config)
+            elif config.provider == "ollama":
+                raw_text = _call_ollama(prompt, config)
+            elif config.provider == "openai":
+                raw_text = _call_openai(prompt, config)
+            elif config.provider == "anthropic":
+                raw_text = _call_anthropic(prompt, config)
+            else:
+                raise LlmExtractorError(f"Unsupported LLM_PROVIDER: {config.provider}")
+            payload = _parse_json_object(raw_text)
+            return _result_from_payload(paper, payload, config)
+        except LlmExtractorError as exc:
+            last_error = exc
+            if attempt < retries - 1:
+                wait = 10 * (2 ** attempt)  # 10s, 20s, 40s
+                print(f"  LLM attempt {attempt + 1} failed, retrying in {wait}s: {exc}")
+                time.sleep(wait)
+    raise last_error
 
 
 def _prompt_for(paper: Paper) -> str:
@@ -162,6 +177,26 @@ def _call_groq(prompt: str, config: LlmConfig) -> str:
         return data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise LlmExtractorError(f"Unexpected Groq response: {data}") from exc
+
+
+def _call_ollama(prompt: str, config: LlmConfig) -> str:
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    payload = {
+        "model": config.model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "format": "json",  # Ollama native JSON mode — works across all models
+        "stream": False,
+    }
+    data = _post_json(
+        f"{base_url}/api/chat",
+        payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        return data["message"]["content"]
+    except (KeyError, TypeError) as exc:
+        raise LlmExtractorError(f"Unexpected Ollama response: {data}") from exc
 
 
 def _call_gemini(prompt: str, config: LlmConfig) -> str:

@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useMemo, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
+
+import { AuthControls } from "@/components/auth/auth-controls";
 import fmeaData from "@/data/fmea-turbofan-data.json";
 
 type Source = {
@@ -10,7 +14,7 @@ type Source = {
   url?: string;
 };
 
-type FmeaRow = {
+type EvidenceRow = {
   component: string;
   failureMode: string;
   effect: string;
@@ -24,593 +28,843 @@ type FmeaRow = {
   sources: Source[];
 };
 
-const COMPONENTS = [
-  "Nacelle",
-  "Engine inlet / intake",
-  "Fan / fan blade",
-  "Fan case",
-  "Low-pressure compressor",
-  "High-pressure compressor",
-  "Combustor",
-  "High-pressure turbine",
-  "Low-pressure turbine",
-  "Shaft",
-  "Bearing",
-  "Gearbox / accessory gearbox",
-];
-
-const PART_LABELS = {
-  "fan-1": { label: "Fan", component: "Fan / fan blade", row: 0 },
-  "2kTrent_900_Jeth_CFM_56_cover_7-1": { label: "Fan Case", component: "Fan case", row: 1 },
-  "LPC_youssef_and_Ammar-1": { label: "Low-Pressure Compressor", component: "Low-pressure compressor", row: 2 },
-  "HTP325-1": { label: "High-Pressure Compressor", component: "High-pressure compressor", row: 0 },
-  "combustion-1": { label: "Combustor", component: "Combustor", row: 1 },
-  "Back_Casing-1": { label: "Core Engine Case", component: "Nacelle", row: 2 },
-  "HPT_Abbass-1": { label: "High-Pressure Turbine", component: "High-pressure turbine", row: 0 },
-  "LPT-1": { label: "Low-Pressure Turbine", component: "Low-pressure turbine", row: 1 },
-  "exhaust-1": { label: "Exhaust Cone", component: "Nacelle", row: 2 },
-} as const;
-
-const PART_COLORS: Record<string, { color: number; metalness: number; roughness: number }> = {
-  "fan-1": { color: 0xe2e2e2, metalness: 0.3, roughness: 0.5 },
-  "LPC_youssef_and_Ammar-1": { color: 0xd8d8d8, metalness: 0.32, roughness: 0.52 },
-  "HTP325-1": { color: 0xdcdcdc, metalness: 0.3, roughness: 0.5 },
-  "combustion-1": { color: 0xd6d6d6, metalness: 0.32, roughness: 0.54 },
-  "HPT_Abbass-1": { color: 0xdcdcdc, metalness: 0.3, roughness: 0.5 },
-  "LPT-1": { color: 0xd8d8d8, metalness: 0.32, roughness: 0.52 },
-  "exhaust-1": { color: 0xd2d2d2, metalness: 0.32, roughness: 0.54 },
-  "Back_Casing-1": { color: 0xd6d6d6, metalness: 0.3, roughness: 0.52 },
-  "2kTrent_900_Jeth_CFM_56_cover_7-1": { color: 0xe6e6e6, metalness: 0.22, roughness: 0.58 },
+type FmeaRow = EvidenceRow & {
+  id: string;
+  function: string;
+  requirement: string;
+  currentControl: string;
+  owner: string;
+  status: "needs_review" | "accepted" | "rejected";
+  included: boolean;
 };
 
-const SYSTEM_PATHS = [
+type SystemTemplate = {
+  id: string;
+  name: string;
+  domain: string;
+  source: string;
+  description: string;
+  components: string[];
+};
+
+const systemTemplates: SystemTemplate[] = [
   {
-    name: "Air Path",
-    tone: "air",
-    items: ["Fan", "LPC", "HPC", "Combustor", "Turbine"],
+    id: "turbofan",
+    name: "Turbofan engine",
+    domain: "Aviation propulsion",
+    source: `${fmeaData.rowCount} evidence rows from ${fmeaData.recordCount} source records`,
+    description:
+      "A preloaded reliability workspace built from the turbofan prototype corpus.",
+    components: fmeaData.components as string[],
   },
   {
-    name: "Fuel Path",
-    tone: "fuel",
-    items: ["Pumps", "Valves", "Nozzles"],
+    id: "pump-train",
+    name: "Centrifugal pump train",
+    domain: "Process equipment",
+    source: "Template system",
+    description:
+      "Starter structure for pump, seal, bearing, coupling, motor, and instrumentation FMEAs.",
+    components: [
+      "Pump casing",
+      "Impeller",
+      "Mechanical seal",
+      "Shaft",
+      "Bearing",
+      "Coupling",
+      "Electric motor",
+      "Vibration sensor",
+    ],
   },
   {
-    name: "Oil Path",
-    tone: "oil",
-    items: ["Bearings", "Seals", "Pumps"],
-  },
-  {
-    name: "Control Path",
-    tone: "control",
-    items: ["FADEC", "Sensors", "Actuators"],
+    id: "wind-drivetrain",
+    name: "Wind turbine drivetrain",
+    domain: "Renewable energy",
+    source: "Template system",
+    description:
+      "Starter structure for gearbox, blade, bearing, generator, converter, brake, and tower interfaces.",
+    components: [
+      "Blade",
+      "Pitch bearing",
+      "Main shaft",
+      "Main bearing",
+      "Gearbox",
+      "Generator",
+      "Power converter",
+      "Brake system",
+    ],
   },
 ];
 
-function splitTerms(value: string) {
-  return value
-    .split(";")
-    .map((item) => item.trim())
-    .filter(Boolean);
+const defaultControls = [
+  "Visual inspection",
+  "Vibration monitoring",
+  "Oil debris analysis",
+  "Scheduled overhaul",
+  "Borescope inspection",
+  "Thermal trend monitoring",
+];
+
+const scoreOptions = Array.from({ length: 10 }, (_, index) => String(index + 1));
+
+function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
+  return `${row.component}-${row.failureMode}-${index}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-");
 }
 
-function TermCell({ value }: { value: string }) {
-  const terms = splitTerms(value);
-  if (!terms.length) return <span className="blank">blank</span>;
-  if (terms.length === 1) return <>{terms[0]}</>;
-  return (
-    <div className="term-list">
-      {terms.map((term) => (
-        <span key={term}>{term}</span>
-      ))}
-    </div>
+function toFmeaRows(rows: EvidenceRow[]): FmeaRow[] {
+  return rows.map((row, index) => ({
+    ...row,
+    id: makeRowId(row, index),
+    function: functionForComponent(row.component),
+    requirement: "Maintain intended system function under defined operating conditions",
+    currentControl: row.correctiveAction || defaultControls[index % defaultControls.length],
+    owner: "",
+    status: "needs_review",
+    included: true,
+  }));
+}
+
+function functionForComponent(component: string) {
+  const lower = component.toLowerCase();
+  if (lower.includes("bearing")) return "Support rotating load with controlled friction";
+  if (lower.includes("blade") || lower.includes("fan")) return "Convert shaft power into controlled airflow";
+  if (lower.includes("compressor")) return "Increase working-fluid pressure for combustion";
+  if (lower.includes("turbine")) return "Extract gas-path energy into shaft power";
+  if (lower.includes("shaft")) return "Transmit torque across rotating assemblies";
+  if (lower.includes("gear")) return "Transfer speed and torque through accessory drives";
+  if (lower.includes("seal")) return "Contain fluid and isolate pressure boundaries";
+  return `Perform ${component.toLowerCase()} function`;
+}
+
+function templateRowsForComponents(components: string[]): FmeaRow[] {
+  const failureModes = [
+    "Fatigue cracking",
+    "Wear / material loss",
+    "Corrosion / pitting",
+    "Loss of alignment",
+    "Thermal degradation",
+  ];
+
+  return components.flatMap((component, componentIndex) =>
+    failureModes.slice(0, 3).map((failureMode, failureIndex) => {
+      const index = componentIndex * 3 + failureIndex;
+      return {
+        id: makeRowId({ component, failureMode }, index),
+        component,
+        function: functionForComponent(component),
+        requirement: "Define requirement",
+        failureMode,
+        effect: "",
+        cause: "",
+        severity: "",
+        occurrence: "",
+        detection: "",
+        correctiveAction: "",
+        currentControl: defaultControls[index % defaultControls.length],
+        owner: "",
+        status: "needs_review" as const,
+        included: true,
+        rpn: "",
+        evidenceCount: 0,
+        sources: [],
+      };
+    }),
   );
 }
 
-function sourceId(source: Source) {
-  return [source.doi, source.title, source.year].filter(Boolean).join("|");
+function parseBom(text: string) {
+  return Array.from(
+    new Set(
+      text
+        .split(/\r?\n/)
+        .map((line) => line.split(/,|\t|;/)[0]?.trim())
+        .filter((item) => item && !/^(part|component|item|bom|name)$/i.test(item))
+        .slice(0, 18),
+    ),
+  );
 }
 
-function TurbofanModel({
-  componentClass,
-  getCount,
-  handleComponentSelect,
-}: {
-  componentClass: (component: string, baseClass: string) => string;
-  getCount: (component: string) => number;
-  handleComponentSelect: (component: string) => void;
-}) {
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const labelRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+function csvEscape(value: string | number | undefined) {
+  const stringValue = String(value ?? "");
+  if (!/[",\n]/.test(stringValue)) return stringValue;
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
 
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
+function htmlEscape(value: string | number | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
-    let disposed = false;
-    let frame = 0;
-    let renderer: import("three").WebGLRenderer | null = null;
-    let scene: import("three").Scene | null = null;
-    let camera: import("three").PerspectiveCamera | null = null;
-    const modelNodes = new Map<string, import("three").Object3D>();
-    const centerOffsets = new Map<string, import("three").Vector3>();
-    const disposables: Array<{ dispose: () => void }> = [];
+function downloadFile(filename: string, mimeType: string, content: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
-    async function init() {
-      const THREE = await import("three");
-      const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
-      const { DRACOLoader } = await import("three/addons/loaders/DRACOLoader.js");
-      if (!mount || disposed) return;
+function rowRpn(row: FmeaRow) {
+  const s = Number(row.severity);
+  const o = Number(row.occurrence);
+  const d = Number(row.detection);
+  if (!s || !o || !d) return "";
+  return String(s * o * d);
+}
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-      renderer.setSize(mount.clientWidth, mount.clientHeight);
-      renderer.setClearColor(0x000000, 0);
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.08;
-      mount.appendChild(renderer.domElement);
+function isComplete(row: FmeaRow) {
+  if (!row.included) return true;
+  return Boolean(
+    row.component &&
+      row.function &&
+      row.failureMode &&
+      row.effect &&
+      row.cause &&
+      row.severity &&
+      row.occurrence &&
+      row.detection &&
+      row.currentControl,
+  );
+}
 
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.001, 10000000);
-      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-      [
-        [4, 6, 5, 1.4],
-        [-4, -2, -5, 0.55],
-        [0, 9, 0, 0.4],
-        [-3, 2, 6, 0.35],
-      ].forEach(([x, y, z, intensity]) => {
-        const light = new THREE.DirectionalLight(0xffffff, intensity);
-        light.position.set(x, y, z);
-        scene?.add(light);
-      });
+function buildCsv(rows: FmeaRow[]) {
+  const headers = [
+    "Included",
+    "Component",
+    "Function",
+    "Requirement",
+    "Failure mode",
+    "Effect",
+    "Severity",
+    "Cause",
+    "Occurrence",
+    "Current controls",
+    "Detection",
+    "RPN",
+    "Recommended action",
+    "Owner",
+    "Review status",
+    "Evidence count",
+    "Sources",
+  ];
 
-      const draco = new DRACOLoader();
-      draco.setDecoderPath("/draco/");
-      disposables.push(draco);
-      const loader = new GLTFLoader();
-      loader.setDRACOLoader(draco);
+  const body = rows.map((row) => [
+    row.included ? "Yes" : "No",
+    row.component,
+    row.function,
+    row.requirement,
+    row.failureMode,
+    row.effect,
+    row.severity,
+    row.cause,
+    row.occurrence,
+    row.currentControl,
+    row.detection,
+    rowRpn(row),
+    row.correctiveAction,
+    row.owner,
+    row.status,
+    row.evidenceCount,
+    row.sources.map((source) => source.doi || source.title).join("; "),
+  ]);
 
-      loader.load("/turbine.glb", (gltf) => {
-        if (disposed || !scene || !camera || !renderer || !mount) return;
-        const root = gltf.scene;
-        scene.add(root);
+  return [headers, ...body]
+    .map((line) => line.map((cell) => csvEscape(cell)).join(","))
+    .join("\n");
+}
 
-        let assembly: import("three").Object3D = root;
-        root.traverse((node) => {
-          if (node.name.includes("Turbo Fan") || node.name.includes("trent")) assembly = node;
-        });
+function buildExcelHtml(rows: FmeaRow[]) {
+  const headers = [
+    "Included",
+    "Component",
+    "Function",
+    "Requirement",
+    "Failure mode",
+    "Effect",
+    "Severity",
+    "Cause",
+    "Occurrence",
+    "Current controls",
+    "Detection",
+    "RPN",
+    "Recommended action",
+    "Owner",
+    "Review status",
+    "Evidence count",
+    "Sources",
+  ];
+  const body = rows.map((row) => [
+    row.included ? "Yes" : "No",
+    row.component,
+    row.function,
+    row.requirement,
+    row.failureMode,
+    row.effect,
+    row.severity,
+    row.cause,
+    row.occurrence,
+    row.currentControl,
+    row.detection,
+    rowRpn(row),
+    row.correctiveAction,
+    row.owner,
+    row.status,
+    row.evidenceCount,
+    row.sources.map((source) => source.doi || source.title).join("; "),
+  ]);
 
-        assembly.children.forEach((child) => {
-          const cfg = PART_COLORS[child.name] ?? { color: 0xe0dfdb, metalness: 0.28, roughness: 0.55 };
-          const material = new THREE.MeshStandardMaterial(cfg);
-          disposables.push(material);
-          child.traverse((node) => {
-            const mesh = node as import("three").Mesh;
-            if (mesh.isMesh) {
-              mesh.material = material;
-              disposables.push(mesh.geometry);
-            }
-          });
-          modelNodes.set(child.name, child);
-        });
+  return `<!doctype html><html><head><meta charset="utf-8" /></head><body><table>${[
+    headers,
+    ...body,
+  ]
+    .map((line) => `<tr>${line.map((cell) => `<td>${htmlEscape(cell)}</td>`).join("")}</tr>`)
+    .join("")}</table></body></html>`;
+}
 
-        root.updateWorldMatrix(true, true);
-        const box = new THREE.Box3().setFromObject(root);
-        const size = box.getSize(new THREE.Vector3());
-        const modelCenter = box.getCenter(new THREE.Vector3());
-        const modelRadius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
-
-        const children = [...assembly.children];
-        const centers = children.map((child) => new THREE.Box3().setFromObject(child).getCenter(new THREE.Vector3()));
-        const mean = centers.reduce((acc, value) => acc.add(value), new THREE.Vector3()).divideScalar(Math.max(centers.length, 1));
-        const variance = centers.reduce(
-          (acc, value) => {
-            const delta = value.clone().sub(mean);
-            acc.x += delta.x * delta.x;
-            acc.y += delta.y * delta.y;
-            acc.z += delta.z * delta.z;
-            return acc;
-          },
-          new THREE.Vector3(),
-        );
-        const axis =
-          variance.y > variance.x && variance.y > variance.z
-            ? new THREE.Vector3(0, 1, 0)
-            : variance.z > variance.x && variance.z > variance.y
-              ? new THREE.Vector3(0, 0, 1)
-              : new THREE.Vector3(1, 0, 0);
-
-        const radialDir = new Map<string, import("three").Vector3>();
-        const axialExtent = new Map<string, number>();
-        const axisIndex = axis.y ? "y" : axis.z ? "z" : "x";
-        const axialByName = new Map<string, number>();
-        children.forEach((child) => {
-          const cbox = new THREE.Box3().setFromObject(child);
-          const csize = cbox.getSize(new THREE.Vector3());
-          const childCenter = cbox.getCenter(new THREE.Vector3());
-          const childOrigin = new THREE.Vector3();
-          child.getWorldPosition(childOrigin);
-          centerOffsets.set(child.name, childCenter.clone().sub(childOrigin));
-          axialByName.set(child.name, childCenter.clone().sub(modelCenter).dot(axis));
-          axialExtent.set(child.name, (csize as unknown as Record<string, number>)[axisIndex] * 0.5);
-          const offset = childCenter.clone().sub(modelCenter);
-          const axialPart = axis.clone().multiplyScalar(offset.dot(axis));
-          const pureRadial = offset.sub(axialPart);
-          radialDir.set(
-            child.name,
-            pureRadial.length() > modelRadius * 0.02 ? pureRadial.normalize() : new THREE.Vector3(0, 1, 0),
-          );
-        });
-
-        const orderedNames = children.map((child) => child.name).sort((a, b) => (axialByName.get(a) ?? 0) - (axialByName.get(b) ?? 0));
-        const axialOffset = new Map<string, number>();
-        let cursor = 0;
-        let prevExt = 0;
-        orderedNames.forEach((name, index) => {
-          const ext = axialExtent.get(name) ?? 0;
-          cursor = index === 0 ? 0 : cursor + prevExt + ext + modelRadius * 0.18;
-          axialOffset.set(name, cursor);
-          prevExt = ext;
-        });
-        const offsets = [...axialOffset.values()];
-        const mid = (Math.min(...offsets) + Math.max(...offsets)) / 2;
-        const explodeBox = new THREE.Box3();
-        children.forEach((child) => {
-          const offset = axis
-            .clone()
-            .multiplyScalar((axialOffset.get(child.name) ?? 0) - mid)
-            .addScaledVector(radialDir.get(child.name) ?? new THREE.Vector3(0, 1, 0), modelRadius * 0.22);
-          child.position.add(offset);
-          const cbox = new THREE.Box3().setFromObject(child);
-          explodeBox.union(cbox);
-        });
-
-        root.updateWorldMatrix(true, true);
-        const explodedSize = explodeBox.getSize(new THREE.Vector3());
-        const explodedCenter = explodeBox.getCenter(new THREE.Vector3());
-        const explodedRadius = Math.max(explodedSize.x, explodedSize.y, explodedSize.z) * 0.5 || modelRadius;
-        const look = explodedCenter;
-        const side = axis.clone().cross(new THREE.Vector3(0, 1, 0));
-        if (side.length() < 0.1) side.set(0, 0, 1);
-        side.normalize();
-        camera.position
-          .copy(look)
-          .addScaledVector(side, explodedRadius * 2.45)
-          .add(new THREE.Vector3(0, explodedRadius * 0.28, 0));
-        camera.near = explodedRadius * 0.001;
-        camera.far = explodedRadius * 500;
-        camera.lookAt(look);
-        camera.updateProjectionMatrix();
-
-        const projectLabels = () => {
-          const width = mount.clientWidth;
-          const height = mount.clientHeight;
-          Object.entries(PART_LABELS).forEach(([partName]) => {
-            const label = labelRefs.current[partName];
-            const node = modelNodes.get(partName);
-            if (!label || !node || !camera) return;
-            const world = new THREE.Vector3();
-            node.getWorldPosition(world);
-            world.add(centerOffsets.get(partName) ?? new THREE.Vector3());
-            const ndc = world.project(camera);
-            if (Math.abs(ndc.z) > 1.05 || ndc.x < -1.15 || ndc.x > 1.15) {
-              label.style.opacity = "0";
-              return;
-            }
-            label.style.left = `${(((ndc.x + 1) / 2) * width).toFixed(1)}px`;
-            label.style.top = `${(((-ndc.y + 1) / 2) * height).toFixed(1)}px`;
-            label.style.opacity = "1";
-          });
-        };
-
-        const render = () => {
-          if (disposed || !renderer || !scene || !camera) return;
-          projectLabels();
-          renderer.render(scene, camera);
-          frame = requestAnimationFrame(render);
-        };
-        render();
-      });
-
-      const resize = () => {
-        if (!mount || !renderer || !camera) return;
-        renderer.setSize(mount.clientWidth, mount.clientHeight);
-        camera.aspect = mount.clientWidth / mount.clientHeight;
-        camera.updateProjectionMatrix();
-      };
-      window.addEventListener("resize", resize);
-      disposables.push({ dispose: () => window.removeEventListener("resize", resize) });
-    }
-
-    init();
-
-    return () => {
-      disposed = true;
-      cancelAnimationFrame(frame);
-      disposables.forEach((item) => item.dispose());
-      renderer?.dispose();
-      mount.replaceChildren();
-    };
-  }, []);
-
+function Wordmark() {
   return (
-    <div className="model-stage">
-      <div ref={mountRef} className="model-canvas" aria-label="3D turbofan engine exploded model" />
-      <div className="part-labels" aria-label="Exploded model part labels">
-        {Object.entries(PART_LABELS).map(([partName, { label, component, row }]) => (
-          <button
-            className={componentClass(component, "part-label")}
-            data-row={row}
-            key={partName}
-            ref={(node) => {
-              labelRefs.current[partName] = node;
-            }}
-            type="button"
-            title={`${component}: ${getCount(component)} evidence records`}
-            onClick={() => handleComponentSelect(component)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <span className="wordmark">
+      r<span className="wm-i">ı</span>sk on radar<span className="wm-dot">.</span>
+    </span>
+  );
+}
+
+function ScoreSelect({
+  value,
+  label,
+  onChange,
+}: {
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <select
+      className="score-select"
+      aria-label={label}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      <option value="">-</option>
+      {scoreOptions.map((score) => (
+        <option key={score} value={score}>
+          {score}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function EditableCell({
+  value,
+  placeholder,
+  onChange,
+  className = "",
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <textarea
+      className={`cell-input ${className}`}
+      value={value}
+      placeholder={placeholder}
+      onChange={(event) => onChange(event.target.value)}
+      rows={2}
+    />
   );
 }
 
 export default function Home() {
-  const [query, setQuery] = useState("turbofan engine");
-  const [activeComponent, setActiveComponent] = useState("All");
-  const [coverage, setCoverage] = useState("all");
-  const [selectedRow, setSelectedRow] = useState<FmeaRow | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [activeSystemId, setActiveSystemId] = useState("turbofan");
+  const [rows, setRows] = useState<FmeaRow[]>(() => toFmeaRows(fmeaData.rows as EvidenceRow[]));
+  const [componentFilter, setComponentFilter] = useState("All");
+  const [evidenceFilter, setEvidenceFilter] = useState("all");
+  const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
+  const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
+  const [notice, setNotice] = useState("Free tier: 1 saved FMEA. Upgrade for unlimited saved worksheets.");
+  const components = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.component))).sort(),
+    [rows],
+  );
+  const activeSystem =
+    systemTemplates.find((system) => system.id === activeSystemId) ??
+    ({
+      id: "custom",
+      name: "Custom BOM system",
+      domain: "Uploaded BOM",
+      source: `${rows.length} draft rows from imported components`,
+      description:
+        "A local draft created from the uploaded BOM. Use the worksheet to complete and review required fields.",
+      components,
+    } satisfies SystemTemplate);
 
-  const rows = fmeaData.rows as FmeaRow[];
-  const systemMatches =
-    !query.trim() ||
-    fmeaData.system.toLowerCase().includes(query.toLowerCase()) ||
-    query.toLowerCase().includes("turbofan") ||
-    query.toLowerCase().includes("engine");
-
-  const componentCounts = useMemo(() => {
-    const sets = new Map<string, Set<string>>();
-    COMPONENTS.forEach((component) => sets.set(component, new Set()));
-    rows.forEach((row) => {
-      if (!sets.has(row.component)) sets.set(row.component, new Set());
-      row.sources.forEach((source) => sets.get(row.component)?.add(sourceId(source)));
-    });
-    return [...sets.entries()]
-      .map(([component, sources]) => ({ component, count: sources.size }))
-      .sort((a, b) => {
-        if (b.count !== a.count) return b.count - a.count;
-        return COMPONENTS.indexOf(a.component) - COMPONENTS.indexOf(b.component);
-      });
-  }, [rows]);
-
-  const filteredRows = useMemo(() => {
-    if (!systemMatches) return [];
-    const componentOrder = componentCounts.map((item) => item.component);
-    return rows
-      .filter((row) => {
-        if (activeComponent !== "All" && row.component !== activeComponent) return false;
-        if (coverage === "effect" && !row.effect) return false;
-        if (coverage === "cause" && !row.cause) return false;
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        if (componentFilter !== "All" && row.component !== componentFilter) return false;
+        if (evidenceFilter === "evidence" && row.evidenceCount === 0) return false;
+        if (evidenceFilter === "incomplete" && isComplete(row)) return false;
+        if (evidenceFilter === "included" && !row.included) return false;
         return true;
-      })
-      .sort((a, b) => {
-        const componentDelta = componentOrder.indexOf(a.component) - componentOrder.indexOf(b.component);
-        if (componentDelta !== 0) return componentDelta;
-        if (b.evidenceCount !== a.evidenceCount) return b.evidenceCount - a.evidenceCount;
-        return a.failureMode.localeCompare(b.failureMode);
+      }),
+    [componentFilter, evidenceFilter, rows],
+  );
+
+  const includedRows = rows.filter((row) => row.included);
+  const incompleteRows = includedRows.filter((row) => !isComplete(row));
+  const completionPercent = includedRows.length
+    ? Math.round(((includedRows.length - incompleteRows.length) / includedRows.length) * 100)
+    : 0;
+  const evidenceBackedRows = includedRows.filter((row) => row.evidenceCount > 0).length;
+  const canExport = includedRows.length > 0 && incompleteRows.length === 0;
+
+  function updateRow(id: string, update: Partial<FmeaRow>) {
+    setRows((currentRows) =>
+      currentRows.map((row) => (row.id === id ? { ...row, ...update } : row)),
+    );
+  }
+
+  function loadSystem(systemId: string) {
+    const nextSystem = systemTemplates.find((system) => system.id === systemId);
+    if (!nextSystem) return;
+    setActiveSystemId(systemId);
+    setComponentFilter("All");
+    if (systemId === "turbofan") {
+      setRows(toFmeaRows(fmeaData.rows as EvidenceRow[]));
+    } else {
+      setRows(templateRowsForComponents(nextSystem.components));
+    }
+  }
+
+  async function handleBomUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const componentsFromBom = parseBom(text);
+    if (!componentsFromBom.length) {
+      setNotice("Could not detect components from that BOM. Try CSV, TSV, or one component per line.");
+      return;
+    }
+    setActiveSystemId("custom");
+    setComponentFilter("All");
+    setRows(templateRowsForComponents(componentsFromBom));
+    setNotice(`Created a draft FMEA from ${componentsFromBom.length} BOM components. Review each required field before export.`);
+  }
+
+  function exportCsv() {
+    if (!canExport) return;
+    downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
+  }
+
+  function exportExcel() {
+    if (!canExport) return;
+    downloadFile(
+      "risk-on-radar-fmea.xls",
+      "application/vnd.ms-excel;charset=utf-8",
+      buildExcelHtml(includedRows),
+    );
+  }
+
+  async function upgradePlan() {
+    setPaymentState("loading");
+    setNotice("Opening Mollie checkout...");
+    try {
+      const response = await fetch("/api/billing/create-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amountValue: "49.00",
+          description: "Risk on Radar unlimited FMEA workspace",
+        }),
       });
-  }, [activeComponent, componentCounts, coverage, rows, systemMatches]);
-
-  const getCount = (component: string) =>
-    componentCounts.find((item) => item.component === component)?.count ?? 0;
-
-  const handleComponentSelect = (component: string) => {
-    setActiveComponent(activeComponent === component ? "All" : component);
-  };
-
-  const componentClass = (component: string, baseClass: string) =>
-    `${baseClass} ${activeComponent === component ? "active" : ""} ${
-      activeComponent !== "All" && activeComponent !== component ? "muted" : ""
-    }`;
-
-  let previousComponent = "";
+      const payload = (await response.json().catch(() => ({}))) as {
+        checkoutUrl?: string;
+        error?: string;
+      };
+      if (!response.ok || !payload.checkoutUrl) {
+        throw new Error(payload.error || "Payment checkout is not available yet.");
+      }
+      window.location.href = payload.checkoutUrl;
+    } catch (error) {
+      setPaymentState("error");
+      setNotice(error instanceof Error ? error.message : "Could not open Mollie checkout.");
+    }
+  }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="https://riskonradar.com/">
-          risk on radar<span>.</span>
-        </a>
-        <nav className="topnav" aria-label="Product navigation">
-          <a href="#system-search-title">System</a>
-          <a href="#system-map">Map</a>
-          <a href="#fmea-table">Worksheet</a>
-        </nav>
-      </header>
+    <div className="app-shell">
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
 
-      <section className="workspace-shell">
-        <section className="system-strip" aria-labelledby="system-search-title">
-          <div className="system-strip-search">
-            <label className="source-label" id="system-search-title" htmlFor="system-search">
-              System name
-            </label>
-            <div className="search-row">
+      <nav className="nav app-nav" aria-label="Primary navigation">
+        <div className="nav-container">
+          <Link href="/" className="nav-brand" aria-label="Risk on Radar app home">
+            <Wordmark />
+          </Link>
+
+          <div className="nav-actions">
+            <a className="nav-link" href="#builder">
+              Builder
+            </a>
+            <a className="nav-link" href="#worksheet">
+              Worksheet
+            </a>
+            <a className="nav-link" href="#saved-workflows">
+              Dashboard
+            </a>
+            <AuthControls />
+          </div>
+        </div>
+      </nav>
+
+      <main id="main-content" className="app-main">
+        <section className="builder-hero" id="builder">
+          <div className="hero-copy">
+            <h1>Build an evidence-backed FMEA worksheet.</h1>
+            <p>
+              Select a system, import a BOM, review failure evidence, complete S/O/D scoring,
+              and export a traceable spreadsheet for engineering review.
+            </p>
+          </div>
+
+          <div className="run-strip" aria-label="FMEA status">
+            <div>
+              <span className="metric-label">Completion</span>
+              <strong>{completionPercent}%</strong>
+            </div>
+            <div>
+              <span className="metric-label">Included rows</span>
+              <strong>{includedRows.length}</strong>
+            </div>
+            <div>
+              <span className="metric-label">Evidence-backed</span>
+              <strong>{evidenceBackedRows}</strong>
+            </div>
+            <div>
+              <span className="metric-label">Open fields</span>
+              <strong>{incompleteRows.length}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="builder-layout">
+          <aside className="left-rail" aria-label="FMEA setup">
+            <section className="panel">
+              <div className="panel-heading">
+                <span className="metric-label">System</span>
+                <strong>{activeSystem.name}</strong>
+              </div>
+              <div className="system-options">
+                {systemTemplates.map((system) => (
+                  <button
+                    type="button"
+                    key={system.id}
+                    className={`system-option ${activeSystemId === system.id ? "active" : ""}`}
+                    onClick={() => loadSystem(system.id)}
+                  >
+                    <span>{system.name}</span>
+                    <small>{system.domain}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="panel">
+              <div className="panel-heading">
+                <span className="metric-label">BOM import</span>
+                <strong>Upload system parts</strong>
+              </div>
+              <p className="rail-copy">
+                Upload CSV, TSV, or a simple parts list. The prototype extracts component names
+                locally and drafts starter rows for review.
+              </p>
               <input
-                id="system-search"
-                type="search"
-                value={query}
-                placeholder="Search a system, e.g. turbofan engine"
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setActiveComponent("All");
-                }}
+                ref={fileInputRef}
+                className="visually-hidden"
+                type="file"
+                accept=".csv,.tsv,.txt"
+                onChange={handleBomUpload}
               />
-              <button type="button" aria-label="Clear search" onClick={() => setQuery("")}>
-                x
+              <button className="btn btn-secondary btn-full" type="button" onClick={() => fileInputRef.current?.click()}>
+                Upload BOM
               </button>
-            </div>
-          </div>
-          <div className="evidence-pill" aria-live="polite">
-            <span className="source-label">Total evidence records</span>
-            <strong>{fmeaData.recordCount}</strong>
-          </div>
-        </section>
-        {!systemMatches && <p className="empty-state">No system in this prototype matches that search yet.</p>}
+            </section>
 
-        <section className="exploded-view" aria-label="Turbofan exploded component view">
-          <div className="map-head">
-            <div>
-              <p className="eyebrow">Exploded view</p>
-            </div>
-          </div>
-          <div className="model-layout">
-            <TurbofanModel
-              componentClass={componentClass}
-              getCount={getCount}
-              handleComponentSelect={handleComponentSelect}
-            />
-          </div>
-        </section>
-
-        <section id="system-map" className="system-map" aria-label="Turbofan component interaction map">
-          <div className="map-head">
-            <div>
-              <p className="eyebrow">System map</p>
-              <h2>System reliability structure</h2>
-            </div>
-          </div>
-          <div className="system-flow">
-            {SYSTEM_PATHS.map((path) => (
-              <section className={`flow-lane flow-lane-${path.tone}`} key={path.name}>
-                <h3>{path.name}</h3>
-                <div className="lane-items">
-                  {path.items.map((item, index) => (
-                    <span className="lane-item" key={`${path.name}-${item}`}>
-                      {item}
-                      {index < path.items.length - 1 && <i aria-hidden="true" />}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </section>
-
-        <section className="content-grid">
-          <aside className="component-panel" aria-label="Components">
-            <div className="panel-head">
-              <h2>Components</h2>
-              <span>{activeComponent}</span>
-            </div>
-            <div className="component-list">
+            <section className="panel plan-panel">
+              <div className="panel-heading">
+                <span className="metric-label">Plan</span>
+                <strong>Free tier</strong>
+              </div>
+              <div className="usage-bar" aria-hidden="true">
+                <span />
+              </div>
+              <p className="rail-copy">1 saved FMEA available. Paid tier unlocks unlimited saved FMEAs.</p>
               <button
-                className={`component-button ${activeComponent === "All" ? "active" : ""}`}
+                className="btn btn-primary btn-full"
                 type="button"
-                onClick={() => setActiveComponent("All")}
+                onClick={upgradePlan}
+                disabled={paymentState === "loading"}
               >
-                <span>All components</span>
-                <span>{componentCounts.reduce((total, item) => total + item.count, 0)} papers</span>
+                {paymentState === "loading" ? "Opening checkout" : "Upgrade with Mollie"}
               </button>
-              {componentCounts.map(({ component, count }) => (
-                <button
-                  className={`component-button ${activeComponent === component ? "active" : ""}`}
-                  key={component}
-                  type="button"
-                  onClick={() => setActiveComponent(component)}
-                >
-                  <span>{component}</span>
-                  <span>{count}</span>
-                </button>
-              ))}
-            </div>
+            </section>
           </aside>
 
-          <section className="table-panel" aria-labelledby="table-title">
-            <div className="table-toolbar">
+          <section className="workspace-panel">
+            <div className="workspace-toolbar">
               <div>
-                <p className="eyebrow">Generated FMEA worksheet</p>
-                <h2 id="table-title">Failure modes, effects, and causes</h2>
+                <span className="metric-label">{activeSystem.source}</span>
+                <h2>{activeSystem.name}</h2>
+                <p>{activeSystem.description}</p>
               </div>
-              <select value={coverage} onChange={(event) => setCoverage(event.target.value)}>
-                <option value="all">All evidence rows</option>
-                <option value="effect">Has effect</option>
-                <option value="cause">Has cause</option>
-              </select>
+              <div className="toolbar-actions">
+                <select
+                  value={componentFilter}
+                  onChange={(event) => setComponentFilter(event.target.value)}
+                  aria-label="Filter by component"
+                >
+                  <option value="All">All components</option>
+                  {components.map((component) => (
+                    <option key={component} value={component}>
+                      {component}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={evidenceFilter}
+                  onChange={(event) => setEvidenceFilter(event.target.value)}
+                  aria-label="Filter rows"
+                >
+                  <option value="all">All rows</option>
+                  <option value="included">Included only</option>
+                  <option value="evidence">Evidence-backed</option>
+                  <option value="incomplete">Incomplete</option>
+                </select>
+              </div>
             </div>
 
-            <div className="table-wrap">
-              <table id="fmea-table">
+            <div className={`completion-banner ${canExport ? "ready" : "blocked"}`} role="status">
+              <div>
+                <strong>{canExport ? "Ready to export" : "Worksheet incomplete"}</strong>
+                <span>
+                  {canExport
+                    ? "All included rows have required FMEA fields."
+                    : `${incompleteRows.length} included row${incompleteRows.length === 1 ? "" : "s"} still need function, effect, cause, controls, or S/O/D scores.`}
+                </span>
+              </div>
+              <div className="export-actions">
+                <button className="btn btn-secondary btn-sm" type="button" onClick={exportCsv} disabled={!canExport}>
+                  Export CSV
+                </button>
+                <button className="btn btn-primary btn-sm" type="button" onClick={exportExcel} disabled={!canExport}>
+                  Export Excel
+                </button>
+              </div>
+            </div>
+
+            <p className={`notice ${paymentState === "error" ? "error" : ""}`}>{notice}</p>
+
+            <div className="component-map" aria-label="System components">
+              {components.map((component) => {
+                const count = rows.filter((row) => row.component === component).length;
+                return (
+                  <button
+                    type="button"
+                    key={component}
+                    className={`component-chip ${componentFilter === component ? "active" : ""}`}
+                    onClick={() => setComponentFilter(componentFilter === component ? "All" : component)}
+                  >
+                    <span>{component}</span>
+                    <small>{count}</small>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="table-shell" id="worksheet">
+              <table className="fmea-table">
                 <thead>
                   <tr>
-                    <th>Component</th>
+                    <th>Use</th>
+                    <th>Component / function</th>
+                    <th>Requirement</th>
                     <th>Failure mode</th>
                     <th>Effect</th>
-                    <th>Cause</th>
                     <th>S</th>
+                    <th>Cause</th>
                     <th>O</th>
+                    <th>Controls</th>
                     <th>D</th>
-                    <th>Corrective action</th>
                     <th>RPN</th>
-                    <th>Evidence</th>
+                    <th>Action / evidence</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row) => {
-                    const repeated = previousComponent === row.component;
-                    previousComponent = row.component;
+                  {visibleRows.map((row) => {
+                    const complete = isComplete(row);
                     return (
-                      <tr key={`${row.component}-${row.failureMode}`}>
-                        <td className={repeated ? "component-repeat" : "component-start"}>
-                          {repeated ? "" : row.component}
-                        </td>
-                        <td>{row.failureMode}</td>
+                      <tr key={row.id} className={!complete ? "row-incomplete" : ""}>
                         <td>
-                          <TermCell value={row.effect} />
+                          <input
+                            type="checkbox"
+                            checked={row.included}
+                            aria-label={`Include ${row.component} ${row.failureMode}`}
+                            onChange={(event) => updateRow(row.id, { included: event.target.checked })}
+                          />
+                        </td>
+                        <td className="component-cell">
+                          <strong>{row.component}</strong>
+                          <EditableCell
+                            value={row.function}
+                            placeholder="Function"
+                            onChange={(value) => updateRow(row.id, { function: value })}
+                          />
                         </td>
                         <td>
-                          <TermCell value={row.cause} />
+                          <EditableCell
+                            value={row.requirement}
+                            placeholder="Requirement"
+                            onChange={(value) => updateRow(row.id, { requirement: value })}
+                          />
                         </td>
-                        <td className="score-cell blank">blank</td>
-                        <td className="score-cell blank">blank</td>
-                        <td className="score-cell blank">blank</td>
-                        <td className="action-cell blank">blank</td>
-                        <td className="score-cell blank">blank</td>
                         <td>
-                          <button className="evidence-button" type="button" onClick={() => setSelectedRow(row)}>
-                            {row.evidenceCount} paper{row.evidenceCount === 1 ? "" : "s"}
-                          </button>
+                          <EditableCell
+                            value={row.failureMode}
+                            placeholder="Failure mode"
+                            onChange={(value) => updateRow(row.id, { failureMode: value })}
+                          />
+                        </td>
+                        <td>
+                          <EditableCell
+                            value={row.effect}
+                            placeholder="Effect required"
+                            onChange={(value) => updateRow(row.id, { effect: value })}
+                          />
+                        </td>
+                        <td>
+                          <ScoreSelect
+                            label={`Severity for ${row.failureMode}`}
+                            value={row.severity}
+                            onChange={(value) => updateRow(row.id, { severity: value })}
+                          />
+                        </td>
+                        <td>
+                          <EditableCell
+                            value={row.cause}
+                            placeholder="Cause required"
+                            onChange={(value) => updateRow(row.id, { cause: value })}
+                          />
+                        </td>
+                        <td>
+                          <ScoreSelect
+                            label={`Occurrence for ${row.failureMode}`}
+                            value={row.occurrence}
+                            onChange={(value) => updateRow(row.id, { occurrence: value })}
+                          />
+                        </td>
+                        <td>
+                          <EditableCell
+                            value={row.currentControl}
+                            placeholder="Current control"
+                            onChange={(value) => updateRow(row.id, { currentControl: value })}
+                          />
+                        </td>
+                        <td>
+                          <ScoreSelect
+                            label={`Detection for ${row.failureMode}`}
+                            value={row.detection}
+                            onChange={(value) => updateRow(row.id, { detection: value })}
+                          />
+                        </td>
+                        <td className="rpn-cell">{rowRpn(row) || "-"}</td>
+                        <td className="action-cell">
+                          <EditableCell
+                            value={row.correctiveAction}
+                            placeholder="Recommended action"
+                            onChange={(value) => updateRow(row.id, { correctiveAction: value })}
+                          />
+                          <div className="row-actions">
+                            <select
+                              value={row.status}
+                              aria-label={`Review status for ${row.failureMode}`}
+                              onChange={(event) =>
+                                updateRow(row.id, { status: event.target.value as FmeaRow["status"] })
+                              }
+                            >
+                              <option value="needs_review">Needs review</option>
+                              <option value="accepted">Accepted</option>
+                              <option value="rejected">Rejected</option>
+                            </select>
+                            <button
+                              type="button"
+                              className="evidence-link"
+                              onClick={() => setSelectedSourceRow(row)}
+                              disabled={!row.sources.length}
+                            >
+                              {row.evidenceCount ? `${row.evidenceCount} sources` : "No source"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              {!visibleRows.length && <p className="empty-state">No rows match the current filters.</p>}
             </div>
-            {!filteredRows.length && <p className="empty-state">No extracted rows match this view.</p>}
           </section>
         </section>
-      </section>
 
-      {selectedRow && (
-        <div className="source-dialog-backdrop" role="presentation" onClick={() => setSelectedRow(null)}>
-          <section className="source-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setSelectedRow(null)}>
-              x
+        <section className="save-note" id="saved-workflows" aria-label="Dashboard preview">
+          <div>
+            <span className="metric-label">Dashboard later</span>
+            <h2>Saved FMEAs will live in the dashboard.</h2>
+          </div>
+          <p>
+            For now this page focuses on creating and exporting one worksheet. The dashboard will
+            handle saved projects, edit history, and paid plan limits.
+          </p>
+        </section>
+      </main>
+
+      {selectedSourceRow && (
+        <div className="source-dialog-backdrop" role="presentation" onClick={() => setSelectedSourceRow(null)}>
+          <section
+            className="source-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Evidence sources"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setSelectedSourceRow(null)}>
+              ×
             </button>
-            <p className="eyebrow">Evidence for row</p>
+            <span className="metric-label">Evidence</span>
             <h3>
-              {selectedRow.component} - {selectedRow.failureMode}
+              {selectedSourceRow.component} · {selectedSourceRow.failureMode}
             </h3>
-            <p className="hint">Structured classifier output remains review-required engineering evidence.</p>
+            <p>
+              Source-linked evidence remains review-required until an engineer accepts the row.
+            </p>
             <ul className="source-list">
-              {selectedRow.sources.map((source) => (
-                <li key={sourceId(source)}>
+              {selectedSourceRow.sources.map((source) => (
+                <li key={[source.doi, source.title].filter(Boolean).join("|")}>
                   <strong>{source.title}</strong>
                   <span>
-                    {source.doi ? `DOI: ${source.doi}` : source.url || "RIS source record"}
-                    {source.year ? ` - ${source.year}` : ""}
+                    {source.doi ? `DOI: ${source.doi}` : source.url || "Source record"}
+                    {source.year ? ` · ${source.year}` : ""}
                   </span>
                 </li>
               ))}
@@ -618,6 +872,28 @@ export default function Home() {
           </section>
         </div>
       )}
-    </main>
+
+      <footer className="footer">
+        <div className="container">
+          <div className="footer-inner">
+            <span className="wordmark wordmark-light">
+              r<span className="wm-i">ı</span>sk on radar<span className="wm-dot">.</span>
+            </span>
+            <div className="footer-links">
+              <a href="https://riskonradar.com/whitepaper.pdf" target="_blank" rel="noopener noreferrer" className="footer-link">
+                Whitepaper
+              </a>
+              <a href="https://www.linkedin.com/company/riskonradar/" target="_blank" rel="noopener noreferrer" className="footer-link">
+                LinkedIn
+              </a>
+              <a href="mailto:contact@riskonradar.com" className="footer-link">
+                contact@riskonradar.com
+              </a>
+            </div>
+            <p className="footer-copy">© 2026 Risk on Radar. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
