@@ -193,6 +193,53 @@ const worksheetColumnSpecs = [
 ] as const;
 
 const helpFields = new Set(["failureMode", "severity", "occurrence", "detection", "rpn", "evidence"]);
+const turbofanComponents = [
+  "Bearing",
+  "Combustor",
+  "Engine inlet / intake",
+  "Engine mount",
+  "Exhaust",
+  "Fan / fan blade",
+  "Fan case",
+  "Gearbox / accessory gearbox",
+  "High-pressure compressor",
+  "High-pressure turbine",
+  "Low-pressure compressor",
+  "Low-pressure turbine",
+  "Nacelle",
+  "Nozzle / fuel injector",
+  "Oil system / lubrication",
+  "Pump",
+  "Seal",
+  "Sensor / instrumentation",
+  "Shaft",
+  "Valve",
+];
+
+const componentRank = new Map(turbofanComponents.map((component, index) => [component, index]));
+const componentFamilies: Array<[RegExp, string | null]> = [
+  [/\b(genx|tfe731|turbofan engine|turbo fan engine|aero engine|aero-engine)\b/i, null],
+  [/\b(bearing|bearings)\b/i, "Bearing"],
+  [/\b(combustor|combustion chamber)\b/i, "Combustor"],
+  [/\b(inlet|intake|nose cowl|air intake|duct liner)\b/i, "Engine inlet / intake"],
+  [/\b(engine mount|mounts?)\b/i, "Engine mount"],
+  [/\b(exhaust|thrust reverser|muffler|noise suppressor)\b/i, "Exhaust"],
+  [/\b(fan blade|fan blades|fan hub|fan rotor|fan disc|fan disk)\b/i, "Fan / fan blade"],
+  [/\b(fan case|fan casing|fan containment|fan cowl)\b/i, "Fan case"],
+  [/\b(gearbox|gear box|accessory gearbox|reduction gearbox|gear)\b/i, "Gearbox / accessory gearbox"],
+  [/\b(high[- ]pressure compressor|hpc|compressor blade)\b/i, "High-pressure compressor"],
+  [/\b(high[- ]pressure turbine|hpt|hp turbine|turbine blade|turbine disk|turbine disc|disk posts?)\b/i, "High-pressure turbine"],
+  [/\b(low[- ]pressure compressor|lpc)\b/i, "Low-pressure compressor"],
+  [/\b(low[- ]pressure turbine|lpt|lp turbine)\b/i, "Low-pressure turbine"],
+  [/\b(nacelle|cowling|cowl)\b/i, "Nacelle"],
+  [/\b(fuel nozzle|fuel injector|injector|nozzle|fuel manifold|fuel metering)\b/i, "Nozzle / fuel injector"],
+  [/\b(oil system|lubrication|engine oil|oil filter)\b/i, "Oil system / lubrication"],
+  [/\b(oil pump|fuel pump|scavenge pump|pump)\b/i, "Pump"],
+  [/\b(air seal|sealing ring|seal|seals)\b/i, "Seal"],
+  [/\b(fadec|eec|electronic engine control|engine controls?|sensor|sensors|actuator|actuators|instrumentation)\b/i, "Sensor / instrumentation"],
+  [/\b(inter[- ]shaft|rotor shaft|compressor shaft|shaft|spool)\b/i, "Shaft"],
+  [/\b(operability bleed valve|obv|bleed valve|valve|valves|bypass valve)\b/i, "Valve"],
+];
 
 function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
   return `${row.component}-${row.failureMode}-${index}`
@@ -204,8 +251,95 @@ function scoreValue(value: string) {
   return scoreOptions.includes(value) ? value : "";
 }
 
+function canonicalComponentName(component: string) {
+  const normalized = component.trim();
+  for (const [pattern, family] of componentFamilies) {
+    if (pattern.test(normalized)) return family;
+  }
+  return normalized || null;
+}
+
+function sortedComponentNames(names: string[]) {
+  return [...names].sort((a, b) => {
+    const rankA = componentRank.get(a) ?? Number.MAX_SAFE_INTEGER;
+    const rankB = componentRank.get(b) ?? Number.MAX_SAFE_INTEGER;
+    if (rankA !== rankB) return rankA - rankB;
+    return a.localeCompare(b);
+  });
+}
+
+function mergeListValues(...values: string[]) {
+  return Array.from(
+    new Set(
+      values
+        .flatMap((value) => value.split(";"))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ).join("; ");
+}
+
+function maxScore(...values: string[]) {
+  const scores = values.map(scoreValue).filter(Boolean).map(Number);
+  return scores.length ? String(Math.max(...scores)) : "";
+}
+
+function sourceKey(source: Source) {
+  return source.doi || source.url || source.title || JSON.stringify(source);
+}
+
+function mergeEvidenceRows(rows: EvidenceRow[]) {
+  const merged = new Map<string, EvidenceRow>();
+
+  rows.forEach((row) => {
+    const component = canonicalComponentName(row.component);
+    if (!component || !row.failureMode.trim()) return;
+    const key = `${component.toLowerCase()}::${row.failureMode.trim().toLowerCase()}`;
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, {
+        ...row,
+        component,
+        effect: mergeListValues(row.effect),
+        cause: mergeListValues(row.cause),
+        correctiveAction: mergeListValues(row.correctiveAction),
+        severity: scoreValue(row.severity),
+        occurrence: scoreValue(row.occurrence),
+        detection: scoreValue(row.detection),
+        evidenceCount: Number(row.evidenceCount || 0),
+        sources: row.sources ?? [],
+      });
+      return;
+    }
+
+    const sourcesByKey = new Map(existing.sources.map((source) => [sourceKey(source), source]));
+    (row.sources ?? []).forEach((source) => sourcesByKey.set(sourceKey(source), source));
+
+    merged.set(key, {
+      ...existing,
+      effect: mergeListValues(existing.effect, row.effect),
+      cause: mergeListValues(existing.cause, row.cause),
+      correctiveAction: mergeListValues(existing.correctiveAction, row.correctiveAction),
+      severity: maxScore(existing.severity, row.severity),
+      occurrence: maxScore(existing.occurrence, row.occurrence),
+      detection: maxScore(existing.detection, row.detection),
+      evidenceCount: Number(existing.evidenceCount || 0) + Number(row.evidenceCount || 0),
+      sources: Array.from(sourcesByKey.values()),
+    });
+  });
+
+  return Array.from(merged.values()).sort((a, b) => {
+    const componentDelta =
+      (componentRank.get(a.component) ?? Number.MAX_SAFE_INTEGER) -
+      (componentRank.get(b.component) ?? Number.MAX_SAFE_INTEGER);
+    if (componentDelta) return componentDelta;
+    return b.evidenceCount - a.evidenceCount || a.failureMode.localeCompare(b.failureMode);
+  });
+}
+
 function toFmeaRows(rows: EvidenceRow[]): FmeaRow[] {
-  return rows.map((row, index) => ({
+  return mergeEvidenceRows(rows).map((row, index) => ({
     ...row,
     severity: scoreValue(row.severity),
     occurrence: scoreValue(row.occurrence),
@@ -218,6 +352,30 @@ function toFmeaRows(rows: EvidenceRow[]): FmeaRow[] {
     status: "needs_review",
     included: true,
   }));
+}
+
+function normalizeSavedRows(rows: FmeaRow[]) {
+  const mergedRows = toFmeaRows(rows);
+  const savedByKey = new Map(
+    rows.map((row) => [
+      `${canonicalComponentName(row.component) ?? row.component}::${row.failureMode}`.toLowerCase(),
+      row,
+    ]),
+  );
+
+  return mergedRows.map((row) => {
+    const saved = savedByKey.get(`${row.component}::${row.failureMode}`.toLowerCase());
+    return saved
+      ? {
+          ...row,
+          requirement: saved.requirement || row.requirement,
+          currentControl: saved.currentControl || row.currentControl,
+          owner: saved.owner || row.owner,
+          status: saved.status || row.status,
+          included: saved.included,
+        }
+      : row;
+  });
 }
 
 function functionForComponent(component: string) {
@@ -483,7 +641,7 @@ export default function Home() {
   const [cellViewer, setCellViewer] = useState<{ rowId: string; field: string; value: string } | null>(null);
   const groupsPerPage = 6;
   const components = useMemo(
-    () => Array.from(new Set(rows.map((row) => row.component))).sort(),
+    () => sortedComponentNames(Array.from(new Set(rows.map((row) => row.component)))),
     [rows],
   );
   const visibleRows = useMemo(
@@ -533,7 +691,7 @@ export default function Home() {
 
   // Initialize all components as expanded
   useEffect(() => {
-    const componentNames = Array.from(new Set(rows.map(row => row.component)));
+    const componentNames = sortedComponentNames(Array.from(new Set(rows.map(row => row.component))));
     setExpandedComponents(new Set(componentNames));
   }, [rows]);
 
@@ -608,7 +766,7 @@ export default function Home() {
       if (savedData) {
         const parsedRows = JSON.parse(savedData) as FmeaRow[];
         if (parsedRows.length > 0) {
-          setRows(parsedRows);
+          setRows(normalizeSavedRows(parsedRows));
           const savedTime = localStorage.getItem("riskonradar-fmea-saved-at");
           if (savedTime) {
             setLastSavedAt(savedTime);
