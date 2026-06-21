@@ -786,6 +786,15 @@ select,
   color: var(--color-text);
 }
 
+.reference-description {
+  margin: 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  padding: 12px 14px;
+}
+
 .reference-table-wrap {
   overflow: auto;
 }
@@ -803,6 +812,14 @@ select,
 
 .severity-guide-table {
   min-width: 520px;
+}
+
+.occurrence-guide-table {
+  min-width: 760px;
+}
+
+.detection-guide-table {
+  min-width: 700px;
 }
 
 .reference-table th,

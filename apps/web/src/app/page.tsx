@@ -7,6 +7,8 @@ import type { ChangeEvent } from "react";
 import { AuthControls } from "@/components/auth/auth-controls";
 import fmeaData from "@/data/fmea-turbofan-data.json";
 import severityReference from "@/data/fmea-severity-reference.json";
+import occurrenceReference from "@/data/fmea-occurrence-reference.json";
+import detectionReference from "@/data/fmea-detection-reference.json";
 import propagationPaths from "@/data/turbofan-propagation-paths.json";
 
 type Source = {
@@ -851,6 +853,67 @@ export default function Home() {
                       <td>{item.score}</td>
                       <td>{item.classification}</td>
                       <td>{item.systemEffect}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details className="reference-disclosure">
+            <summary>occurrence guide score</summary>
+            <p className="reference-description">
+              Proposed O uses weighted evidence count plus a cause modifier. EASA AD records count as
+              2 evidence points, journal papers count as 1. Recurring degradation causes can add 1;
+              event-dependent causes such as bird strike, FOD, or maintenance error can subtract 1.
+            </p>
+            <div className="reference-table-wrap">
+              <table className="reference-table occurrence-guide-table">
+                <thead>
+                  <tr>
+                    <th>O</th>
+                    <th>Likelihood</th>
+                    <th>Weighted evidence</th>
+                    <th>Guidance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {occurrenceReference.map((item) => (
+                    <tr key={item.score}>
+                      <td>{item.score}</td>
+                      <td>{item.likelihood}</td>
+                      <td>{item.weightedEvidence}</td>
+                      <td>{item.scoringGuidance}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details className="reference-disclosure">
+            <summary>detection guide score</summary>
+            <p className="reference-description">
+              Proposed D starts at 6. Clear inspection or monitoring terms subtract 2. EASA source
+              titles with inspection, check, test, or replacement subtract 1. Internal or latent
+              causes add 1. Sudden, event-dependent, or hard-to-predict failures add 2. The final
+              value is clamped from 1 to 10.
+            </p>
+            <div className="reference-table-wrap">
+              <table className="reference-table detection-guide-table">
+                <thead>
+                  <tr>
+                    <th>D</th>
+                    <th>Detectability</th>
+                    <th>Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detectionReference.map((item) => (
+                    <tr key={item.score}>
+                      <td>{item.score}</td>
+                      <td>{item.detectability}</td>
+                      <td>{item.meaning}</td>
                     </tr>
                   ))}
                 </tbody>

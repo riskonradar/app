@@ -53,8 +53,8 @@ export async function GET(request: Request) {
       effect: row.effect ?? "",
       cause: row.cause ?? "",
       severity: row.severity || inferSeverity(row),
-      occurrence: row.occurrence ?? "",
-      detection: row.detection ?? "",
+      occurrence: row.occurrence || inferOccurrence(row),
+      detection: row.detection || inferDetection(row),
       correctiveAction: row.corrective_action ?? "",
       rpn: row.rpn ?? "",
       evidenceCount: Number(row.evidence_count || 0),
@@ -77,6 +77,119 @@ function inferSeverity(row: SupabaseFmeaRow) {
   ]);
 
   return pathScore || directScore;
+}
+
+function inferOccurrence(row: SupabaseFmeaRow) {
+  const weightedEvidence = weightedEvidenceCount(row.sources, row.evidence_count);
+  if (!weightedEvidence) return "";
+
+  const causeText = row.cause ?? "";
+  const baseScore =
+    weightedEvidence >= 24
+      ? 8
+      : weightedEvidence >= 16
+        ? 7
+        : weightedEvidence >= 10
+          ? 6
+          : weightedEvidence >= 5
+            ? 5
+            : weightedEvidence >= 3
+              ? 4
+              : 3;
+
+  return String(Math.max(1, Math.min(8, baseScore + causeModifier(causeText))));
+}
+
+function inferDetection(row: SupabaseFmeaRow) {
+  const rowText = [
+    row.component,
+    row.failure_mode,
+    row.effect ?? "",
+    row.cause ?? "",
+    row.corrective_action ?? "",
+    sourceText(row.sources),
+  ]
+    .join(" ")
+    .toLowerCase();
+  const causeFailureText = [row.failure_mode, row.cause ?? "", row.effect ?? ""].join(" ").toLowerCase();
+
+  let score = 6;
+  if (
+    /inspection|borescope|vibration monitoring|oil debris|magnetic plug|pressure monitoring|egt trend|sensor|alarm/.test(
+      rowText,
+    )
+  ) {
+    score -= 2;
+  }
+  if (hasEasaDetectionInstruction(row.sources)) score -= 1;
+  if (
+    /fatigue crack growth|manufacturing flaw|near-surface flaw|thermal fatigue|creep|coating degradation|coking|hidden crack/.test(
+      causeFailureText,
+    )
+  ) {
+    score += 1;
+  }
+  if (/bird strike|fod|impact|uncontained failure|blade-out|blade out|rotor burst/.test(causeFailureText)) {
+    score += 2;
+  }
+
+  return String(Math.max(1, Math.min(10, score)));
+}
+
+function sourceText(sources: unknown[]) {
+  if (!Array.isArray(sources)) return "";
+  return sources
+    .map((source) => {
+      if (!source || typeof source !== "object") return "";
+      const record = source as { title?: string; url?: string; category?: string };
+      return [record.title, record.url, record.category].filter(Boolean).join(" ");
+    })
+    .join(" ");
+}
+
+function hasEasaDetectionInstruction(sources: unknown[]) {
+  if (!Array.isArray(sources)) return false;
+  return sources.some((source) => {
+    if (!source || typeof source !== "object") return false;
+    const record = source as { category?: string; url?: string; title?: string };
+    const category = record.category?.toLowerCase() ?? "";
+    const url = record.url?.toLowerCase() ?? "";
+    const title = record.title?.toLowerCase() ?? "";
+    const isEasa = category.includes("easa") || url.includes("easa.europa.eu") || title.includes("easa ad");
+    return isEasa && /inspection|check|test|replacement/.test(title);
+  });
+}
+
+function weightedEvidenceCount(sources: unknown[], fallbackEvidenceCount: number): number {
+  if (!Array.isArray(sources) || sources.length === 0) return Number(fallbackEvidenceCount || 0);
+
+  return sources.reduce<number>((total, source) => {
+    if (!source || typeof source !== "object") return total + 1;
+    const record = source as { category?: string; url?: string; title?: string };
+    const category = record.category?.toLowerCase() ?? "";
+    const url = record.url?.toLowerCase() ?? "";
+    const title = record.title?.toLowerCase() ?? "";
+    if (category.includes("easa") || url.includes("easa.europa.eu") || title.includes("easa ad")) {
+      return total + 2;
+    }
+    return total + 1;
+  }, 0);
+}
+
+function causeModifier(cause: string) {
+  const normalized = cause.toLowerCase();
+  let modifier = 0;
+  if (
+    /fatigue|wear|corrosion|erosion|oxidation|thermal degradation|cyclic stress|progressive|creep|coking|spalling/.test(
+      normalized,
+    )
+  ) {
+    modifier += 1;
+  }
+  if (/bird|foreign object|fod|maintenance error|repair error|impact|ingestion/.test(normalized)) {
+    modifier -= 1;
+  }
+  return modifier;
 }
 
 function inferSeverityFromEffect(effect: string) {
