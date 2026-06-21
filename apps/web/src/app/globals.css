@@ -2751,6 +2751,16 @@ input[type="checkbox"]:focus {
   font-weight: 700;
 }
 
+.account-signin-panel {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-md);
+}
+
+.account-signin-panel .notice {
+  width: 100%;
+}
+
 .account-pricing-summary .membership-status {
   max-width: 520px;
 }
