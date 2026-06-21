@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
 import fmeaData from "@/data/fmea-turbofan-data.json";
@@ -786,7 +786,6 @@ function groupRowsByComponent(rows: FmeaRow[]) {
 
 export default function Home() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cellRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [selectionStep, setSelectionStep] = useState<SelectionStep>("table");
@@ -864,15 +863,19 @@ export default function Home() {
   }, [totalPages]);
 
   useEffect(() => {
-    if (searchParams.get("mode") === "new") {
+    const params =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search)
+        : new URLSearchParams();
+    if (params.get("mode") === "new") {
       setSelectionStep("initial");
       return;
     }
-    const component = searchParams.get("component");
+    const component = params.get("component");
     if (!component) return;
     setSelectionStep("table");
     setComponentFilter(component);
-  }, [searchParams]);
+  }, []);
 
   // Initialize all components as expanded
   useEffect(() => {
@@ -1159,8 +1162,15 @@ export default function Home() {
   }
 
   function rowsForSelectedComponents(datasetRows: EvidenceRow[], selectedComponents: string[]) {
-    const selected = new Set(selectedComponents.map((component) => component.toLowerCase()));
-    return datasetRows.filter((row) => selected.has(row.component.toLowerCase()));
+    const selected = new Set(
+      selectedComponents
+        .map((component) => canonicalComponentName(component)?.toLowerCase())
+        .filter(Boolean),
+    );
+    return datasetRows.filter((row) => {
+      const component = canonicalComponentName(row.component)?.toLowerCase();
+      return Boolean(component && selected.has(component));
+    });
   }
 
   async function startManualWorksheet() {
@@ -1171,7 +1181,10 @@ export default function Home() {
     setRowFilter("all");
     try {
       const liveDataset = await fetchLiveTurbofanDataset();
-      const evidenceRows = rowsForSelectedComponents(liveDataset.rows, nextComponents);
+      const evidenceRows = rowsForSelectedComponents(
+        [...liveDataset.rows, ...bundledTurbofanData.rows],
+        nextComponents,
+      );
       const nextRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents(nextComponents);
       setRows(nextRows);
       setNotice(
