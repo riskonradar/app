@@ -35,6 +35,52 @@ async function getRequestTokenContext(request?: Request) {
   };
 }
 
+function sessionCookieToken(request?: Request) {
+  let cookieHeader: string | null;
+
+  if (request) {
+    cookieHeader = request.headers.get("cookie");
+  } else {
+    return null;
+  }
+
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/(?:^|;\s*)__session=([^;]+)/);
+  return match?.[1] ?? null;
+}
+
+async function getSessionCookieContext(request?: Request) {
+  if (!isClerkConfigured()) return null;
+
+  let token = sessionCookieToken(request);
+
+  if (!token && !request) {
+    try {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      token = cookieStore.get("__session")?.value ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!token) return null;
+
+  const payload = await verifyToken(token, {
+    secretKey: getRequiredEnv("CLERK_SECRET_KEY"),
+  }).catch(() => null);
+
+  if (!payload) return null;
+
+  const claims = payload as Record<string, unknown>;
+  return {
+    userId: typeof claims.sub === "string" ? claims.sub : null,
+    orgId: typeof claims.org_id === "string" ? claims.org_id : null,
+    orgRole: typeof claims.org_role === "string" ? claims.org_role : null,
+    orgSlug: typeof claims.org_slug === "string" ? claims.org_slug : null,
+  };
+}
+
 export async function getCurrentClerkUserId(request?: Request) {
   if (!isClerkConfigured()) {
     return null;
@@ -46,7 +92,10 @@ export async function getCurrentClerkUserId(request?: Request) {
   }
 
   const { userId } = await auth().catch(() => ({ userId: null }));
-  return userId;
+  if (userId) return userId;
+
+  const cookieContext = await getSessionCookieContext(request);
+  return cookieContext?.userId ?? null;
 }
 
 export async function getCurrentClerkContext(request?: Request) {
@@ -65,19 +114,20 @@ export async function getCurrentClerkContext(request?: Request) {
   }
 
   const context = await auth().catch(() => null);
-  if (!context) {
+  if (context?.userId) {
     return {
-      userId: null,
-      orgId: null,
-      orgRole: null,
-      orgSlug: null,
+      userId: context.userId,
+      orgId: context.orgId,
+      orgRole: context.orgRole,
+      orgSlug: context.orgSlug,
     };
   }
 
-  return {
-    userId: context.userId,
-    orgId: context.orgId,
-    orgRole: context.orgRole,
-    orgSlug: context.orgSlug,
+  const cookieContext = await getSessionCookieContext(request);
+  return cookieContext ?? {
+    userId: null,
+    orgId: null,
+    orgRole: null,
+    orgSlug: null,
   };
 }

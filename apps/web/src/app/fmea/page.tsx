@@ -7,7 +7,7 @@ import {
   type ColumnDef,
   flexRender,
 } from "@tanstack/react-table";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -835,7 +835,15 @@ function groupRowsByComponent(rows: FmeaRow[]) {
   }));
 }
 
-export default function Home() {
+export default function FmeaPage() {
+  return (
+    <Suspense>
+      <Home />
+    </Suspense>
+  );
+}
+
+function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isNewMode = searchParams.get("mode") === "new";
