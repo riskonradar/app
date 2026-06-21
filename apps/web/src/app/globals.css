@@ -625,7 +625,8 @@ select,
 
 .grid-shell {
   position: relative;
-  height: min(65vh, 720px);
+  height: auto;
+  max-height: min(72vh, 760px);
   min-height: 450px;
   background: var(--color-deep);
   overflow: hidden;
@@ -681,7 +682,7 @@ input[type="checkbox"]:focus {
 /* Table styling matching site design */
 .fmea-table {
   width: 100%;
-  min-width: 1279px;
+  min-width: 1234px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8rem;
@@ -1203,6 +1204,12 @@ input[type="checkbox"]:focus {
   min-width: 0;
   max-width: 100%;
   white-space: nowrap;
+  overflow: visible;
+  text-overflow: ellipsis;
+}
+
+.header-label-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1224,13 +1231,13 @@ input[type="checkbox"]:focus {
   cursor: help;
   user-select: none;
   position: relative;
-  z-index: 1;
+  z-index: 40;
 }
 
 .field-help::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: 120%;
+  bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--color-deep);
@@ -1240,7 +1247,7 @@ input[type="checkbox"]:focus {
   border-radius: 4px;
   font-size: 0.75rem;
   white-space: nowrap;
-  z-index: 100;
+  z-index: 80;
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms var(--ease-out);
@@ -1290,10 +1297,12 @@ input[type="checkbox"]:focus {
 /* FMEA Table Visual Hierarchy */
 .table-scroll {
   position: relative;
-  height: 100%;
+  max-height: min(72vh, 760px);
+  min-height: 450px;
   overflow-x: auto;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
 }
 
 .table-loading {
@@ -1313,8 +1322,8 @@ input[type="checkbox"]:focus {
 .fmea-table th {
   position: sticky;
   top: 0;
-  background: var(--color-deep);
-  z-index: 5;
+  background: #090909;
+  z-index: 12;
   padding: 8px 6px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
@@ -1324,20 +1333,22 @@ input[type="checkbox"]:focus {
   text-transform: uppercase;
   letter-spacing: 0;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   vertical-align: middle;
 }
 
 .fmea-table thead {
+  position: relative;
+  z-index: 20;
   border-bottom: 2px solid var(--color-border-strong);
 }
 
 .fmea-table .column-group-row th {
   top: 0;
-  z-index: 6;
+  z-index: 22;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.045);
+  background: #1b100d;
   color: var(--color-text);
   font-size: 0.68rem;
   font-weight: 800;
@@ -1346,6 +1357,9 @@ input[type="checkbox"]:focus {
 
 .fmea-table thead tr:not(.column-group-row) th {
   top: 36px;
+  z-index: 21;
+  background: #090909;
+  box-shadow: 0 1px 0 var(--color-border), 0 8px 14px rgba(0, 0, 0, 0.35);
 }
 
 /* Column group separators */
@@ -1364,7 +1378,10 @@ input[type="checkbox"]:focus {
 /* S/O/D scoring group emphasis */
 .fmea-table th.col-severity,
 .fmea-table th.col-occurrence,
-.fmea-table th.col-detection,
+.fmea-table th.col-detection {
+  background: #160d0b;
+}
+
 .fmea-table td.col-severity,
 .fmea-table td.col-occurrence,
 .fmea-table td.col-detection {
@@ -1419,6 +1436,7 @@ input[type="checkbox"]:focus {
 .fmea-score-control {
   padding-inline: 4px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .status-control {
@@ -1487,73 +1505,74 @@ input[type="checkbox"]:focus {
 }
 
 .fmea-table .col-function {
-  width: 120px;
+  width: 108px;
 }
 
 .fmea-table .col-requirement {
-  width: 135px;
+  width: 112px;
 }
 
 .fmea-table .col-failureMode {
-  width: 130px;
+  width: 118px;
 }
 
 .fmea-table .col-effect,
 .fmea-table .col-cause,
-.fmea-table .col-currentControl,
+.fmea-table .col-currentControl {
+  width: 116px;
+}
+
 .fmea-table .col-correctiveAction {
-  width: 120px;
+  width: 110px;
 }
 
 .fmea-table .col-severity,
 .fmea-table .col-occurrence,
 .fmea-table .col-detection {
-  width: 44px;
-  min-width: 44px;
-  max-width: 44px;
+  width: 50px;
+  min-width: 50px;
+  max-width: 50px;
 }
 
 .fmea-table .col-rpn {
-  width: 54px;
-  min-width: 54px;
-  max-width: 54px;
+  width: 60px;
+  min-width: 60px;
+  max-width: 60px;
 }
 
 .fmea-table .col-evidence {
-  width: 86px;
-  min-width: 86px;
-  max-width: 86px;
+  width: 82px;
+  min-width: 82px;
+  max-width: 82px;
 }
 
 .fmea-table .col-status {
-  width: 104px;
-  min-width: 104px;
-  max-width: 104px;
+  width: 106px;
+  min-width: 106px;
+  max-width: 106px;
 }
 
 /* Component section row enhancement */
 .component-section-row {
-  background: rgba(255, 255, 255, 0.02);
+  background: #18100e;
   font-weight: 600;
 }
 
 .component-section-row td {
-  padding: var(--space-sm) var(--space-md);
+  padding: 10px var(--space-md);
   border-bottom: 1px solid var(--color-border-strong);
   max-width: none;
-  overflow: visible;
+  overflow: hidden;
 }
 
-.component-section-row span:first-child {
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-right: var(--space-sm);
-}
-
-.component-section-row span:last-child {
-  color: var(--color-accent);
+.component-row-content {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-md);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .component-toggle {
@@ -1563,13 +1582,14 @@ input[type="checkbox"]:focus {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--color-text-muted);
+  color: var(--color-accent);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
   transition: background 150ms var(--ease-out);
+  flex: 0 0 auto;
 }
 
 .component-toggle:hover {
@@ -1587,15 +1607,32 @@ input[type="checkbox"]:focus {
 }
 
 .component-name {
-  display: inline-block;
-  max-width: min(760px, calc(100vw - 240px));
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   color: var(--color-accent);
-  font-weight: 600;
-  margin-left: var(--space-md);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: middle;
+  text-transform: uppercase;
   white-space: nowrap;
+}
+
+.component-open-row {
+  animation: component-row-reveal 180ms var(--ease-out) both;
+}
+
+@keyframes component-row-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .cell-viewer-textarea {

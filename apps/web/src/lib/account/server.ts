@@ -43,13 +43,13 @@ function personalWorkspaceSlug(clerkUserId: string) {
   return `personal-${clerkUserId.replace(/[^a-zA-Z0-9]+/g, "-").slice(-24)}`;
 }
 
-export async function ensureCurrentUserAccount(): Promise<UserAccount | null> {
-  const { userId } = await getCurrentClerkContext();
+export async function ensureCurrentUserAccount(request?: Request): Promise<UserAccount | null> {
+  const { userId } = await getCurrentClerkContext(request);
   if (!userId) {
     return null;
   }
 
-  const user = await currentUser().catch(() => null);
+  const user = request ? null : await currentUser().catch(() => null);
   const primaryEmail = user?.emailAddresses.find(
     (email) => email.id === user.primaryEmailAddressId,
   )?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? null;
@@ -76,13 +76,13 @@ export async function ensureCurrentUserAccount(): Promise<UserAccount | null> {
   return data as UserAccount;
 }
 
-export async function ensureCurrentWorkspace(): Promise<{
+export async function ensureCurrentWorkspace(request?: Request): Promise<{
   userAccount: UserAccount;
   organization: OrganizationAccount;
   role: string;
 } | null> {
-  const context = await getCurrentClerkContext();
-  const userAccount = await ensureCurrentUserAccount();
+  const context = await getCurrentClerkContext(request);
+  const userAccount = await ensureCurrentUserAccount(request);
 
   if (!context.userId || !userAccount) {
     return null;

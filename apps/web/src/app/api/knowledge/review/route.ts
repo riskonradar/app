@@ -7,7 +7,7 @@ const VALID_STATUSES = ["accepted", "rejected", "edited", "needs_review"] as con
 type ReviewStatus = (typeof VALID_STATUSES)[number];
 
 export async function POST(request: Request) {
-  const workspace = await ensureCurrentWorkspace();
+  const workspace = await ensureCurrentWorkspace(request);
   if (!workspace) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, useUser } from "@clerk/nextjs";
+import { SignInButton, useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -9,6 +9,7 @@ import { type BillingPlanKey, billingPlans } from "@/lib/billing/plans";
 
 export default function PricingPage() {
   const { isLoaded, isSignedIn } = useUser();
+  const { getToken } = useAuth();
   const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
   const [selectedPlan, setSelectedPlan] = useState<BillingPlanKey | null>(null);
   const [message, setMessage] = useState(
@@ -27,9 +28,13 @@ export default function PricingPage() {
     setSelectedPlan(planKey);
     setMessage("Opening Mollie checkout...");
     try {
+      const token = await getToken();
       const response = await fetch("/api/billing/create-payment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ planKey }),
       });
       const payload = (await response.json().catch(() => ({}))) as {

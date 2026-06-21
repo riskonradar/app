@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "Missing payment_id parameter." }, { status: 400 });
   }
 
-  const userAccount = await ensureCurrentUserAccount();
+  const userAccount = await ensureCurrentUserAccount(request);
   if (!userAccount) {
     return Response.json({ error: "Sign in to check payment status." }, { status: 401 });
   }

@@ -15,8 +15,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const workspace = await ensureCurrentWorkspace();
-  const clerkContext = await getCurrentClerkContext();
+  const workspace = await ensureCurrentWorkspace(request);
+  const clerkContext = await getCurrentClerkContext(request);
   if (!workspace || !clerkContext.userId) {
     return Response.json(
       { error: "Sign in before opening Mollie checkout." },

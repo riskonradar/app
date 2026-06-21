@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -8,6 +9,7 @@ import { AppNav } from "@/components/app-nav";
 
 function BillingReturnContent() {
   const searchParams = useSearchParams();
+  const { getToken } = useAuth();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
 
@@ -22,7 +24,10 @@ function BillingReturnContent() {
       }
 
       try {
-        const response = await fetch(`/api/billing/payment-status?payment_id=${paymentId}`);
+        const token = await getToken();
+        const response = await fetch(`/api/billing/payment-status?payment_id=${paymentId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await response.json();
 
         if (!response.ok) {
@@ -65,7 +70,7 @@ function BillingReturnContent() {
     }
 
     checkPaymentStatus();
-  }, [searchParams]);
+  }, [getToken, searchParams]);
 
   return (
     <div className="app-shell">

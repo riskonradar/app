@@ -177,20 +177,22 @@ const fieldHelp: Record<string, string> = {
 
 const worksheetColumnSpecs = [
   { id: "included", size: 38 },
-  { id: "function", size: 120 },
-  { id: "requirement", size: 135 },
-  { id: "failureMode", size: 130 },
-  { id: "effect", size: 120 },
-  { id: "severity", size: 44 },
-  { id: "cause", size: 120 },
-  { id: "occurrence", size: 44 },
-  { id: "currentControl", size: 120 },
-  { id: "detection", size: 44 },
-  { id: "rpn", size: 54 },
-  { id: "correctiveAction", size: 120 },
-  { id: "evidence", size: 86 },
-  { id: "status", size: 104 },
+  { id: "function", size: 108 },
+  { id: "requirement", size: 112 },
+  { id: "failureMode", size: 118 },
+  { id: "effect", size: 116 },
+  { id: "severity", size: 50 },
+  { id: "cause", size: 116 },
+  { id: "occurrence", size: 50 },
+  { id: "currentControl", size: 118 },
+  { id: "detection", size: 50 },
+  { id: "rpn", size: 60 },
+  { id: "correctiveAction", size: 110 },
+  { id: "evidence", size: 82 },
+  { id: "status", size: 106 },
 ] as const;
+
+const helpFields = new Set(["failureMode", "severity", "occurrence", "detection", "rpn", "evidence"]);
 
 function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
   return `${row.component}-${row.failureMode}-${index}`
@@ -478,8 +480,8 @@ export default function Home() {
   const [componentDropdownOpen, setComponentDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 20;
   const [cellViewer, setCellViewer] = useState<{ rowId: string; field: string; value: string } | null>(null);
+  const groupsPerPage = 6;
   const components = useMemo(
     () => Array.from(new Set(rows.map((row) => row.component))).sort(),
     [rows],
@@ -512,15 +514,22 @@ export default function Home() {
   const incompleteRows = includedRows.filter((row) => !isComplete(row));
   const canExport = includedRows.length > 0 && incompleteRows.length === 0;
 
-  // Pagination
-  const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
-  const paginatedRows = visibleRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-  const paginatedGroupedData = useMemo(() => groupRowsByComponent(paginatedRows), [paginatedRows]);
+  // Pagination keeps component groups intact, so related failure modes do not split oddly.
+  const visibleGroupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
+  const totalPages = Math.max(1, Math.ceil(visibleGroupedData.length / groupsPerPage));
+  const paginatedGroupedData = visibleGroupedData.slice(
+    (currentPage - 1) * groupsPerPage,
+    currentPage * groupsPerPage,
+  );
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [componentFilter, componentQuery, rowFilter]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   // Initialize all components as expanded
   useEffect(() => {
@@ -888,17 +897,21 @@ export default function Home() {
   }
 
   function HeaderLabel({ field, label }: { field: string; label: string }) {
+    const helpText = fieldHelp[field];
+    const showHelp = helpText && helpFields.has(field);
     return (
       <span className="header-label">
-        {label}
-        <button
-          type="button"
-          className="field-help"
-          aria-label={`${label}: ${fieldHelp[field]}`}
-          data-tooltip={fieldHelp[field]}
-        >
-          ?
-        </button>
+        <span className="header-label-text">{label}</span>
+        {showHelp && (
+          <button
+            type="button"
+            className="field-help"
+            aria-label={`${label}: ${helpText}`}
+            data-tooltip={helpText}
+          >
+            ?
+          </button>
+        )}
       </span>
     );
   }
@@ -1504,22 +1517,25 @@ export default function Home() {
                     <Fragment key={component}>
                       <tr className="component-section-row">
                         <td colSpan={visibleColumnCount}>
-                          <button
-                            type="button"
-                            className="component-toggle"
-                            onClick={() => toggleComponent(component)}
-                            aria-label={`${expandedComponents.has(component) ? "Collapse" : "Expand"} ${component}`}
-                          >
-                            <span className="toggle-icon">{expandedComponents.has(component) ? "▼" : "▶"}</span>
-                            <span className="toggle-label">Component</span>
-                          </button>
-                          <span className="component-name">{component}</span>
+                          <div className="component-row-content">
+                            <button
+                              type="button"
+                              className="component-toggle"
+                              onClick={() => toggleComponent(component)}
+                              aria-label={`${expandedComponents.has(component) ? "Collapse" : "Expand"} ${component}`}
+                              aria-expanded={expandedComponents.has(component)}
+                            >
+                              <span className="toggle-icon" aria-hidden="true">{expandedComponents.has(component) ? "▼" : "▶"}</span>
+                              <span className="toggle-label">Component</span>
+                            </button>
+                            <span className="component-name" title={component}>{component}</span>
+                          </div>
                         </td>
                       </tr>
                       {expandedComponents.has(component) && childRows.map((row) => (
                         <tr
                           key={row.id}
-                          className={`fmea-data-row ${selectedRowIds.has(row.id) ? "row-selected" : ""}`}
+                          className={`fmea-data-row component-open-row ${selectedRowIds.has(row.id) ? "row-selected" : ""}`}
                           onClick={(event) => {
                             toggleRowSelection(row.id, event);
                           }}
