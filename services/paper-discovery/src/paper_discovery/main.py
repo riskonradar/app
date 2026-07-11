@@ -3,29 +3,24 @@ from __future__ import annotations
 import argparse
 import os
 import time
+from datetime import datetime, timedelta, timezone
 
 from paper_discovery.journals import TRUSTED_JOURNALS, Journal
 from paper_discovery.models import DiscoveredPaper
 from paper_discovery.queries import DISCOVERY_QUERIES
 from paper_discovery.repository import DiscoveryRepository
-from paper_discovery.sources import crossref, openalex
+from paper_discovery.sources import openalex
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Discover candidate engineering failure papers from trusted journals."
-    )
-    parser.add_argument(
-        "--source",
-        choices=("crossref", "openalex", "all"),
-        default="all",
-        help="API source to query. Default: all.",
+        description="Discover candidate engineering failure papers from trusted journals via OpenAlex."
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=100,
-        help="Maximum results per (source, journal, query) combination. Default: 100.",
+        help="Maximum results per (journal, query) combination. Default: 100.",
     )
     parser.add_argument(
         "--dry-run",
@@ -60,6 +55,17 @@ def main() -> None:
         help="Override trusted journal ISSNs (can repeat). Default: built-in list.",
     )
     parser.add_argument(
+        "--since-days",
+        type=int,
+        default=None,
+        help="Only fetch papers published in the last N days (incremental sweep). Default: no date filter.",
+    )
+    parser.add_argument(
+        "--backfill-oa",
+        action="store_true",
+        help="Instead of a sweep, backfill open-access + citation metadata for existing papers (uses --limit as batch size).",
+    )
+    parser.add_argument(
         "--mark-stale-days",
         type=int,
         default=None,
@@ -81,14 +87,23 @@ def main() -> None:
     )
     contact_email = os.environ.get("DISCOVERY_CONTACT_EMAIL")
 
+    if args.backfill_oa:
+        _backfill_oa(args.limit, args.dry_run, contact_email)
+        return
+
     while True:
+        from_publication_date = None
+        if args.since_days is not None:
+            from_publication_date = (
+                datetime.now(timezone.utc).date() - timedelta(days=args.since_days)
+            ).isoformat()
         _run_discovery(
-            args.source,
             journals,
             queries,
             args.limit,
             args.dry_run,
             contact_email,
+            from_publication_date,
             args.mark_stale_days,
             args.mark_removed_days,
         )
@@ -98,34 +113,31 @@ def main() -> None:
 
 
 def _run_discovery(
-    source: str,
     journals: tuple[Journal, ...],
     queries: tuple[str, ...],
     limit: int,
     dry_run: bool,
     contact_email: str | None,
+    from_publication_date: str | None,
     mark_stale_days: int | None,
     mark_removed_days: int | None,
 ) -> None:
-    sources = _sources_for(source)
     total = 0
 
-    for source_name, fetch_fn in sources:
-        for journal in journals:
-            for query in queries:
-                label = f"[{source_name}] {journal.name} ({journal.issn}) / '{query}'"
-                count = _fetch_and_store(
-                    source_name=source_name,
-                    fetch_fn=fetch_fn,
-                    journal=journal,
-                    query=query,
-                    limit=limit,
-                    dry_run=dry_run,
-                    contact_email=contact_email,
-                )
-                if count > 0:
-                    print(f"{label}: {count} paper(s)")
-                total += count
+    for journal in journals:
+        for query in queries:
+            label = f"{journal.name} ({journal.issn}) / '{query}'"
+            count = _fetch_and_store(
+                journal=journal,
+                query=query,
+                limit=limit,
+                dry_run=dry_run,
+                contact_email=contact_email,
+                from_publication_date=from_publication_date,
+            )
+            if count > 0:
+                print(f"{label}: {count} paper(s)")
+            total += count
 
     if mark_stale_days is not None and not dry_run:
         with DiscoveryRepository() as repo:
@@ -138,28 +150,73 @@ def _run_discovery(
         print(f"Marked {removed_count} stale paper(s) removed after {mark_removed_days} stale day(s).")
 
     action = "Would store" if dry_run else "Observed"
-    print(f"\n{action} {total} total paper(s) across all sources and queries.")
+    print(f"\n{action} {total} total paper(s) across all queries.")
+
+
+def _backfill_oa(limit: int, dry_run: bool, contact_email: str | None) -> None:
+    """Annotate existing papers with open-access availability and citation counts."""
+    with DiscoveryRepository() as repo:
+        candidates = repo.candidates_missing_oa(limit)
+    print(f"Backfilling OA metadata for {len(candidates)} paper(s)...")
+
+    oa_count = 0
+    missing = 0
+    errors = 0
+    for candidate in candidates:
+        try:
+            work = openalex.fetch_work_by_doi(candidate["doi"], contact_email)
+        except openalex.DiscoverySourceError as exc:
+            errors += 1
+            print(f"  Warning: {candidate['doi']}: {exc}")
+            continue
+
+        patch: dict[str, object] = {"oa_checked": True}
+        if work is not None:
+            open_access = work.get("open_access") or {}
+            patch["is_oa"] = bool(open_access.get("is_oa"))
+            if open_access.get("oa_url"):
+                patch["oa_url"] = open_access["oa_url"]
+            if open_access.get("oa_status"):
+                patch["oa_status"] = open_access["oa_status"]
+            if work.get("cited_by_count") is not None:
+                patch["cited_by_count"] = work["cited_by_count"]
+            if patch.get("is_oa"):
+                oa_count += 1
+        else:
+            patch["is_oa"] = False
+            missing += 1
+
+        if not dry_run:
+            with DiscoveryRepository() as repo:
+                repo.merge_discovery_metadata(str(candidate["id"]), patch)
+        time.sleep(0.1)  # OpenAlex polite rate limit
+
+    action = "Would update" if dry_run else "Updated"
+    print(
+        f"{action} {len(candidates) - errors} paper(s): "
+        f"{oa_count} open access, {missing} not found on OpenAlex, {errors} error(s)."
+    )
 
 
 def _fetch_and_store(
-    source_name: str,
-    fetch_fn: object,
     journal: Journal,
     query: str,
     limit: int,
     dry_run: bool,
     contact_email: str | None,
+    from_publication_date: str | None = None,
 ) -> int:
     try:
         papers = list(
-            fetch_fn(
+            openalex.fetch(
                 issn=journal.issn,
                 query=query,
                 limit=limit,
                 contact_email=contact_email,
+                from_publication_date=from_publication_date,
             )
         )
-    except (crossref.DiscoverySourceError, openalex.DiscoverySourceError) as exc:
+    except openalex.DiscoverySourceError as exc:
         print(f"  Warning: {exc}")
         return 0
 
@@ -168,7 +225,7 @@ def _fetch_and_store(
 
     try:
         with DiscoveryRepository() as repo:
-            run_id = repo.start_run(source=source_name, query=f"{journal.issn}/{query}")
+            run_id = repo.start_run(source="openalex", query=f"{journal.issn}/{query}")
             try:
                 stats = repo.upsert_papers(run_id, papers)
                 repo.finish_run(run_id, stats)
@@ -179,14 +236,6 @@ def _fetch_and_store(
     except Exception as exc:
         print(f"  Warning: DB write failed: {exc}")
         return 0
-
-
-def _sources_for(source: str) -> list[tuple[str, object]]:
-    if source == "crossref":
-        return [("crossref", crossref.fetch)]
-    if source == "openalex":
-        return [("openalex", openalex.fetch)]
-    return [("crossref", crossref.fetch), ("openalex", openalex.fetch)]
 
 
 if __name__ == "__main__":

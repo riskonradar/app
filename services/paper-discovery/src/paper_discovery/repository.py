@@ -315,14 +315,54 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
             "source": "discovery",
             "external_ids": json.dumps(paper.external_ids),
             "discovery_score": _discovery_score(paper),
-            "discovery_metadata": json.dumps({"dedupe_strategy": "doi_title_year_abstract"}),
+            "discovery_metadata": json.dumps(_discovery_metadata(paper)),
             "raw_payload": json.dumps(paper.raw_payload),
         }
+
+    def candidates_missing_oa(self, limit: int) -> list[dict[str, Any]]:
+        """Papers with a real DOI that have never been checked for open access."""
+        rows = self._conn().execute(
+            """
+            select id, doi
+            from papers_raw.paper_candidates
+            where doi is not null
+              and doi not like 'easa-ad:%%'
+              and (discovery_metadata->>'oa_checked') is null
+            order by publication_year desc nulls last
+            limit %(limit)s
+            """,
+            {"limit": limit},
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def merge_discovery_metadata(self, paper_id: str, patch: dict[str, Any]) -> None:
+        self._conn().execute(
+            """
+            update papers_raw.paper_candidates
+            set discovery_metadata = coalesce(discovery_metadata, '{}'::jsonb) || %(patch)s::jsonb
+            where id = %(paper_id)s
+            """,
+            {"paper_id": paper_id, "patch": json.dumps(patch)},
+        )
 
     def _conn(self) -> psycopg.Connection[dict[str, Any]]:
         if self.connection is None:
             raise RuntimeError("Repository must be used as a context manager.")
         return self.connection
+
+
+def _discovery_metadata(paper: DiscoveredPaper) -> dict[str, Any]:
+    metadata: dict[str, Any] = {"dedupe_strategy": "doi_title_year_abstract"}
+    if paper.is_oa is not None:
+        metadata["oa_checked"] = True
+        metadata["is_oa"] = paper.is_oa
+    if paper.oa_url:
+        metadata["oa_url"] = paper.oa_url
+    if paper.oa_status:
+        metadata["oa_status"] = paper.oa_status
+    if paper.cited_by_count is not None:
+        metadata["cited_by_count"] = paper.cited_by_count
+    return metadata
 
 
 def _discovery_score(paper: DiscoveredPaper) -> float:

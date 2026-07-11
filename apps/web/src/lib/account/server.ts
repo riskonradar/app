@@ -28,6 +28,10 @@ function appSchema() {
 }
 
 function normalizeRole(role: string | null | undefined) {
+  if (role === "org:viewer" || role === "viewer") {
+    return "viewer";
+  }
+
   if (role === "org:admin" || role === "admin") {
     return "admin";
   }

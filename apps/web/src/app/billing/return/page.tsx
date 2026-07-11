@@ -30,7 +30,12 @@ function BillingReturnContent() {
       const text = await response.text();
       if (!text.trim()) return {};
       try {
-        return JSON.parse(text) as { error?: string; status?: string };
+      return JSON.parse(text) as {
+        error?: string;
+        status?: string;
+        paymentStatus?: string;
+        subscriptionStatus?: string | null;
+      };
       } catch {
         return {};
       }
@@ -38,8 +43,8 @@ function BillingReturnContent() {
 
     function storedPaymentId() {
       const raw =
-        sessionStorage.getItem("riskonradar-pending-mollie-payment") ??
-        localStorage.getItem("riskonradar-pending-mollie-payment");
+        sessionStorage.getItem("riskonradar-pending-stripe-session") ??
+        localStorage.getItem("riskonradar-pending-stripe-session");
       if (!raw) return null;
 
       try {
@@ -51,8 +56,8 @@ function BillingReturnContent() {
     }
 
     function clearStoredPayment() {
-      sessionStorage.removeItem("riskonradar-pending-mollie-payment");
-      localStorage.removeItem("riskonradar-pending-mollie-payment");
+      sessionStorage.removeItem("riskonradar-pending-stripe-session");
+      localStorage.removeItem("riskonradar-pending-stripe-session");
     }
 
     function completePayment() {
@@ -61,26 +66,22 @@ function BillingReturnContent() {
     }
 
     async function checkPaymentStatus() {
-      const paymentId =
-        searchParams.get("payment_id") ??
-        searchParams.get("id") ??
-        searchParams.get("paymentId") ??
-        storedPaymentId();
+      const sessionId = searchParams.get("session_id") ?? searchParams.get("id") ?? storedPaymentId();
 
-      if (!paymentId) {
-        markPaymentFailed("No payment ID found for this checkout. Please start checkout again from pricing.");
+      if (!sessionId) {
+        markPaymentFailed("No Checkout Session found. Please start checkout again from pricing.");
         return;
       }
 
       try {
         const token = await getToken();
-        const response = await fetch(`/api/billing/payment-status?payment_id=${paymentId}`, {
+        const response = await fetch(`/api/billing/payment-status?session_id=${sessionId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await readResponseJson(response);
 
         if (!response.ok) {
-          if (isLocalDevCheckout() && paymentId) {
+          if (isLocalDevCheckout() && sessionId) {
             completePayment();
             return;
           }
@@ -94,25 +95,27 @@ function BillingReturnContent() {
           throw new Error(data.error || "Could not verify payment status. Please try again in a moment.");
         }
 
-        if (data.status === "paid" || data.status === "authorized") {
+        if (
+          data.status === "complete" ||
+          data.paymentStatus === "paid" ||
+          data.subscriptionStatus === "active" ||
+          data.subscriptionStatus === "trialing"
+        ) {
           completePayment();
-        } else if (data.status === "pending") {
-          setMessage("Payment is being processed. Please wait...");
+        } else if (data.status === "open") {
+          setMessage("Checkout is still open. Waiting for completion...");
           // Retry after a delay
           setTimeout(checkPaymentStatus, 3000);
-        } else if (data.status === "failed" || data.status === "expired" || data.status === "canceled") {
+        } else if (data.status === "expired" || data.subscriptionStatus === "canceled") {
           clearStoredPayment();
-          markPaymentFailed(`Payment ${data.status}. Please try again or contact support.`);
-        } else if (data.status === "open") {
-          setMessage("Payment is still open. Waiting for completion...");
-          setTimeout(checkPaymentStatus, 3000);
+          markPaymentFailed("Stripe Checkout did not complete. Please try again or contact support.");
         } else {
-          setMessage(`Payment status: ${data.status}. Waiting for completion...`);
+          setMessage(`Checkout status: ${data.status}. Waiting for completion...`);
           // Retry after a delay for other statuses
           setTimeout(checkPaymentStatus, 3000);
         }
       } catch (error) {
-        if (isLocalDevCheckout() && paymentId) {
+        if (isLocalDevCheckout() && sessionId) {
           completePayment();
           return;
         }
@@ -129,10 +132,10 @@ function BillingReturnContent() {
       <main className="app-main">
         <section className="page-card">
           <div className="page-heading">
-            <h1>Payment Status</h1>
+            <h1>Billing Status</h1>
           </div>
 
-          <p className="notice">{message || "Checking payment status..."}</p>
+          <p className="notice">{message || "Checking Stripe Checkout status..."}</p>
         </section>
       </main>
     </div>
@@ -147,7 +150,7 @@ export default function BillingReturnPage() {
           <AppNav />
           <main className="app-main">
             <section className="page-card">
-              <p className="notice">Loading payment status...</p>
+              <p className="notice">Loading billing status...</p>
             </section>
           </main>
         </div>

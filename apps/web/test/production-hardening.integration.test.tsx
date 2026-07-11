@@ -152,6 +152,82 @@ describe("production hardening flows", () => {
     expect(source.match(/\.or\(ownerFilterForWorkspace/g)?.length).toBeGreaterThanOrEqual(5);
   });
 
+  test("knowledge APIs require a workspace before returning product evidence", async () => {
+    const [componentsRoute, searchRoute, fmeaRoute] = await Promise.all([
+      readFile("src/app/api/knowledge/components/route.ts", "utf8"),
+      readFile("src/app/api/knowledge/search/route.ts", "utf8"),
+      readFile("src/app/api/knowledge/fmea/route.ts", "utf8"),
+    ]);
+
+    for (const source of [componentsRoute, searchRoute, fmeaRoute]) {
+      expect(source).toContain("ensureCurrentWorkspace(request)");
+      expect(source).toContain('Response.json({ error: "Unauthorized" }, { status: 401 })');
+    }
+
+    expect(fmeaRoute).toContain("getSupabaseServiceClient");
+    expect(fmeaRoute).not.toContain("getSupabaseAnonClient");
+  });
+
+  test("middleware protects authenticated product routes and product APIs", async () => {
+    const source = await readFile("src/proxy.ts", "utf8");
+
+    expect(source).toContain("clerkMiddleware");
+    expect(source).toContain("createRouteMatcher");
+    expect(source).toContain('"/fmea(.*)"');
+    expect(source).toContain('"/api/knowledge(.*)"');
+    expect(source).toContain('"/api/fmea(.*)"');
+    expect(source).toContain('"/api/billing/payment-status"');
+    expect(source).toContain("auth.protect()");
+    expect(source).not.toContain("stripe-webhook");
+  });
+
+  test("knowledge search routes through the shared component taxonomy", async () => {
+    const [searchRoute, componentsRoute, taxonomySource, webPackage] = await Promise.all([
+      readFile("src/app/api/knowledge/search/route.ts", "utf8"),
+      readFile("src/app/api/knowledge/components/route.ts", "utf8"),
+      readFile("../../packages/shared/src/taxonomy.ts", "utf8"),
+      readFile("package.json", "utf8"),
+    ]);
+
+    expect(webPackage).toContain('"@riskonradar/shared": "workspace:*"');
+    expect(taxonomySource).toContain("COMPONENT_TAXONOMY");
+    expect(taxonomySource).toContain("findComponentTaxonomyNode");
+    expect(searchRoute).toContain('from "@riskonradar/shared/taxonomy"');
+    expect(searchRoute).toContain('"search_fmea_by_component"');
+    expect(componentsRoute).toContain('"get_component_taxonomy"');
+  });
+
+  test("database hardening migration gates product data and removes global review mutation", async () => {
+    const source = await readFile(
+      "../../supabase/migrations/20260710120000_security_and_taxonomy_hardening.sql",
+      "utf8",
+    );
+
+    expect(source).toContain("DROP FUNCTION IF EXISTS public.update_evidence_review_status");
+    expect(source).toContain("REVOKE EXECUTE ON FUNCTION public.get_turbofan_fmea(int) FROM PUBLIC, anon");
+    expect(source).toContain("SET search_path = pg_catalog");
+    expect(source).toContain("auth.role() IN ('authenticated', 'service_role')");
+    expect(source).toContain("auth.role() = 'service_role'");
+    expect(source).toContain("llm-extractor-v2:gemini:gemini-flash-latest");
+    expect(source).toContain('DROP POLICY IF EXISTS "open read paper_classifications"');
+    expect(source).not.toContain('CREATE POLICY "authenticated read paper_classifications"');
+  });
+
+  test("viewer workspace role cannot mutate saved analyses or evidence reviews", async () => {
+    const [accountServer, fmeaServer, reviewRoute] = await Promise.all([
+      readFile("src/lib/account/server.ts", "utf8"),
+      readFile("src/lib/fmea/server.ts", "utf8"),
+      readFile("src/app/api/knowledge/review/route.ts", "utf8"),
+    ]);
+
+    expect(accountServer).toContain('role === "org:viewer" || role === "viewer"');
+    expect(fmeaServer).toContain("function canMutateWorkspace");
+    expect(fmeaServer).toContain('workspace.role === "owner"');
+    expect(fmeaServer).toContain("forbidden: true as const");
+    expect(reviewRoute).toContain('workspace.role === "viewer"');
+    expect(reviewRoute).toContain("{ status: 403 }");
+  });
+
   test("account membership display prefers server billing status over localStorage", async () => {
     window.localStorage.setItem(
       "riskonradar-membership",

@@ -84,6 +84,12 @@ def main() -> None:
         help="Filter papers by topic keyword in title or abstract (e.g., 'turbofan').",
     )
 
+    link_parser = subparsers.add_parser(
+        "link-taxonomy",
+        help="Link component and failure-mode claims to taxonomy nodes (exact -> alias -> fuzzy). Incremental; safe to re-run.",
+    )
+    link_parser.add_argument("--dry-run", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "prototype-ris":
@@ -96,6 +102,14 @@ def main() -> None:
         count = import_easa_ads(limit=args.limit, dry_run=args.dry_run)
         action = "Would import" if args.dry_run else "Imported"
         print(f"{action} {count} EASA ADs.")
+    elif args.command == "link-taxonomy":
+        with PostgresRepository() as repository:
+            counts = repository.link_taxonomy(dry_run=args.dry_run)
+        action = "Would link" if args.dry_run else "Linked"
+        print(
+            f"{action} {counts['components']} component claim(s) and "
+            f"{counts['failure_modes']} failure-mode claim(s) to taxonomy nodes."
+        )
     elif args.command == "classify":
         _classify_pending(
             args.limit,
@@ -184,6 +198,12 @@ def _classify_batch(
 
     def process(candidate: CandidatePaper) -> int:
         paper = paper_from_candidate(candidate)
+        if not (paper.abstract and paper.abstract.strip()):
+            if not dry_run:
+                with PostgresRepository() as repo:
+                    repo.mark_skipped(candidate, classifier_version, mode, "no abstract available")
+            print(f"{candidate.id}: skipped (no abstract)")
+            return 0
         if llm_config is not None:
             try:
                 result = extract_with_llm(paper, llm_config)
@@ -198,7 +218,14 @@ def _classify_batch(
         with PostgresRepository() as repo:
             repo.save_classification(candidate, result, classifier_version, mode, dry_run)
 
-        print(f"{candidate.id}: {result.relevance} claims={len(result.claims)} relationships={len(result.relationships)}")
+        claims_returned = result.metadata.get("claims_returned")
+        relationships_returned = result.metadata.get("relationships_returned")
+        counters = (
+            f"claims={len(result.claims)}/{claims_returned} relationships={len(result.relationships)}/{relationships_returned}"
+            if claims_returned is not None
+            else f"claims={len(result.claims)} relationships={len(result.relationships)}"
+        )
+        print(f"{candidate.id}: {result.relevance} {counters}")
         return 1
 
     count = 0
@@ -210,6 +237,24 @@ def _classify_batch(
                 count += future.result()
             except Exception as exc:
                 print(f"{candidate.id}: failed: {exc}")
+                if not dry_run:
+                    try:
+                        with PostgresRepository() as repo:
+                            repo.record_failure(candidate, classifier_version, mode, str(exc))
+                    except Exception as db_exc:
+                        print(f"{candidate.id}: could not persist failure: {db_exc}")
+
+    if count and not dry_run:
+        try:
+            with PostgresRepository() as repository:
+                linked = repository.link_taxonomy()
+            print(
+                f"Taxonomy linking: {linked['components']} component, "
+                f"{linked['failure_modes']} failure-mode claim(s) linked."
+            )
+        except Exception as exc:
+            # unlinked claims stay in the taxonomy inbox; never fail the batch
+            print(f"Taxonomy linking skipped: {exc}")
     return count
 
 

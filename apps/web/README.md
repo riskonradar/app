@@ -40,9 +40,11 @@ Required for full integration:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `MOLLIE_API_KEY` or `MOLLIE_TEST_API_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_INDIVIDUAL_PRICE_ID`
 
-The local `.env.local` is intentionally ignored by git. Never commit real Clerk, Supabase service-role, or Mollie secrets.
+The local `.env.local` is intentionally ignored by git. Never commit real Clerk, Supabase service-role, or Stripe secrets.
 
 ## Auth and Organizations
 
@@ -85,18 +87,19 @@ Use the migration in `../../supabase/migrations/` as the schema starting point. 
 
 ## Billing
 
-Mollie is scaffolded for payments. The browser sends a plan key; server code resolves the amount
-from `src/lib/billing/plans.ts` and stores payment metadata with the app user and organization IDs.
-Team purchases require an active organization workspace.
+Stripe Billing is scaffolded with hosted Checkout Sessions. The browser sends a plan key; server
+code resolves the Stripe Price ID, creates a subscription Checkout Session, and stores Stripe
+metadata with the app user and organization IDs. Team purchases require an active organization
+workspace.
 
 Files:
 
 - `src/lib/billing/plans.ts`
-- `src/lib/mollie/server.ts`
+- `src/lib/stripe/server.ts`
 - `src/app/api/billing/create-payment/route.ts`
-- `src/app/api/billing/mollie-webhook/route.ts`
+- `src/app/api/billing/stripe-webhook/route.ts`
 
-Mollie must only be called from server-side code. The browser must never receive `MOLLIE_API_KEY` or `MOLLIE_TEST_API_KEY`.
+Stripe must only be called from server-side code. The browser must never receive `STRIPE_SECRET_KEY` or `STRIPE_WEBHOOK_SECRET`.
 
 Current packaging direction:
 

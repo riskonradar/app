@@ -21,6 +21,9 @@ export async function GET(request: Request, context: RouteContext) {
     if ("notFound" in result) {
       return Response.json({ error: "Analysis not found." }, { status: 404 });
     }
+    if ("forbidden" in result) {
+      return Response.json({ error: "You do not have permission to rename this analysis." }, { status: 403 });
+    }
 
     return Response.json(result);
   } catch (error) {
@@ -40,6 +43,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     if ("notFound" in result) {
       return Response.json({ error: "Analysis not found." }, { status: 404 });
+    }
+    if ("forbidden" in result) {
+      return Response.json({ error: "You do not have permission to delete this analysis." }, { status: 403 });
     }
 
     return Response.json(result);

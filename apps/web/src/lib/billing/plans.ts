@@ -24,7 +24,7 @@ export const billingPlans: BillingPlan[] = [
       "Personal workspace",
       "Evidence-linked Failure Mode and Effects Analysis exports",
       "Saved analyses and review state",
-      "Mollie checkout",
+      "Stripe-hosted checkout",
     ],
   },
   {

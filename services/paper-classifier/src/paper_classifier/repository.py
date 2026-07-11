@@ -193,6 +193,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
     def pending_candidates(self, limit: int, classifier_version: str, topic_filter: str | None = None) -> list[CandidatePaper]:
         where_clauses = [
             "coalesce(pc.lifecycle_status, 'pending_classification') not in ('stale', 'removed')",
+            "pc.classification_status is distinct from 'skipped'",
             """(
                 pc.classification_status in ('pending', 'failed')
                 or not exists (
@@ -202,7 +203,15 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                     and cj.classifier_version = %(classifier_version)s
                     and cj.status = 'completed'
                 )
-              )"""
+              )""",
+            """not exists (
+                select 1
+                from knowledge.classification_jobs cjf
+                where cjf.paper_candidate_id = pc.id
+                  and cjf.classifier_version = %(classifier_version)s
+                  and cjf.status = 'failed'
+                  and cjf.attempts >= 3
+              )""",
         ]
         
         params = {"limit": limit, "classifier_version": classifier_version}
@@ -297,6 +306,20 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                 },
             ).fetchone()["id"]
 
+            # Supersede unreviewed claims from earlier jobs for this paper instead of
+            # deleting them: preserves human review state and FMEA evidence links.
+            self._connection().execute(
+                """
+                update knowledge.evidence_claims
+                set review_status = 'superseded'
+                where paper_candidate_id = %(paper_candidate_id)s
+                  and classification_job_id <> %(job_id)s
+                  and review_status = 'needs_review'
+                """,
+                {"paper_candidate_id": candidate.id, "job_id": job_id},
+            )
+            # Same-job replay (crash mid-batch): safe to delete, the claims were
+            # written seconds ago and cannot have been reviewed or cited yet.
             self._connection().execute("delete from knowledge.evidence_claims where classification_job_id = %(job_id)s", {"job_id": job_id})
 
             claim_ids: list[str] = []
@@ -423,7 +446,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                   %(paper_candidate_id)s,
                   %(relevance)s,
                   %(confidence)s,
-                  'keyword-span-preprocessor',
+                  %(model_name)s,
                   %(classifier_version)s,
                   %(metadata)s::jsonb
                 )
@@ -432,6 +455,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                     "paper_candidate_id": candidate.id,
                     "relevance": result.relevance,
                     "confidence": result.confidence,
+                    "model_name": result.metadata.get("llm_model") or "keyword-span-preprocessor",
                     "classifier_version": classifier_version,
                     "metadata": json.dumps(result.metadata),
                 },
@@ -448,6 +472,87 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                 """,
                 {"paper_candidate_id": candidate.id},
             )
+
+    def mark_skipped(
+        self,
+        candidate: CandidatePaper,
+        classifier_version: str,
+        mode: str,
+        reason: str,
+    ) -> None:
+        """Terminal state for papers that can never be classified (e.g. no abstract)."""
+        self._upsert_job_status(candidate, classifier_version, mode, "skipped", reason)
+        self._connection().execute(
+            "update papers_raw.paper_candidates set classification_status = 'skipped' where id = %(id)s",
+            {"id": candidate.id},
+        )
+
+    def record_failure(
+        self,
+        candidate: CandidatePaper,
+        classifier_version: str,
+        mode: str,
+        error: str,
+    ) -> None:
+        """Persist a failed attempt; papers with 3 failed attempts stop being re-polled."""
+        self._upsert_job_status(candidate, classifier_version, mode, "failed", error[:2000])
+        self._connection().execute(
+            "update papers_raw.paper_candidates set classification_status = 'failed' where id = %(id)s",
+            {"id": candidate.id},
+        )
+
+    def _upsert_job_status(
+        self,
+        candidate: CandidatePaper,
+        classifier_version: str,
+        mode: str,
+        status: str,
+        last_error: str,
+    ) -> None:
+        self._connection().execute(
+            """
+            insert into knowledge.classification_jobs (
+              paper_candidate_id, input_hash, classifier_version, mode,
+              status, attempts, started_at, last_error
+            )
+            values (
+              %(paper_candidate_id)s, %(input_hash)s, %(classifier_version)s, %(mode)s,
+              %(status)s, 1, now(), %(last_error)s
+            )
+            on conflict (paper_candidate_id, input_hash, classifier_version) do update set
+              mode = excluded.mode,
+              status = excluded.status,
+              attempts = knowledge.classification_jobs.attempts + 1,
+              started_at = excluded.started_at,
+              last_error = excluded.last_error
+            """,
+            {
+                "paper_candidate_id": candidate.id,
+                "input_hash": input_hash_for(candidate.title, candidate.abstract),
+                "classifier_version": classifier_version,
+                "mode": mode,
+                "status": status,
+                "last_error": last_error,
+            },
+        )
+
+    def link_taxonomy(self, dry_run: bool = False) -> dict[str, int]:
+        """Run the DB auto-linkers: claims -> taxonomy nodes (exact -> alias -> fuzzy).
+
+        Only processes claims without an existing link, so it is incremental and
+        safe to run after every batch or as a full-corpus backfill.
+        """
+        counts: dict[str, int] = {}
+        for label, function in (
+            ("components", "knowledge.link_component_claims"),
+            ("failure_modes", "knowledge.link_failure_mode_claims"),
+        ):
+            row = self._connection().execute(
+                f"select count(*) as linked from {function}(%(dry_run)s)",
+                {"dry_run": dry_run},
+            ).fetchone()
+            counts[label] = int(row["linked"])
+        return counts
 
     def _connection(self) -> psycopg.Connection[dict[str, Any]]:
         if self.connection is None:

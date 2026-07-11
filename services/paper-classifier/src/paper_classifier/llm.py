@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from paper_classifier.models import (
     SupportType,
 )
 
-LLM_CLASSIFIER_VERSION = "llm-extractor-v2"
+LLM_CLASSIFIER_VERSION = "llm-extractor-v3"
 
 
 @dataclass(frozen=True)
@@ -157,7 +158,6 @@ Rules:
   engine shutdown, or operational loss as failure_mode claims. Store them as effect or detection_method when supported.
 - If the paper has no failure analysis content, return not_relevant with no claims.
 - Return possibly_relevant, not relevant, for RUL/prognostics/model-only papers unless they name a concrete component failure mode, cause, effect, control, detection method, or maintenance action.
-- Return not_relevant for non-aviation wind turbine, power plant, steam turbine, natural gas pipeline, or generic compressor papers unless they explicitly discuss turbofan/aero/aircraft/jet engine applicability.
 
 Relationship direction rules:
 - component -> has_failure_mode -> failure_mode
@@ -273,7 +273,7 @@ def _call_openai(prompt: str, config: LlmConfig) -> str:
 def _call_anthropic(prompt: str, config: LlmConfig) -> str:
     payload = {
         "model": config.model,
-        "max_tokens": 1800,
+        "max_tokens": 4096,
         "temperature": 0,
         "messages": [{"role": "user", "content": prompt}],
     }
@@ -326,19 +326,27 @@ def _parse_json_object(raw_text: str) -> dict[str, Any]:
 
 def _result_from_payload(paper: Paper, payload: dict[str, Any], config: LlmConfig) -> ClassificationResult:
     claims: list[EvidenceClaim] = []
-    for raw_claim in payload.get("claims", []):
+    # LLM relationship indices refer to positions in ITS claims array; gates drop
+    # claims, so remap original positions -> surviving positions or edges would
+    # silently attach to the wrong claim after any drop.
+    index_map: dict[int, int] = {}
+    for original_index, raw_claim in enumerate(payload.get("claims", [])):
         claim = _claim_from_payload(paper, raw_claim)
         if claim is not None:
+            index_map[original_index] = len(claims)
             claims.append(claim)
 
     relationships: list[ClaimRelationship] = []
     for raw_relationship in payload.get("relationships", []):
-        relationship = _relationship_from_payload(raw_relationship, claims)
+        relationship = _relationship_from_payload(paper, raw_relationship, claims, index_map)
         if relationship is not None:
             relationships.append(relationship)
 
     relevance = payload.get("relevance") if payload.get("relevance") in {"relevant", "possibly_relevant", "not_relevant"} else "possibly_relevant"
     confidence = _bounded_float(payload.get("confidence"), default=0.5)
+    raw_claims = payload.get("claims", [])
+    raw_relationships = payload.get("relationships", [])
+    direct_kept = sum(1 for c in claims if c.support_type == SupportType.DIRECT_SPAN)
     return ClassificationResult(
         relevance=relevance,
         confidence=confidence,
@@ -351,6 +359,11 @@ def _result_from_payload(paper: Paper, payload: dict[str, Any], config: LlmConfi
             "llm_model": config.model,
             "claim_count": len(claims),
             "relationship_count": len(relationships),
+            # label-free eval counters: returned = what the LLM emitted,
+            # kept = what survived the gates (survival rate = quote fidelity)
+            "claims_returned": len(raw_claims) if isinstance(raw_claims, list) else 0,
+            "relationships_returned": len(raw_relationships) if isinstance(raw_relationships, list) else 0,
+            "direct_claims_kept": direct_kept,
         },
     )
 
@@ -371,10 +384,10 @@ def _claim_from_payload(paper: Paper, raw_claim: Any) -> EvidenceClaim | None:
         return None
 
     source_text = paper.title if source_field == "title" else paper.abstract or ""
-    char_start = source_text.lower().find(evidence_text.lower())
-    if char_start < 0:
+    span = _find_span(source_text, evidence_text)
+    if span is None:
         return None
-    char_end = char_start + len(evidence_text)
+    char_start, char_end = span
 
     rationale = _clean_text(raw_claim.get("inference_rationale"))
     if support_type == SupportType.INFERRED_FROM_SPAN and not rationale:
@@ -399,19 +412,24 @@ def _claim_from_payload(paper: Paper, raw_claim: Any) -> EvidenceClaim | None:
 
 
 def _relationship_from_payload(
+    paper: Paper,
     raw_relationship: Any,
     claims: list[EvidenceClaim],
+    index_map: dict[int, int],
 ) -> ClaimRelationship | None:
     if not isinstance(raw_relationship, dict):
         return None
     try:
-        subject_index = int(raw_relationship.get("subject_claim_index"))
-        object_index = int(raw_relationship.get("object_claim_index"))
+        original_subject_index = int(raw_relationship.get("subject_claim_index"))
+        original_object_index = int(raw_relationship.get("object_claim_index"))
         relationship_type = RelationshipType(raw_relationship.get("relationship_type"))
         support_type = SupportType(raw_relationship.get("support_type"))
     except (TypeError, ValueError):
         return None
-    if not (0 <= subject_index < len(claims) and 0 <= object_index < len(claims)):
+    subject_index = index_map.get(original_subject_index)
+    object_index = index_map.get(original_object_index)
+    if subject_index is None or object_index is None:
+        # references a claim that was dropped by a gate
         return None
     if not _relationship_direction_is_valid(
         claims[subject_index].claim_type,
@@ -422,6 +440,22 @@ def _relationship_from_payload(
     metadata = {"extractor": "llm"}
     relationship_evidence_text = _clean_text(raw_relationship.get("relationship_evidence_text"))
     inference_rationale = _clean_text(raw_relationship.get("inference_rationale"))
+    if support_type == SupportType.DIRECT_SPAN:
+        # Same hallucination guard as claims: a direct relationship's quote must
+        # exist in the source text, and we store the source's own slice.
+        if not relationship_evidence_text:
+            return None
+        verified = None
+        for source_text in (paper.title, paper.abstract or ""):
+            span = _find_span(source_text, relationship_evidence_text)
+            if span is not None:
+                verified = source_text[span[0]:span[1]]
+                break
+        if verified is None:
+            return None
+        relationship_evidence_text = verified
+    elif not inference_rationale:
+        return None
     if relationship_evidence_text:
         metadata["relationship_evidence_text"] = relationship_evidence_text
     if inference_rationale:
@@ -463,6 +497,22 @@ def _relationship_direction_is_valid(
             ClaimType.ENVIRONMENT,
         }
     return False
+
+
+def _find_span(source_text: str, evidence_text: str) -> tuple[int, int] | None:
+    """Locate evidence_text in source_text, tolerant only of whitespace differences.
+
+    Tokens must match verbatim (case-insensitive); runs of whitespace/newlines may
+    differ between the LLM quote and the source. Returns source-text offsets.
+    """
+    tokens = evidence_text.split()
+    if not tokens:
+        return None
+    pattern = r"\s+".join(re.escape(token) for token in tokens)
+    match = re.search(pattern, source_text, flags=re.IGNORECASE)
+    if match is None:
+        return None
+    return match.start(), match.end()
 
 
 def _bounded_float(value: Any, default: float) -> float:

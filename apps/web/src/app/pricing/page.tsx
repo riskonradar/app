@@ -56,7 +56,7 @@ export default function PricingPage() {
                   <p>{plan.description}</p>
                 </div>
                 <ul>
-                  {["Unlimited saved Failure Mode and Effects Analysis tables", ...plan.features.filter((feature) => feature !== "Mollie checkout")].map((feature) => (
+                  {["Unlimited saved Failure Mode and Effects Analysis tables", ...plan.features].map((feature) => (
                     <li key={feature}>{feature}</li>
                   ))}
                 </ul>

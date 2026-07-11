@@ -86,7 +86,7 @@ Path: `services/paper-discovery`
 
 Main responsibilities:
 
-- Search Crossref and OpenAlex.
+- Search OpenAlex (sole source; Crossref removed 2026-07 — abstract-less papers are unclassifiable, and OpenAlex ingests Crossref data).
 - Restrict discovery to trusted ISSNs from `data/journals.json`.
 - Use broad search query packs from `data/queries.json`.
 - Upsert raw metadata into `papers_raw.paper_candidates`.
@@ -101,9 +101,9 @@ Common commands:
 cd services/paper-discovery
 pip install -e .
 paper-discovery --help
-paper-discovery --source all --limit 100
-paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
-paper-discovery --source all --limit 25 --mark-stale-days 60 --mark-removed-days 180
+paper-discovery --limit 100
+paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
+paper-discovery --limit 25 --since-days 30 --mark-stale-days 60 --mark-removed-days 180
 ```
 
 Environment:
@@ -187,7 +187,9 @@ Current intended commands:
 
 ```sh
 # Weekly discovery, via timer
-/opt/riskonradar/venv/bin/paper-discovery --source all --limit 25 --mark-stale-days 60 --mark-removed-days 180
+# (deployed unit still passes --source all from before the Crossref removal —
+#  drop that flag when next deploying; it no longer exists and will error)
+/opt/riskonradar/venv/bin/paper-discovery --limit 25 --mark-stale-days 60 --mark-removed-days 180
 
 # Continuous classifier worker
 /opt/riskonradar/venv/bin/paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1

@@ -1,16 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import type Stripe from "stripe";
+
 import { ensureCurrentUserAccount } from "@/lib/account/server";
-import { persistMolliePayment } from "@/lib/billing/server";
-import { getMollieClient } from "@/lib/mollie/server";
+import { persistStripeCheckoutSession, persistStripeSubscription } from "@/lib/billing/server";
+import { isStripeConfigured } from "@/lib/config";
+import { getStripeClient } from "@/lib/stripe/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
+
+function stripeObjectId(value: string | { id: string } | null | undefined) {
+  if (!value) return null;
+  return typeof value === "string" ? value : value.id;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const paymentId = searchParams.get("payment_id");
+  const sessionId = searchParams.get("session_id");
 
-  if (!paymentId) {
-    return Response.json({ error: "Missing payment_id parameter." }, { status: 400 });
+  if (!sessionId) {
+    return Response.json({ error: "Missing session_id parameter." }, { status: 400 });
   }
 
   try {
@@ -22,38 +30,58 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServiceClient();
     const { data: paymentRecord } = await (supabase as any).schema("app")
       .from("billing_payments")
-      .select("status, mollie_payment_id, organization_id, plan_key, seats")
-      .eq("mollie_payment_id", paymentId)
+      .select("status, stripe_checkout_session_id, stripe_subscription_id, organization_id, plan_key, seats")
+      .eq("stripe_checkout_session_id", sessionId)
       .eq("user_account_id", userAccount.id)
       .maybeSingle() as any;
 
-    try {
-      const molliePayment = await getMollieClient().payments.get(paymentId);
-      const metadata = (molliePayment.metadata ?? {}) as { userAccountId?: string; clerkUserId?: string };
-      if (metadata.userAccountId && metadata.userAccountId !== userAccount.id) {
-        return Response.json({ error: "Payment does not belong to the current account." }, { status: 403 });
-      }
+    if (isStripeConfigured()) {
+      try {
+        const session = await getStripeClient().checkout.sessions.retrieve(sessionId, {
+          expand: ["subscription"],
+        });
+        const metadata = (session.metadata ?? {}) as { userAccountId?: string; clerkUserId?: string };
+        if (metadata.userAccountId && metadata.userAccountId !== userAccount.id) {
+          return Response.json({ error: "Checkout Session does not belong to the current account." }, { status: 403 });
+        }
 
-      const persistError = await persistMolliePayment(molliePayment, userAccount.id);
-      if (persistError) {
-        console.error("Failed to persist refreshed payment status:", persistError);
-      }
+        const sessionError = await persistStripeCheckoutSession(session, userAccount.id);
+        if (sessionError) {
+          console.error("Failed to persist refreshed Stripe Checkout status:", sessionError);
+        }
 
-      return Response.json({
-        id: paymentId,
-        status: molliePayment.status,
-      });
-    } catch (error) {
-      console.error("Failed to fetch status from Mollie:", error);
+        const subscription =
+          typeof session.subscription === "object" && session.subscription
+            ? (session.subscription as Stripe.Subscription)
+            : null;
+
+        if (subscription) {
+          const subscriptionError = await persistStripeSubscription(subscription);
+          if (subscriptionError) {
+            console.error("Failed to persist refreshed Stripe subscription status:", subscriptionError);
+          }
+        }
+
+        return Response.json({
+          id: sessionId,
+          status: session.status,
+          paymentStatus: session.payment_status,
+          subscriptionStatus: subscription?.status ?? null,
+          subscriptionId: stripeObjectId(session.subscription),
+        });
+      } catch (error) {
+        console.error("Failed to fetch status from Stripe:", error);
+      }
     }
 
     if (!paymentRecord) {
-      return Response.json({ error: "Payment not found in database or Mollie." }, { status: 404 });
+      return Response.json({ error: "Checkout Session not found." }, { status: 404 });
     }
 
     return Response.json({
-      id: paymentId,
+      id: sessionId,
       status: paymentRecord.status,
+      subscriptionId: paymentRecord.stripe_subscription_id,
     });
   } catch (error) {
     console.error("Payment status route failed:", error);

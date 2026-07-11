@@ -1,5 +1,5 @@
 {
-  "_comment": "Discovery queries sent to Crossref and OpenAlex when sweeping each trusted journal ISSN. These are broad search strings for finding papers, not extraction keywords. The classifier handles relevance scoring after papers are stored.",
+  "_comment": "Discovery queries sent to OpenAlex when sweeping each trusted journal ISSN. These are broad search strings for finding papers, not extraction keywords. The classifier handles relevance scoring after papers are stored.",
   "domain": [
     "failure analysis",
     "failure mode",

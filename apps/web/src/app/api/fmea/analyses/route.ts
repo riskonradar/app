@@ -27,6 +27,9 @@ export async function POST(request: Request) {
     if ("notFound" in result) {
       return Response.json({ error: "Analysis not found." }, { status: 404 });
     }
+    if ("forbidden" in result) {
+      return Response.json({ error: "You do not have permission to save analyses." }, { status: 403 });
+    }
 
     return Response.json(result);
   } catch (error) {

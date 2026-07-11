@@ -48,7 +48,7 @@ Transfers reliability knowledge across domains by comparing component context, o
 
 Phase 1 — Failure Intelligence Engine (active):
 - Living knowledge graph from peer-reviewed failure papers and EASA airworthiness directives.
-- Structured ingestion through Crossref, OpenAlex, and regulatory sources.
+- Structured ingestion through OpenAlex and regulatory sources.
 - Component → failure mode → cause → effect → control taxonomy.
 - DOI-linked citations, confidence scoring, evidence spans with character offsets.
 - Human-in-the-loop validation.
@@ -151,7 +151,7 @@ Avoid:
 Approved starting architecture:
 
 - `apps/web`: Next.js 16 app (pnpm workspace). Product UI, authenticated workspace, lightweight API routes and server actions, normal DB reads/writes.
-- `services/paper-discovery`: Python 3.12+ service. Queries Crossref and OpenAlex APIs across trusted journal ISSNs, upserts raw paper candidates into `papers_raw.paper_candidates`.
+- `services/paper-discovery`: Python 3.12+ service. Queries the OpenAlex API across trusted journal ISSNs, upserts raw paper candidates into `papers_raw.paper_candidates`. (Crossref support removed 2026-07: abstract-less papers are unclassifiable, and OpenAlex ingests Crossref data with better abstract coverage.)
 - `services/paper-classifier`: Python 3.12+ service. Reads pending paper candidates, extracts atomic evidence claims with a keyword/span extractor or LLM, writes to `knowledge.*`.
 - `packages/shared`: optional shared types/schemas once contracts stabilize. Currently empty.
 
@@ -170,11 +170,11 @@ pnpm lint:web      # ESLint
 ```sh
 cd services/paper-discovery
 pip install -e .
-paper-discovery --source all --watch --interval-seconds 3600
-paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
+paper-discovery --watch --interval-seconds 3600
+paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
 ```
 
-Flags: `--source crossref|openalex|all`, `--limit N`, `--dry-run`, `--watch`, `--interval-seconds N`, `--issn ISSN` (repeatable), `--query QUERY` (repeatable).
+Flags: `--limit N`, `--since-days N` (incremental: only papers published in the last N days, newest first), `--dry-run`, `--watch`, `--interval-seconds N`, `--issn ISSN` (repeatable), `--query QUERY` (repeatable).
 
 ### Paper classifier commands
 
@@ -199,7 +199,7 @@ DATABASE_URL=postgresql://postgres.PROJECT:PASSWORD@aws-0-eu-west-1.pooler.supab
 # or SUPABASE_DB_URL as alias
 
 # Paper discovery
-DISCOVERY_CONTACT_EMAIL=you@example.com   # polite pool priority for Crossref/OpenAlex
+DISCOVERY_CONTACT_EMAIL=you@example.com   # polite pool priority for OpenAlex
 
 # Paper classifier — active provider
 LLM_PROVIDER=gemini
@@ -225,7 +225,9 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
 CLERK_SECRET_KEY=...
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-MOLLIE_API_KEY=...
+STRIPE_SECRET_KEY=...
+STRIPE_WEBHOOK_SECRET=...
+STRIPE_INDIVIDUAL_PRICE_ID=...
 ```
 
 All secrets go in `.env.local` at the repo root. Never commit real keys. `.env.example` has the template.
@@ -278,7 +280,7 @@ Database: Supabase Postgres. Use the session pooler (port 5432, `aws-0-eu-west-1
 
 Auth: Clerk. One account per person for MVP. No org/team management yet. Mirror minimum Clerk user metadata in `app.user_accounts`.
 
-Billing: Mollie. Server-side only. Secrets never reach browser code.
+Billing: Stripe Billing with hosted Checkout Sessions. Server-side only. Secrets never reach browser code.
 
 Do not change this architecture without explicit user approval.
 

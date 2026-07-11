@@ -11,6 +11,9 @@ export async function POST(request: Request) {
   if (!workspace) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (workspace.role === "viewer") {
+    return Response.json({ error: "You do not have permission to review evidence." }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const { claimId, status } = body as { claimId?: string; status?: string };

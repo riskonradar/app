@@ -9,7 +9,7 @@ import httpx
 from paper_discovery.models import DiscoveredPaper
 
 _BASE = "https://api.openalex.org/works"
-_SELECT = "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year"
+_SELECT = "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,open_access,cited_by_count"
 _PAGE_SIZE = 100
 _REQUEST_DELAY = 0.1  # OpenAlex polite rate limit
 
@@ -19,14 +19,25 @@ def fetch(
     query: str,
     limit: int,
     contact_email: str | None = None,
+    from_publication_date: str | None = None,
 ) -> Iterator[DiscoveredPaper]:
-    """Yield papers from a single OpenAlex ISSN + keyword search, up to limit."""
+    """Yield papers from a single OpenAlex ISSN + keyword search, up to limit.
+
+    When from_publication_date (YYYY-MM-DD) is set, only papers published on or
+    after that date are returned, newest first — incremental weekly sweeps instead
+    of re-fetching the same relevance-ranked top results every run.
+    """
+    filter_value = f"primary_location.source.issn:{issn},default.search:{query}"
+    if from_publication_date:
+        filter_value += f",from_publication_date:{from_publication_date}"
     params: dict[str, Any] = {
-        "filter": f"primary_location.source.issn:{issn},default.search:{query}",
+        "filter": filter_value,
         "select": _SELECT,
         "per-page": min(limit, _PAGE_SIZE),
         "cursor": "*",
     }
+    if from_publication_date:
+        params["sort"] = "publication_date:desc"
     if contact_email:
         params["mailto"] = contact_email
 
@@ -83,6 +94,9 @@ def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
     year = item.get("publication_year")
     source_url = f"https://doi.org/{doi}"
 
+    open_access = item.get("open_access") or {}
+    cited_by = item.get("cited_by_count")
+
     return DiscoveredPaper(
         doi=doi,
         title=title,
@@ -93,6 +107,10 @@ def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
         source_url=source_url,
         external_ids={"openalex": item["id"]} if item.get("id") else {},
         raw_payload=item,
+        is_oa=bool(open_access.get("is_oa")) if open_access else None,
+        oa_url=open_access.get("oa_url"),
+        oa_status=open_access.get("oa_status"),
+        cited_by_count=int(cited_by) if cited_by is not None else None,
     )
 
 
@@ -108,6 +126,26 @@ def _format_authorship(authorship: dict[str, Any]) -> str | None:
     author = authorship.get("author") or {}
     name = author.get("display_name", "").strip()
     return name or None
+
+
+def fetch_work_by_doi(doi: str, contact_email: str | None = None) -> dict[str, Any] | None:
+    """Fetch a single OpenAlex work by DOI (open-access + citation fields only).
+
+    Returns None when OpenAlex has no record for the DOI.
+    """
+    url = f"{_BASE}/https://doi.org/{doi}"
+    params: dict[str, Any] = {"select": "id,doi,open_access,cited_by_count"}
+    if contact_email:
+        params["mailto"] = contact_email
+    with httpx.Client(timeout=30) as client:
+        response = client.get(url, params=params)
+        if response.status_code == 404:
+            return None
+        try:
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
+        return response.json()
 
 
 class DiscoverySourceError(RuntimeError):

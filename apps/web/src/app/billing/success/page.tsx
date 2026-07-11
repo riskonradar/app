@@ -32,7 +32,7 @@ export default async function BillingSuccessPage() {
             <p>
               {isPro
                 ? "Your workspace is upgraded. Unlimited Failure Mode and Effects Analysis tables are available in the dashboard and account management views."
-                : "Your checkout return was received, but this workspace is not marked Pro yet. Refresh account status after Mollie finishes processing the payment."}
+                : "Your checkout return was received, but this workspace is not marked Pro yet. Refresh account status after Stripe finishes processing the subscription."}
             </p>
           </div>
 

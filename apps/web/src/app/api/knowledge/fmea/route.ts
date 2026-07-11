@@ -1,4 +1,5 @@
-import { getSupabaseAnonClient } from "@/lib/supabase/server";
+import { ensureCurrentWorkspace } from "@/lib/account/server";
+import { getSupabaseServiceClient } from "@/lib/supabase/server";
 import propagationPaths from "@/data/turbofan-propagation-paths.json";
 
 type SupabaseFmeaRow = {
@@ -19,10 +20,15 @@ type SupabaseFmeaRow = {
 };
 
 export async function GET(request: Request) {
+  const workspace = await ensureCurrentWorkspace(request);
+  if (!workspace) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "500", 10), 1000);
 
-  const supabase = getSupabaseAnonClient();
+  const supabase = getSupabaseServiceClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.rpc as any)("get_turbofan_fmea", { p_limit: limit });
 
