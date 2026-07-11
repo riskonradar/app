@@ -45,6 +45,10 @@ function isProWorkspace(workspace: Workspace) {
   return ["active", "comped"].includes(workspace.organization.billing_status);
 }
 
+function canMutateWorkspace(workspace: Workspace) {
+  return workspace.role === "owner" || workspace.role === "admin" || workspace.role === "member";
+}
+
 function parseScore(value: unknown) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return parsed >= 1 && parsed <= 10 ? parsed : null;
@@ -264,6 +268,10 @@ export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPa
   if (!resolved) return null;
 
   const { workspace, plan } = resolved;
+  if (!canMutateWorkspace(workspace)) {
+    return { forbidden: true as const };
+  }
+
   const rows = Array.isArray(payload.rows) ? payload.rows : [];
   const name = payload.name?.trim() || "Untitled Failure Mode and Effects Analysis";
   const existingId = payload.id?.trim() || null;
@@ -360,6 +368,9 @@ export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPa
 export async function renameFmeaAnalysis(request: Request, analysisId: string, name: string) {
   const resolved = await resolveFmeaWorkspace(request);
   if (!resolved) return null;
+  if (!canMutateWorkspace(resolved.workspace)) {
+    return { forbidden: true as const };
+  }
 
   const ownedAnalysis = await getOwnedAnalysis(resolved.workspace, analysisId);
   if (!ownedAnalysis) return { notFound: true as const };
@@ -381,6 +392,9 @@ export async function renameFmeaAnalysis(request: Request, analysisId: string, n
 export async function deleteFmeaAnalysis(request: Request, analysisId: string) {
   const resolved = await resolveFmeaWorkspace(request);
   if (!resolved) return null;
+  if (!canMutateWorkspace(resolved.workspace)) {
+    return { forbidden: true as const };
+  }
 
   const ownedAnalysis = await getOwnedAnalysis(resolved.workspace, analysisId);
   if (!ownedAnalysis) return { notFound: true as const };

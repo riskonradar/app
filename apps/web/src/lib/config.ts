@@ -15,12 +15,16 @@ export function isSupabaseServiceConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-export function getMollieApiKey() {
-  return process.env.MOLLIE_API_KEY || process.env.MOLLIE_TEST_API_KEY || null;
+export function getStripeSecretKey() {
+  return process.env.STRIPE_SECRET_KEY || null;
 }
 
-export function isMollieConfigured() {
-  return Boolean(getMollieApiKey());
+export function getStripeWebhookSecret() {
+  return process.env.STRIPE_WEBHOOK_SECRET || null;
+}
+
+export function isStripeConfigured() {
+  return Boolean(getStripeSecretKey());
 }
 
 export function getRequiredEnv(name: string) {

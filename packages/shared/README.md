@@ -1,11 +1,7 @@
 # Shared Package
 
-Reserved for shared contracts once they stabilize.
+Shared product contracts for app and service boundaries.
 
-Likely future contents:
+Current contents:
 
-- TypeScript domain types for the web app.
-- JSON schemas for paper candidates, classifications, citations, and FMEA rows.
-- Shared API contract definitions.
-
-Keep this package empty until there is a real cross-service contract to share.
+- `@riskonradar/shared/taxonomy`: component taxonomy nodes, aliases, and lookup helpers used by the product APIs.

@@ -65,7 +65,7 @@ Use consistent domain language:
 apps/
   web/                    Next.js 16 product UI + API routes
 services/
-  paper-discovery/        Python: finds papers via Crossref/OpenAlex, writes to papers_raw
+  paper-discovery/        Python: finds papers via OpenAlex, writes to papers_raw
   paper-classifier/       Python: reads pending papers, extracts claims, writes to knowledge
 packages/
   shared/                 (empty — shared types once contracts stabilize)
@@ -84,7 +84,7 @@ Connection: use the session pooler — `aws-0-eu-west-1.pooler.supabase.com:5432
 
 ### Schemas
 
-- `app` — user accounts, billing customers, billing payments (Clerk mirror + Mollie state)
+- `app` — user accounts, billing customers, billing payments (Clerk mirror + Stripe state)
 - `papers_raw` — raw discovery input: discovery runs and paper candidates
 - `knowledge` — machine-extracted reliability intelligence: classification jobs, evidence claims, spans, relationships
 - `public` — EASA ADs source table (`public.easa_ads`, 319 rows, original structured source)
@@ -100,7 +100,7 @@ One row per discovery or import run. Tracks provenance of how papers entered the
 | Column | Type | Description |
 |---|---|---|
 | id | uuid | PK |
-| source | text | `'corpus_backfill'`, `'zotero'`, `'easa_ad'`, `'crossref'`, `'openalex'` |
+| source | text | `'corpus_backfill'`, `'zotero'`, `'easa_ad'`, `'openalex'` (`'crossref'` appears on historical rows; the source was removed 2026-07) |
 | query | text | Search query or import description |
 | status | text | `'running'`, `'finished'`, `'failed'` |
 | started_at | timestamptz | |
@@ -304,8 +304,8 @@ EASA ADs are imported into `papers_raw.paper_candidates` via `paper-classifier i
 ```
 External APIs                   papers_raw                      knowledge
 ─────────────                   ──────────                      ─────────
-Crossref API       ──►  paper_candidates  ──►  classification_jobs
-OpenAlex API       ──►  (source=discovery)     evidence_claims
+OpenAlex API       ──►  paper_candidates  ──►  classification_jobs
+                        (source=discovery)     evidence_claims
                                                 evidence_spans
 EASA Safety Tool   ──►  public.easa_ads         claim_relationships
   (import-easa)    ──►  paper_candidates
@@ -316,7 +316,7 @@ Zotero / corpus DB ──►  paper_candidates
 ```
 
 **Step 1 — Discovery** (`services/paper-discovery`):
-Queries Crossref and OpenAlex by trusted journal ISSN × search query combinations. Upserts results into `papers_raw.paper_candidates` with `classification_status='pending'`. Creates one `discovery_runs` row per (source, journal, query) combination.
+Queries OpenAlex by trusted journal ISSN × search query combinations. Upserts results into `papers_raw.paper_candidates` with `classification_status='pending'`. Creates one `discovery_runs` row per (journal, query) combination.
 
 **Step 2 — Classification** (`services/paper-classifier`):
 Polls `papers_raw.paper_candidates` for rows where `classification_status='pending'` or no completed `classification_jobs` row for the current classifier version. For each paper:
@@ -567,8 +567,8 @@ Location: `services/paper-discovery/`
 Install: `pip install -e .` from that directory.
 
 ```sh
-paper-discovery --source all --watch --interval-seconds 3600
-paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
+paper-discovery --watch --interval-seconds 3600
+paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
 ```
 
 ### Data files (edit JSON, no Python changes needed)
@@ -576,16 +576,17 @@ paper-discovery --source crossref --dry-run --limit 10 --issn 1350-6307 --query 
 - `data/journals.json` — 17 trusted journal ISSNs (Engineering Failure Analysis, Reliability Engineering & System Safety, IEEE Transactions on Reliability, NDT & E International, Wear, Tribology International, etc.)
 - `data/queries.json` — 28 discovery queries split into `domain` (failure analysis, fatigue, FMEA, etc.) and `component` (bearing failure, pump failure, etc.) groups
 
-### Sources
+### Source
 
-- **Crossref**: filters by ISSN + keyword, strips JATS XML from abstracts, cursor pagination, 150ms polite delay
-- **OpenAlex**: ISSN + keyword filter, reconstructs abstract from inverted index, cursor pagination
+- **OpenAlex** (sole source): ISSN + keyword filter, reconstructs abstract from inverted index, cursor pagination. Crossref support was removed 2026-07 — papers without abstracts are unclassifiable downstream, and OpenAlex ingests Crossref data with better abstract coverage.
 
-Both sources write to `papers_raw.paper_candidates` with `source='discovery'` and deduplicate by canonical DOI (then title fingerprint + year as fallback).
+Writes to `papers_raw.paper_candidates` with `source='discovery'` and deduplicates by canonical DOI (then title fingerprint + year as fallback).
 
 ### Discovery run strategy
 
-For each (source × journal ISSN × query) = ~17 journals × 28 queries × 2 sources = ~952 API calls per full sweep. Each call fetches up to 100 results filtered to that journal. Papers without any DOI or title fingerprint are skipped.
+For each (journal ISSN × query) = 17 journals × 28 queries = 476 API calls per full sweep. Each call fetches up to 100 results filtered to that journal. Papers without any DOI or title fingerprint are skipped.
+
+With `--since-days N` the sweep becomes incremental: the OpenAlex filter gains `from_publication_date` and results sort newest-first, so weekly runs fetch recently published papers instead of re-fetching the same relevance-ranked top results. Recommended prod setting: `--since-days 30` (overlap covers indexing lag), with an occasional full sweep (no flag) to backfill.
 
 ---
 
@@ -668,9 +669,11 @@ Systemd units:
 Current production commands:
 
 ```sh
-/opt/riskonradar/venv/bin/paper-discovery --source all --limit 25 --mark-stale-days 60 --mark-removed-days 180
+/opt/riskonradar/venv/bin/paper-discovery --limit 25 --mark-stale-days 60 --mark-removed-days 180
 /opt/riskonradar/venv/bin/paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1
 ```
+
+Note: the deployed systemd unit still passes `--source all` from before the Crossref removal — drop that flag when next deploying (it no longer exists and will error). Recommended new unit command adds `--since-days 30` for incremental sweeps.
 
 Production behavior:
 

@@ -11,14 +11,11 @@ Initial responsibilities:
 
 This service should stay lightweight. It should not classify or validate papers.
 
-## Discovery Sources
+## Discovery Source
 
-The service currently searches:
+The service searches OpenAlex only. Crossref support was removed (2026-07): papers without abstracts are unclassifiable downstream, and OpenAlex already ingests Crossref metadata with better abstract coverage (reconstructed abstracts).
 
-- Crossref
-- OpenAlex
-
-It filters those API searches through `data/journals.json`, which is the trusted source list. The current journal list is already treated as trusted; do not add noisy sources without a clear reason.
+It filters the API searches through `data/journals.json`, which is the trusted source list. The current journal list is already treated as trusted; do not add noisy sources without a clear reason.
 
 ## Search Queries
 

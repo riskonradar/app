@@ -16,6 +16,10 @@ class DiscoveredPaper:
     source_url: str | None
     external_ids: dict[str, str] = field(default_factory=dict)
     raw_payload: dict = field(default_factory=dict)
+    is_oa: bool | None = None
+    oa_url: str | None = None
+    oa_status: str | None = None
+    cited_by_count: int | None = None
 
     @property
     def canonical_doi(self) -> str | None:

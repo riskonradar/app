@@ -1,6 +1,6 @@
 import {
   isClerkConfigured,
-  isMollieConfigured,
+  isStripeConfigured,
   isSupabaseConfigured,
   isSupabaseServiceConfigured,
 } from "@/lib/config";
@@ -8,7 +8,7 @@ import {
 export function GET() {
   return Response.json({
     clerk: isClerkConfigured(),
-    mollie: isMollieConfigured(),
+    stripe: isStripeConfigured(),
     supabasePublic: isSupabaseConfigured(),
     supabaseService: isSupabaseServiceConfigured(),
   });

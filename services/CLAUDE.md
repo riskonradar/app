@@ -182,6 +182,6 @@ paper-classifier classify --extractor keyword --limit 1 --mode incremental --dry
 Manual discovery run:
 
 ```sh
-paper-discovery --source all --limit 5 --mark-stale-days 60 --mark-removed-days 180
+paper-discovery --limit 5 --mark-stale-days 60 --mark-removed-days 180
 ```
 

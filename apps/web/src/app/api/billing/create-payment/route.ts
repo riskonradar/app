@@ -2,16 +2,21 @@
 
 import { ensureCurrentWorkspace } from "@/lib/account/server";
 import { getCurrentClerkContext } from "@/lib/auth/server";
+import { ensureStripeCustomer } from "@/lib/billing/server";
 import { getBillingPlan } from "@/lib/billing/plans";
-import { isMollieConfigured } from "@/lib/config";
-import { getMollieClient } from "@/lib/mollie/server";
+import { isStripeConfigured } from "@/lib/config";
+import { getStripeClient, getStripePriceId } from "@/lib/stripe/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
+
+function appBaseUrl(request: Request) {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
+}
 
 export async function POST(request: Request) {
   try {
-    if (!isMollieConfigured()) {
+    if (!isStripeConfigured()) {
       return Response.json(
-        { error: "Mollie checkout is not configured. Add a Mollie API key before creating payments." },
+        { error: "Stripe Checkout is not configured. Add STRIPE_SECRET_KEY before creating subscriptions." },
         { status: 503 },
       );
     }
@@ -19,7 +24,7 @@ export async function POST(request: Request) {
     const clerkContext = await getCurrentClerkContext(request);
     if (!clerkContext.userId) {
       return Response.json(
-        { error: "Sign in before opening Mollie checkout." },
+        { error: "Sign in before opening Stripe Checkout." },
         { status: 401 },
       );
     }
@@ -33,6 +38,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (workspace.role !== "owner" && workspace.role !== "admin") {
+      return Response.json(
+        { error: "Only workspace owners and admins can manage billing." },
+        { status: 403 },
+      );
+    }
+
     const plan = getBillingPlan(String(body.planKey ?? workspace.organization.plan_key ?? "individual"));
 
     if (!plan || !plan.amountValue) {
@@ -42,43 +54,55 @@ export async function POST(request: Request) {
       );
     }
 
-    const seats = Math.max(
-      Number(plan.includedSeats ?? 1),
-      Number.parseInt(String(body.seats ?? plan.includedSeats ?? 1), 10) || 1,
-    );
-    const amountValue = plan.amountValue;
-    const description = `Risk on Radar ${plan.name} plan`;
-    const redirectUrl = process.env.MOLLIE_REDIRECT_URL ?? new URL("/billing/return", request.url).toString();
-    const webhookUrl = process.env.MOLLIE_WEBHOOK_URL || undefined;
+    const priceId = getStripePriceId(plan.key);
+    if (!priceId) {
+      return Response.json(
+        { error: `Stripe price ID is not configured for the ${plan.name} plan.` },
+        { status: 503 },
+      );
+    }
 
-    const payment = await getMollieClient().payments.create({
-      amount: {
-        currency: "EUR",
-        value: amountValue,
-      },
-      description,
-      redirectUrl,
-      ...(webhookUrl ? { webhookUrl } : {}),
-      metadata: {
-        clerkUserId: clerkContext.userId,
-        clerkOrganizationId: clerkContext.orgId ?? null,
-        organizationId: workspace.organization.id,
-        userAccountId: workspace.userAccount.id,
-        planKey: plan.key,
-        planName: plan.name,
-        productName: `Risk on Radar ${plan.name} plan`,
-        billingScope: plan.billingScope,
-        billingPeriod: "monthly",
-        seats,
-        checkoutContext: "signed_in",
+    const stripe = getStripeClient();
+    const seats = Number(plan.includedSeats ?? 1);
+    const customerId = await ensureStripeCustomer(workspace, clerkContext.userId, stripe);
+    const baseUrl = appBaseUrl(request);
+    const metadata = {
+      clerkUserId: clerkContext.userId,
+      clerkOrganizationId: clerkContext.orgId ?? "",
+      organizationId: workspace.organization.id,
+      userAccountId: workspace.userAccount.id,
+      planKey: plan.key,
+      planName: plan.name,
+      productName: `Risk on Radar ${plan.name} plan`,
+      billingScope: plan.billingScope,
+      billingPeriod: "monthly",
+      seats: String(seats),
+      checkoutContext: "signed_in",
+    };
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      client_reference_id: workspace.organization.id,
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: `${baseUrl}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/billing/failed?reason=Checkout%20was%20cancelled.`,
+      allow_promotion_codes: true,
+      metadata,
+      subscription_data: {
+        metadata,
       },
     });
 
-    const checkoutUrl = payment._links.checkout?.href;
-    if (!checkoutUrl) {
-      console.error("Mollie payment was created without a checkout URL:", payment.id);
+    if (!session.url) {
+      console.error("Stripe Checkout Session was created without a checkout URL:", session.id);
       return Response.json(
-        { error: "Mollie did not return a checkout URL. Please try again." },
+        { error: "Stripe did not return a checkout URL. Please try again." },
         { status: 502 },
       );
     }
@@ -91,16 +115,17 @@ export async function POST(request: Request) {
         organization_id: workspace.organization.id,
         plan_key: plan.key,
         seats,
-        mollie_payment_id: payment.id,
-        status: payment.status,
-        amount_value: parseFloat(payment.amount?.value || "0"),
-        amount_currency: payment.amount?.currency || "EUR",
-        checkout_url: checkoutUrl,
-        metadata: payment.metadata || {},
+        stripe_checkout_session_id: session.id,
+        stripe_customer_id: customerId,
+        status: session.status ?? "open",
+        amount_value: Number(plan.amountValue),
+        amount_currency: "EUR",
+        checkout_url: session.url,
+        metadata,
       });
 
     if (paymentError) {
-      console.error("Failed to create payment record:", paymentError);
+      console.error("Failed to create Stripe checkout record:", paymentError);
     }
 
     const { error: auditError } = await (supabase as any).schema("app")
@@ -109,9 +134,11 @@ export async function POST(request: Request) {
         organization_id: workspace.organization.id,
         user_account_id: workspace.userAccount.id,
         actor_clerk_user_id: clerkContext.userId,
-        event_type: "mollie.checkout_created",
+        event_type: "stripe.checkout_session_created",
         metadata: {
-          molliePaymentId: payment.id,
+          stripeCheckoutSessionId: session.id,
+          stripeCustomerId: customerId,
+          stripePriceId: priceId,
           planKey: plan.key,
           seats,
         },
@@ -122,14 +149,14 @@ export async function POST(request: Request) {
     }
 
     return Response.json({
-      id: payment.id,
-      status: payment.status,
-      checkoutUrl,
+      id: session.id,
+      status: session.status,
+      checkoutUrl: session.url,
     });
   } catch (error) {
-    console.error("Create Mollie checkout failed:", error);
+    console.error("Create Stripe Checkout Session failed:", error);
     return Response.json(
-      { error: "Could not open Mollie checkout. Please try again in a moment." },
+      { error: "Could not open Stripe Checkout. Please try again in a moment." },
       { status: 500 },
     );
   }

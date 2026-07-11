@@ -12,6 +12,20 @@ type PricingCheckoutButtonProps = {
 };
 
 export function PricingCheckoutButton({ amountValue, planKey }: PricingCheckoutButtonProps) {
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  if (!publishableKey) {
+    return (
+      <Link href="/sign-in" className="btn btn-primary btn-sm btn-full">
+        Sign in to upgrade
+      </Link>
+    );
+  }
+
+  return <ConfiguredPricingCheckoutButton amountValue={amountValue} planKey={planKey} />;
+}
+
+function ConfiguredPricingCheckoutButton({ amountValue, planKey }: PricingCheckoutButtonProps) {
   const { isSignedIn } = useUser();
   const { getToken } = useAuth();
   const [paymentState, setPaymentState] = useState<"idle" | "loading" | "error">("idle");
@@ -23,7 +37,7 @@ export function PricingCheckoutButton({ amountValue, planKey }: PricingCheckoutB
 
     if (!isSignedIn) {
       setPaymentState("error");
-      setMessage("Please sign in before opening Mollie checkout.");
+      setMessage("Please sign in before opening Stripe Checkout.");
       return;
     }
 
@@ -54,14 +68,14 @@ export function PricingCheckoutButton({ amountValue, planKey }: PricingCheckoutB
           planKey,
           createdAt: new Date().toISOString(),
         });
-        sessionStorage.setItem("riskonradar-pending-mollie-payment", pendingPayment);
-        localStorage.setItem("riskonradar-pending-mollie-payment", pendingPayment);
+        sessionStorage.setItem("riskonradar-pending-stripe-session", pendingPayment);
+        localStorage.setItem("riskonradar-pending-stripe-session", pendingPayment);
       }
       window.location.assign(payload.checkoutUrl);
     } catch (error) {
       checkoutInFlight.current = false;
       setPaymentState("error");
-      setMessage(error instanceof Error ? error.message : "Could not open Mollie checkout.");
+      setMessage(error instanceof Error ? error.message : "Could not open Stripe Checkout.");
     }
   }
 
@@ -93,6 +107,28 @@ export function PricingCheckoutButton({ amountValue, planKey }: PricingCheckoutB
 }
 
 export function PricingPageActions() {
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  if (!publishableKey) {
+    return (
+      <div className="page-actions">
+        <Link href="/sign-in" className="btn btn-primary btn-sm">
+          Sign in to buy
+        </Link>
+        <Link href="/account" className="btn btn-secondary btn-sm">
+          Manage account
+        </Link>
+        <Link href="/dashboard" className="btn btn-secondary btn-sm">
+          Back to dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  return <ConfiguredPricingPageActions />;
+}
+
+function ConfiguredPricingPageActions() {
   const { isLoaded, isSignedIn } = useUser();
 
   return (

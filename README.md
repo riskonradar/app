@@ -31,7 +31,7 @@ Active classifier: `llm-extractor-v2:gemini:gemini-2.5-flash-lite`
 
 Python 3.12+ CLI. Runs weekly on DigitalOcean via systemd timer.
 
-- Searches Crossref and OpenAlex REST APIs.
+- Searches the OpenAlex REST API (sole source; Crossref removed 2026-07 — OpenAlex has the abstracts, and abstract-less papers are unclassifiable).
 - Restricted to trusted journal ISSNs listed in `data/journals.json`.
 - Broad search query packs from `data/queries.json` — these are recall filters only; the classifier decides relevance.
 - Deduplicates by: `canonical_doi` → `title_fingerprint + publication_year` → `abstract_hash`.
@@ -47,7 +47,7 @@ Python 3.12+ CLI. Runs continuously on DigitalOcean, polling every 5 minutes.
 
 **Extraction modes:**
 
-- `--extractor llm`: structured JSON extraction via LLM. Direct claims (`support_type = direct_span`) are accepted only when `evidence_text` appears verbatim in the title or abstract — the classifier verifies exact substring match and records `char_start`/`char_end` offsets. Inferred claims (`inferred_from_span`) must include `inference_rationale`. Output that fails schema validation or span verification is dropped, not stored.
+- `--extractor llm`: structured JSON extraction via LLM. Direct claims (`support_type = direct_span`) are accepted only when `evidence_text` appears verbatim in the title or abstract (tolerant of whitespace differences only) — the classifier locates the quote in the source, stores the source's own text slice, and records `char_start`/`char_end` offsets. Inferred claims (`inferred_from_span`) must include `inference_rationale`. Output that fails schema validation or span verification is dropped, not stored.
 - `--extractor keyword`: deterministic keyword/span preprocessor (`keyword-span-preprocessor-v1`). Matches alias lists against source text, generates `direct_span` claims, and infers a small set of compound claims (e.g. corrosion + fatigue → corrosion fatigue) and sentence-level effect/control claims via pattern matching. Conservative recall; no LLM calls.
 - `--extractor auto`: uses `llm` when `LLM_PROVIDER` is set, otherwise falls back to `keyword`.
 
@@ -63,7 +63,7 @@ All LLM calls use `temperature = 0`.
 
 Claim types: `component`, `failure_mode`, `cause`, `effect`, `control`, `corrective_action`, `analysis_method`, `application`, `operating_context`, `detection_method`, `maintenance_action`, `material`, `environment`.
 
-Relationship types: `has_failure_mode`, `caused_by`, `has_effect`, `mitigated_by`, `detected_by`, `corrected_by`, `analysed_by`, `has_context`. Relationship direction is validated server-side before storage; invalid directions are dropped.
+Relationship types: `has_failure_mode`, `caused_by`, `has_effect`, `mitigated_by`, `detected_by`, `corrected_by`, `analysed_by`, `has_context`. Relationship direction is validated before storage; invalid directions are dropped. Direct relationships must also carry a supporting quote verified against the source text (same guard as claims); inferred relationships require a rationale.
 
 Failure mode normalized values are mapped to a canonical label set (Crack / fracture, Fatigue, FOD, Wear / rubbing, Corrosion / pitting, Bearing fault, Creep, Erosion, etc.) — uncategorizable failure modes are dropped rather than stored as noise.
 
@@ -99,7 +99,7 @@ paper-classifier classify --extractor llm --limit 25 --mode incremental --watch 
 
 ## Pricing
 
-Plans are defined in `apps/web/src/lib/billing/plans.ts`. Payment processing via Mollie (server-side only; keys never reach browser code). Currency: EUR.
+Plans are defined in `apps/web/src/lib/billing/plans.ts`. Payment processing uses Stripe Billing with hosted Checkout Sessions (server-side only; keys never reach browser code). Currency: EUR.
 
 | Plan | Price | Scope | Seats | Key limits |
 |---|---|---|---|---|
@@ -108,7 +108,7 @@ Plans are defined in `apps/web/src/lib/billing/plans.ts`. Payment processing via
 
 `billing_status` on `app.organizations` drives plan enforcement: `active` and `comped` are treated as Pro; anything else falls back to free limits.
 
-Mollie webhook (`/api/billing/mollie-webhook`) updates `app.billing_payments` and `app.organizations` on payment status changes, and writes an audit event to `app.account_audit_events`.
+Stripe webhook (`/api/billing/stripe-webhook`) updates `app.billing_payments`, `app.billing_subscriptions`, and `app.organizations` on subscription status changes, and writes audit events to `app.account_audit_events`.
 
 ---
 
@@ -132,7 +132,7 @@ Minimum Clerk user metadata mirrored to `app.user_accounts`.
 - Next.js 16, App Router, TypeScript
 - Supabase Postgres via service role client (three schemas: `app`, `papers_raw`, `knowledge`)
 - Clerk for auth
-- Mollie for payments
+- Stripe Billing for payments
 - Deployed on Cloudflare Workers via OpenNext (`wrangler.toml`, `compatibility_flags = ["nodejs_compat"]`)
 
 **Pipeline services:**
@@ -156,7 +156,7 @@ app.organizations                  personal and team workspaces
 app.organization_memberships       user → workspace with role
 app.fmea_analyses                  saved FMEA analysis records
 app.fmea_rows                      individual FMEA rows with review state
-app.billing_payments               Mollie payment records
+app.billing_payments               Stripe Checkout session/payment records
 app.account_audit_events           billing and workspace audit log
 app.workspace_invitations          pending team invitations
 ```
@@ -177,7 +177,7 @@ pnpm lint:web
 ```sh
 cd services/paper-discovery
 pip install -e .
-paper-discovery --source all --limit 10 --dry-run
+paper-discovery --limit 10 --dry-run
 
 cd services/paper-classifier
 pip install -e .
@@ -208,11 +208,14 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-MOLLIE_API_KEY=                         # or MOLLIE_TEST_API_KEY for sandbox
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_INDIVIDUAL_PRICE_ID=
+STRIPE_TEAM_PRICE_ID=
 
 # Pipeline services (both)
 DATABASE_URL=                           # or SUPABASE_DB_URL; session pooler port 5432
-DISCOVERY_CONTACT_EMAIL=               # polite pool priority for Crossref/OpenAlex
+DISCOVERY_CONTACT_EMAIL=               # polite pool priority for OpenAlex
 
 # Paper classifier — choose one provider
 LLM_PROVIDER=gemini
