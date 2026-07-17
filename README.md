@@ -65,7 +65,7 @@ Claim types: `component`, `failure_mode`, `cause`, `effect`, `control`, `correct
 
 Relationship types: `has_failure_mode`, `caused_by`, `has_effect`, `mitigated_by`, `detected_by`, `corrected_by`, `analysed_by`, `has_context`. Relationship direction is validated before storage; invalid directions are dropped. Direct relationships must also carry a supporting quote verified against the source text (same guard as claims); inferred relationships require a rationale.
 
-Failure mode normalized values are mapped to a canonical label set (Crack / fracture, Fatigue, FOD, Wear / rubbing, Corrosion / pitting, Bearing fault, Creep, Erosion, etc.) — uncategorizable failure modes are dropped rather than stored as noise.
+Failure mode normalized values preserve the most specific mechanism supported by the source. The database taxonomy linker then maps those values to hierarchical failure-mode nodes using exact, alias, and fuzzy matching; unresolved values remain available for taxonomy review instead of being discarded.
 
 **Output written to Supabase:**
 

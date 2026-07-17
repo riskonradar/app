@@ -100,8 +100,82 @@ class ExtractorTests(unittest.TestCase):
         )
 
         self.assertEqual(len(result.claims), 1)
-        self.assertEqual(result.claims[0].normalized_value, "Crack / fracture")
+        self.assertEqual(result.claims[0].normalized_value, "shaft cracking")
         self.assertEqual(result.claims[0].spans[0].text, "cracked pump shaft")
+
+    def test_llm_preserves_specific_failure_mode_for_taxonomy_linking(self) -> None:
+        paper = Paper(
+            id="paper-lcf",
+            doi=None,
+            title="Low-cycle fatigue of a turbine disk",
+            abstract="Low-cycle fatigue initiated at the disk bore.",
+            journal=None,
+            year=None,
+            authors=None,
+            url=None,
+            source="test",
+        )
+
+        result = _result_from_payload(
+            paper,
+            {
+                "relevance": "relevant",
+                "confidence": 0.9,
+                "claims": [
+                    {
+                        "claim_type": "failure_mode",
+                        "raw_value": "Low-cycle fatigue",
+                        "normalized_value": "low-cycle fatigue",
+                        "support_type": "direct_span",
+                        "confidence": 0.95,
+                        "source_field": "abstract",
+                        "evidence_text": "Low-cycle fatigue",
+                    }
+                ],
+                "relationships": [],
+            },
+            LlmConfig(provider="test", model="test", api_key="test"),
+        )
+
+        self.assertEqual(len(result.claims), 1)
+        self.assertEqual(result.claims[0].normalized_value, "low-cycle fatigue")
+
+    def test_llm_failure_mode_uses_raw_value_when_normalized_value_is_missing(self) -> None:
+        paper = Paper(
+            id="paper-fallback",
+            doi=None,
+            title="Fretting fatigue in a spline coupling",
+            abstract=None,
+            journal=None,
+            year=None,
+            authors=None,
+            url=None,
+            source="test",
+        )
+
+        result = _result_from_payload(
+            paper,
+            {
+                "relevance": "relevant",
+                "confidence": 0.8,
+                "claims": [
+                    {
+                        "claim_type": "failure_mode",
+                        "raw_value": "Fretting fatigue",
+                        "normalized_value": None,
+                        "support_type": "direct_span",
+                        "confidence": 0.9,
+                        "source_field": "title",
+                        "evidence_text": "Fretting fatigue",
+                    }
+                ],
+                "relationships": [],
+            },
+            LlmConfig(provider="test", model="test", api_key="test"),
+        )
+
+        self.assertEqual(len(result.claims), 1)
+        self.assertEqual(result.claims[0].normalized_value, "Fretting fatigue")
 
     def test_llm_span_match_tolerates_whitespace_differences(self) -> None:
         paper = Paper(

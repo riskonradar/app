@@ -8,7 +8,6 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
-from paper_classifier.failure_modes import canonical_failure_mode_label
 from paper_classifier.models import (
     ClaimRelationship,
     ClaimType,
@@ -20,7 +19,7 @@ from paper_classifier.models import (
     SupportType,
 )
 
-LLM_CLASSIFIER_VERSION = "llm-extractor-v3"
+LLM_CLASSIFIER_VERSION = "llm-extractor-v4"
 
 
 @dataclass(frozen=True)
@@ -103,7 +102,7 @@ Return only valid JSON with this shape:
     {{
       "claim_type": "component" | "failure_mode" | "cause" | "effect" | "control" | "corrective_action" | "analysis_method" | "application" | "operating_context" | "detection_method" | "maintenance_action" | "material" | "environment",
       "raw_value": "short extracted or inferred phrase",
-      "normalized_value": "canonical phrase or null",
+      "normalized_value": "concise cleaned phrase or null",
       "support_type": "direct_span" | "inferred_from_span",
       "confidence": 0.0,
       "source_field": "title" | "abstract",
@@ -147,13 +146,10 @@ Rules:
 - Direct relationships must use relationship_evidence_text copied exactly from the title or abstract.
 - Inferred relationships must still cite relationship_evidence_text and include inference_rationale.
 - Prefer atomic claims: one fact per claim row.
-- For failure_mode normalized_value, use a canonical mechanism label when supported by the evidence:
-  Crack / fracture, Fatigue, Foreign object damage (FOD), Stall / surge,
-  Flow disturbance / distortion, Blade vibration / flutter, Deformation / buckling,
-  Wear / rubbing, Corrosion / pitting, Deposits / blockage, Leakage,
-  Overheating / overtemperature, Bearing fault, Spallation, Seizure, Creep,
-  Erosion, Oxidation, Delamination, Debonding, Coating failure, Thermal shock,
-  Combustion instability, Rotor imbalance, Misalignment, Overspeed.
+- For failure_mode normalized_value, preserve the most specific mechanism supported by
+  the evidence, such as low-cycle fatigue, high-cycle fatigue, fretting fatigue,
+  stress corrosion cracking, pitting corrosion, abrasive wear, or delamination.
+  Clean spelling and casing, but do not collapse a specific sub-mode into a broad family.
 - Do not store symptoms or effects such as noise/acoustic issue, generic high vibration,
   engine shutdown, or operational loss as failure_mode claims. Store them as effect or detection_method when supported.
 - If the paper has no failure analysis content, return not_relevant with no claims.
@@ -395,7 +391,7 @@ def _claim_from_payload(paper: Paper, raw_claim: Any) -> EvidenceClaim | None:
 
     normalized_value = _clean_text(raw_claim.get("normalized_value"))
     if claim_type == ClaimType.FAILURE_MODE:
-        normalized_value = canonical_failure_mode_label(" ".join(part for part in (normalized_value, raw_value) if part))
+        normalized_value = normalized_value or raw_value
         if not normalized_value:
             return None
 
