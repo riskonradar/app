@@ -13,10 +13,6 @@ function BillingReturnContent() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    function isLocalDevCheckout() {
-      return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-    }
-
     function markPaymentSuccessful() {
       router.replace("/billing/success");
     }
@@ -81,10 +77,6 @@ function BillingReturnContent() {
         const data = await readResponseJson(response);
 
         if (!response.ok) {
-          if (isLocalDevCheckout() && sessionId) {
-            completePayment();
-            return;
-          }
           // If payment record doesn't exist yet (webhook might not have fired),
           // show a message to wait a bit and retry
           if (response.status === 404) {
@@ -115,10 +107,6 @@ function BillingReturnContent() {
           setTimeout(checkPaymentStatus, 3000);
         }
       } catch (error) {
-        if (isLocalDevCheckout() && sessionId) {
-          completePayment();
-          return;
-        }
         markPaymentFailed(error instanceof Error ? error.message : "Could not verify payment status. Please contact support.");
       }
     }

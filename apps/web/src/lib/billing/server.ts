@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type Stripe from "stripe";
+import { clerkClient } from "@clerk/nextjs/server";
 
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
-import { getBillingPlan } from "@/lib/billing/plans";
+import { resolveStripeSubscriptionBillingForPersistence } from "@/lib/billing/stripe-seats";
+import { getStripePriceId, getStripeTeamExtraSeatPriceId } from "@/lib/stripe/server";
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 const PAST_DUE_SUBSCRIPTION_STATUSES = new Set(["incomplete", "past_due", "unpaid"]);
@@ -17,7 +19,14 @@ type StripeMetadata = {
   planKey?: string | null;
   billingScope?: string | null;
   seats?: number | string | null;
+  extraSeatPriceId?: string | null;
+  checkoutClaimToken?: string | null;
   checkoutContext?: string | null;
+};
+
+export type StripeSubscriptionEventContext = {
+  eventCreated: number;
+  eventId: string;
 };
 
 type Workspace = {
@@ -38,10 +47,6 @@ function stripeMetadata(metadata: Stripe.Metadata | null | undefined): StripeMet
   return (metadata ?? {}) as StripeMetadata;
 }
 
-function parseSeats(value: unknown) {
-  return Number.parseInt(String(value ?? "1"), 10) || 1;
-}
-
 function moneyFromStripeAmount(amount: number | null | undefined) {
   return Number(((amount ?? 0) / 100).toFixed(2));
 }
@@ -57,36 +62,61 @@ function billingStatusForSubscription(subscriptionStatus: string) {
   return null;
 }
 
+async function syncClerkOrganizationSeatLimit(
+  organizationId: string,
+  clerkOrganizationId: string | null | undefined,
+  seats: number,
+) {
+  let resolvedClerkOrganizationId = clerkOrganizationId || null;
+
+  if (!resolvedClerkOrganizationId) {
+    const { data, error } = await appSchema()
+      .from("organizations")
+      .select("clerk_organization_id")
+      .eq("id", organizationId)
+      .maybeSingle();
+
+    if (error) return error;
+    resolvedClerkOrganizationId = data?.clerk_organization_id ?? null;
+  }
+
+  if (!resolvedClerkOrganizationId) return null;
+
+  try {
+    const clerk = await clerkClient();
+    await clerk.organizations.updateOrganization(resolvedClerkOrganizationId, {
+      maxAllowedMemberships: seats,
+    });
+    return null;
+  } catch (error) {
+    return error instanceof Error
+      ? error
+      : new Error("Could not synchronize the purchased seat limit to Clerk.");
+  }
+}
+
 export function isEntitlingSubscriptionStatus(subscriptionStatus: string | null | undefined) {
   return Boolean(subscriptionStatus && ACTIVE_SUBSCRIPTION_STATUSES.has(subscriptionStatus));
 }
 
 export async function beginStripeWebhookEvent(event: Stripe.Event) {
-  const { error } = await appSchema()
-    .from("stripe_webhook_events")
-    .insert({
-      id: event.id,
-      type: event.type,
-      status: "processing",
-      metadata: {
-        apiVersion: event.api_version,
-        livemode: event.livemode,
-      },
-    });
+  const { data, error } = await appSchema().rpc("claim_stripe_webhook_event", {
+    p_event_created_at: new Date(event.created * 1000).toISOString(),
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_metadata: {
+      apiVersion: event.api_version,
+      livemode: event.livemode,
+    },
+  });
 
-  if (!error) return { alreadyProcessed: false as const };
-  if (error.code === "23505") {
-    const { data: existingEvent, error: existingEventError } = await appSchema()
-      .from("stripe_webhook_events")
-      .select("status")
-      .eq("id", event.id)
-      .maybeSingle();
+  if (error) return { error };
 
-    if (existingEventError) return { error: existingEventError };
-    return { alreadyProcessed: existingEvent?.status === "completed" };
-  }
-
-  return { error };
+  const claim = Array.isArray(data) ? data[0] : data;
+  return {
+    claimed: claim?.claimed === true,
+    status: typeof claim?.event_status === "string" ? claim.event_status : null,
+  };
 }
 
 export async function completeStripeWebhookEvent(eventId: string) {
@@ -96,7 +126,8 @@ export async function completeStripeWebhookEvent(eventId: string) {
       status: "completed",
       processed_at: new Date().toISOString(),
     })
-    .eq("id", eventId);
+    .eq("id", eventId)
+    .eq("status", "processing");
 
   return error;
 }
@@ -118,7 +149,8 @@ export async function failStripeWebhookEvent(eventId: string, errorMessage: stri
         error: errorMessage,
       },
     })
-    .eq("id", eventId);
+    .eq("id", eventId)
+    .eq("status", "processing");
 
   return error;
 }
@@ -139,27 +171,112 @@ export async function ensureStripeCustomer(workspace: Workspace, clerkUserId: st
     return String(existingCustomer.stripe_customer_id);
   }
 
-  const customer = await stripe.customers.create({
-    metadata: {
-      clerkUserId,
-      organizationId: workspace.organization.id,
-      userAccountId: workspace.userAccount.id,
+  const customer = await stripe.customers.create(
+    {
+      metadata: {
+        clerkUserId,
+        organizationId: workspace.organization.id,
+        userAccountId: workspace.userAccount.id,
+      },
     },
-  });
+    { idempotencyKey: `riskonradar-customer-${workspace.organization.id}` },
+  );
 
   const { error: customerError } = await appSchema()
     .from("billing_customers")
-    .insert({
-      user_account_id: workspace.userAccount.id,
-      organization_id: workspace.organization.id,
-      stripe_customer_id: customer.id,
-    });
+    .upsert(
+      {
+        user_account_id: workspace.userAccount.id,
+        organization_id: workspace.organization.id,
+        stripe_customer_id: customer.id,
+      },
+      { onConflict: "organization_id" },
+    );
 
   if (customerError) {
     throw customerError;
   }
 
   return customer.id;
+}
+
+export async function releaseBillingCheckoutClaim(
+  organizationId: string,
+  claimToken: string,
+) {
+  const { error } = await appSchema().rpc("release_billing_checkout_claim", {
+    p_claim_token: claimToken,
+    p_organization_id: organizationId,
+  });
+
+  return error;
+}
+
+export async function persistStripeExpiredCheckoutSession(session: Stripe.Checkout.Session) {
+  const eventMetadata = stripeMetadata(session.metadata);
+  const { data: existingPayment, error: existingPaymentError } = await appSchema()
+    .from("billing_payments")
+    .select("id, user_account_id, organization_id, plan_key, metadata")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+
+  if (existingPaymentError) {
+    return existingPaymentError;
+  }
+
+  // A Session can expire after Stripe accepted it but before our payment row was
+  // persisted. The unguessable claim token still lets the signed event release
+  // only the lease that created this Session.
+  if (!existingPayment) {
+    if (eventMetadata.organizationId && eventMetadata.checkoutClaimToken) {
+      return releaseBillingCheckoutClaim(
+        eventMetadata.organizationId,
+        eventMetadata.checkoutClaimToken,
+      );
+    }
+    return null;
+  }
+
+  const storedMetadata = (existingPayment.metadata ?? {}) as StripeMetadata;
+  const claimToken = storedMetadata.checkoutClaimToken ?? eventMetadata.checkoutClaimToken;
+  const organizationId = existingPayment.organization_id ?? eventMetadata.organizationId;
+  const { error: paymentError } = await appSchema()
+    .from("billing_payments")
+    .update({
+      status: "expired",
+      checkout_url: null,
+      metadata: {
+        ...storedMetadata,
+        checkoutExpiredAt: new Date().toISOString(),
+        paymentStatus: session.payment_status,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", existingPayment.id);
+
+  if (paymentError) {
+    return paymentError;
+  }
+
+  if (organizationId && claimToken) {
+    const releaseError = await releaseBillingCheckoutClaim(organizationId, claimToken);
+    if (releaseError) return releaseError;
+  }
+
+  const { error: auditError } = await appSchema()
+    .from("account_audit_events")
+    .insert({
+      organization_id: organizationId ?? null,
+      user_account_id: existingPayment.user_account_id,
+      actor_clerk_user_id: storedMetadata.clerkUserId ?? eventMetadata.clerkUserId ?? null,
+      event_type: "stripe.checkout_session_expired",
+      metadata: {
+        stripeCheckoutSessionId: session.id,
+        planKey: existingPayment.plan_key,
+      },
+    });
+
+  return auditError;
 }
 
 export async function persistStripeCheckoutSession(session: Stripe.Checkout.Session, userAccountId: string) {
@@ -233,7 +350,10 @@ export async function persistStripeCheckoutSession(session: Stripe.Checkout.Sess
   return auditError;
 }
 
-export async function persistStripeSubscription(subscription: Stripe.Subscription) {
+export async function persistStripeSubscription(
+  subscription: Stripe.Subscription,
+  eventContext?: StripeSubscriptionEventContext,
+) {
   const metadata = stripeMetadata(subscription.metadata);
   const existingSubscriptionQuery = await appSchema()
     .from("billing_subscriptions")
@@ -246,80 +366,85 @@ export async function persistStripeSubscription(subscription: Stripe.Subscriptio
   }
 
   const existingSubscription = existingSubscriptionQuery.data;
-  const planKey = metadata.planKey ?? existingSubscription?.plan_key ?? null;
-  const plan = getBillingPlan(planKey);
-  const organizationId = metadata.organizationId ?? existingSubscription?.organization_id ?? null;
-  const userAccountId = metadata.userAccountId ?? existingSubscription?.user_account_id ?? null;
-  const seats = Math.max(Number(plan?.includedSeats ?? 1), parseSeats(metadata.seats ?? existingSubscription?.seats));
+  const resolvedBilling = resolveStripeSubscriptionBillingForPersistence(
+    subscription,
+    {
+      individualPriceId: getStripePriceId("individual"),
+      teamPriceId: getStripePriceId("team"),
+      teamExtraSeatPriceId: getStripeTeamExtraSeatPriceId(),
+    },
+    existingSubscription
+      ? {
+          planKey: existingSubscription.plan_key,
+          seats: existingSubscription.seats,
+        }
+      : null,
+  );
+  if (!resolvedBilling) {
+    return new Error("Stripe subscription contains an unknown or unsafe price combination.");
+  }
+  const planKey = resolvedBilling.planKey;
+  const organizationId = existingSubscription?.organization_id ?? metadata.organizationId ?? null;
+  const userAccountId = existingSubscription?.user_account_id ?? metadata.userAccountId ?? null;
   const customerId = stripeObjectId(subscription.customer);
   const subscriptionItem = subscription.items.data[0];
+  const seats = resolvedBilling.seats;
 
   if (!organizationId || !userAccountId || !planKey) {
     return new Error("Stripe subscription metadata is missing app billing identifiers.");
   }
 
-  const subscriptionPayload = {
-    organization_id: organizationId,
-    user_account_id: userAccountId,
-    plan_key: planKey,
-    stripe_customer_id: customerId,
-    stripe_subscription_id: subscription.id,
-    status: subscription.status,
+  const nextBillingStatus = billingStatusForSubscription(subscription.status);
+  const subscriptionMetadata = {
+    ...metadata,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    priceIds: subscription.items.data.map((item) => stripeObjectId(item.price)).filter(Boolean),
     seats,
-    current_period_start: dateFromStripeTimestamp(subscriptionItem?.current_period_start),
-    current_period_end: dateFromStripeTimestamp(subscriptionItem?.current_period_end),
-    metadata: {
-      ...metadata,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      priceId: stripeObjectId(subscriptionItem?.price),
-    },
-    updated_at: new Date().toISOString(),
   };
 
-  const { error: subscriptionError } = await appSchema()
-    .from("billing_subscriptions")
-    .upsert(subscriptionPayload, { onConflict: "stripe_subscription_id" });
+  const { data: applyResult, error: subscriptionError } = await appSchema().rpc(
+    "apply_stripe_subscription_event",
+    {
+      p_billing_status: nextBillingStatus,
+      p_current_period_end: dateFromStripeTimestamp(subscriptionItem?.current_period_end),
+      p_current_period_start: dateFromStripeTimestamp(subscriptionItem?.current_period_start),
+      p_event_created_at: eventContext
+        ? new Date(eventContext.eventCreated * 1000).toISOString()
+        : null,
+      p_event_id: eventContext?.eventId ?? null,
+      p_metadata: subscriptionMetadata,
+      p_organization_id: organizationId,
+      p_plan_key: planKey,
+      p_seats: seats,
+      p_status: subscription.status,
+      p_stripe_customer_id: customerId,
+      p_stripe_subscription_id: subscription.id,
+      p_user_account_id: userAccountId,
+    },
+  );
 
   if (subscriptionError) {
     return subscriptionError;
   }
 
-  const nextBillingStatus = billingStatusForSubscription(subscription.status);
-  if (nextBillingStatus) {
-    const updatePayload: Record<string, unknown> = {
-      billing_status: nextBillingStatus,
-    };
+  const applyRow = Array.isArray(applyResult) ? applyResult[0] : applyResult;
+  if (applyRow?.applied !== true && applyRow?.current_event !== true) {
+    return null;
+  }
 
-    if (nextBillingStatus === "active") {
-      updatePayload.plan_key = planKey;
-      updatePayload.seat_limit = seats;
-    }
-
-    const { error: orgError } = await appSchema()
-      .from("organizations")
-      .update(updatePayload)
-      .eq("id", organizationId);
-
-    if (orgError) {
-      return orgError;
+  if (nextBillingStatus === "active") {
+    const seatSyncError = await syncClerkOrganizationSeatLimit(
+      organizationId,
+      metadata.clerkOrganizationId,
+      seats,
+    );
+    if (seatSyncError) {
+      return seatSyncError;
     }
   }
 
-  const { error: auditError } = await appSchema()
-    .from("account_audit_events")
-    .insert({
-      organization_id: organizationId,
-      user_account_id: userAccountId,
-      actor_clerk_user_id: metadata.clerkUserId ?? null,
-      event_type: "stripe.subscription_status_updated",
-      metadata: {
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subscription.id,
-        status: subscription.status,
-        planKey,
-        seats,
-      },
-    });
-
-  return auditError;
+  // The database mutation and its audit record are atomic. An exact-event
+  // retry reaches this point only to recover external side effects such as
+  // Clerk seat synchronization.
+  return null;
 }

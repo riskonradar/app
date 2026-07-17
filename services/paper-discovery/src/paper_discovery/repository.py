@@ -102,9 +102,14 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
 
             existing = self._find_existing_candidate(paper)
             if existing is None:
-                self._insert_paper(run_id, paper)
-                inserted += 1
-                continue
+                if self._insert_paper(run_id, paper):
+                    inserted += 1
+                    continue
+
+                # Another discovery run inserted this DOI between our lookup and insert.
+                existing = self._find_existing_candidate(paper)
+                if existing is None:
+                    raise RuntimeError("Conflicting paper insert could not be resolved.")
 
             changed = self._update_paper(existing, run_id, paper)
             if changed:
@@ -114,36 +119,6 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
 
         self._conn().commit()
         return DiscoveryWriteStats(inserted, updated, unchanged, skipped)
-
-    def mark_stale(self, days_without_seen: int) -> int:
-        row = self._conn().execute(
-            """
-            update papers_raw.paper_candidates
-            set lifecycle_status = 'stale',
-                stale_at = now()
-            where lifecycle_status in ('pending_classification', 'classified')
-              and last_seen_at < now() - (%(days)s::text || ' days')::interval
-            returning id
-            """,
-            {"days": days_without_seen},
-        ).fetchall()
-        self._conn().commit()
-        return len(row)
-
-    def mark_removed(self, days_stale: int) -> int:
-        row = self._conn().execute(
-            """
-            update papers_raw.paper_candidates
-            set lifecycle_status = 'removed',
-                removed_at = now()
-            where lifecycle_status = 'stale'
-              and stale_at < now() - (%(days)s::text || ' days')::interval
-            returning id
-            """,
-            {"days": days_stale},
-        ).fetchall()
-        self._conn().commit()
-        return len(row)
 
     def _find_existing_candidate(self, paper: DiscoveredPaper) -> dict[str, Any] | None:
         if paper.canonical_doi:
@@ -193,8 +168,8 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
 
         return None
 
-    def _insert_paper(self, run_id: str, paper: DiscoveredPaper) -> None:
-        self._conn().execute(
+    def _insert_paper(self, run_id: str, paper: DiscoveredPaper) -> bool:
+        row = self._conn().execute(
             """
             insert into papers_raw.paper_candidates (
               discovery_run_id,
@@ -246,9 +221,12 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
               %(discovery_metadata)s::jsonb,
               %(raw_payload)s::jsonb
             )
+            on conflict (doi) do nothing
+            returning id
             """,
             self._paper_params(run_id, paper),
-        )
+        ).fetchone()
+        return row is not None
 
     def _update_paper(self, existing: dict[str, Any], run_id: str, paper: DiscoveredPaper) -> bool:
         next_abstract = paper.abstract or existing["abstract"]
@@ -360,6 +338,12 @@ def _discovery_metadata(paper: DiscoveredPaper) -> dict[str, Any]:
         metadata["oa_url"] = paper.oa_url
     if paper.oa_status:
         metadata["oa_status"] = paper.oa_status
+    if paper.oa_license:
+        metadata["oa_license"] = paper.oa_license
+    if paper.oa_license_url:
+        metadata["oa_license_url"] = paper.oa_license_url
+    if paper.oa_version:
+        metadata["oa_version"] = paper.oa_version
     if paper.cited_by_count is not None:
         metadata["cited_by_count"] = paper.cited_by_count
     return metadata

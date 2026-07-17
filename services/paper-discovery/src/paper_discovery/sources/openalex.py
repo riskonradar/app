@@ -9,7 +9,7 @@ import httpx
 from paper_discovery.models import DiscoveredPaper
 
 _BASE = "https://api.openalex.org/works"
-_SELECT = "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,open_access,cited_by_count"
+_SELECT = "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,open_access,best_oa_location,cited_by_count"
 _PAGE_SIZE = 100
 _REQUEST_DELAY = 0.1  # OpenAlex polite rate limit
 
@@ -95,6 +95,7 @@ def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
     source_url = f"https://doi.org/{doi}"
 
     open_access = item.get("open_access") or {}
+    best_oa_location = item.get("best_oa_location") or {}
     cited_by = item.get("cited_by_count")
 
     return DiscoveredPaper(
@@ -108,8 +109,11 @@ def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
         external_ids={"openalex": item["id"]} if item.get("id") else {},
         raw_payload=item,
         is_oa=bool(open_access.get("is_oa")) if open_access else None,
-        oa_url=open_access.get("oa_url"),
+        oa_url=best_oa_location.get("pdf_url") or open_access.get("oa_url"),
         oa_status=open_access.get("oa_status"),
+        oa_license=best_oa_location.get("license"),
+        oa_license_url=license_url_for(best_oa_location.get("license")),
+        oa_version=best_oa_location.get("version"),
         cited_by_count=int(cited_by) if cited_by is not None else None,
     )
 
@@ -134,7 +138,9 @@ def fetch_work_by_doi(doi: str, contact_email: str | None = None) -> dict[str, A
     Returns None when OpenAlex has no record for the DOI.
     """
     url = f"{_BASE}/https://doi.org/{doi}"
-    params: dict[str, Any] = {"select": "id,doi,open_access,cited_by_count"}
+    params: dict[str, Any] = {
+        "select": "id,doi,open_access,best_oa_location,cited_by_count"
+    }
     if contact_email:
         params["mailto"] = contact_email
     with httpx.Client(timeout=30) as client:
@@ -150,3 +156,18 @@ def fetch_work_by_doi(doi: str, contact_email: str | None = None) -> dict[str, A
 
 class DiscoverySourceError(RuntimeError):
     pass
+
+
+def license_url_for(license_id: str | None) -> str | None:
+    if not license_id:
+        return None
+    normalized = license_id.strip().lower().replace("_", "-")
+    return {
+        "cc-by": "https://creativecommons.org/licenses/by/4.0/",
+        "cc-by-4.0": "https://creativecommons.org/licenses/by/4.0/",
+        "cc-by-sa": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "cc-by-sa-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "cc0": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "cc-0": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "public-domain": "https://creativecommons.org/publicdomain/mark/1.0/",
+    }.get(normalized)

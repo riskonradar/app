@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from paper_classifier.main import _taxonomy_link_summary
+from paper_classifier.models import ClaimType
 from paper_classifier.repository import PostgresRepository, TAXONOMY_LINKERS
 
 
@@ -44,7 +45,86 @@ class _Connection:
         return _Result(self.link_calls)
 
 
+class _RowsResult:
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self.rows = rows
+
+    def fetchall(self) -> list[dict[str, Any]]:
+        return self.rows
+
+
+class _TaxonomyConnection:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def execute(
+        self, query: str, params: dict[str, Any] | None = None
+    ) -> _RowsResult:
+        self.calls.append(query)
+        return _RowsResult(
+            [
+                {
+                    "claim_type": "component",
+                    "name": "Ball Bearing",
+                    "aliases": ["ball bearing", "Ball Bearing", "ball bearings"],
+                    "depth": 3,
+                },
+                {
+                    "claim_type": "failure_mode",
+                    "name": "Low-cycle fatigue",
+                    "aliases": ["lcf", "low cycle fatigue"],
+                    "depth": 1,
+                },
+                {
+                    "claim_type": "analysis_method",
+                    "name": "Finite element analysis",
+                    "aliases": ["fea"],
+                    "depth": 1,
+                },
+                {
+                    "claim_type": "application",
+                    "name": "Aviation",
+                    "aliases": ["aircraft"],
+                    "depth": 1,
+                },
+            ]
+        )
+
+
 class TaxonomyLinkingTests(unittest.TestCase):
+    def test_repository_loads_all_active_closed_vocabularies_once(self) -> None:
+        repository = PostgresRepository("postgresql://unused")
+        connection = _TaxonomyConnection()
+        repository.connection = connection  # type: ignore[assignment]
+
+        terms = repository.active_taxonomy_terms()
+
+        self.assertEqual(len(connection.calls), 1)
+        query = connection.calls[0]
+        for table in (
+            "knowledge.components",
+            "knowledge.failure_modes",
+            "knowledge.analysis_methods",
+            "knowledge.applications",
+        ):
+            self.assertIn(table, query)
+        self.assertEqual(query.count("where is_active = true"), 4)
+        self.assertEqual(
+            [term.claim_type for term in terms],
+            [
+                ClaimType.COMPONENT,
+                ClaimType.FAILURE_MODE,
+                ClaimType.ANALYSIS_METHOD,
+                ClaimType.APPLICATION,
+            ],
+        )
+        self.assertEqual(terms[0].normalized, "Ball Bearing")
+        self.assertEqual(terms[0].depth, 3)
+        self.assertEqual(
+            terms[0].aliases,
+            ("ball bearings", "Ball Bearing"),
+        )
+
     def test_repository_runs_every_taxonomy_linker_in_order(self) -> None:
         repository = PostgresRepository("postgresql://unused")
         connection = _Connection()

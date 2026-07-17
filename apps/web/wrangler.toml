@@ -8,11 +8,15 @@ directory = ".open-next/assets"
 binding = "ASSETS"
 
 [vars]
-NEXT_PUBLIC_APP_URL = "https://risk-on-radar.kirill-rybkov-blog.workers.dev"
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_cmlnaHQtZmxlYS01OC5jbGVyay5hY2NvdW50cy5kZXYk"
 NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
 NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
 NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = "/"
 NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = "/"
-NEXT_PUBLIC_SUPABASE_URL = "https://rqzwdzhphxuayqwptqia.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_03GuXuHq1ZYpb7xigzcksA_3scfgkH1"
+
+# Deployment-specific values are intentionally not committed.
+# Set per environment before deploying, e.g.:
+#   NEXT_PUBLIC_APP_URL           production origin (https://app.riskonradar.com)
+#   NEXT_PUBLIC_SUPABASE_URL      Supabase project URL
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY Supabase publishable key
+# via `wrangler deploy --var` / CI build env, and secrets
+# (CLERK_SECRET_KEY, SUPABASE_SERVICE_ROLE_KEY, STRIPE_*) via `wrangler secret put`.

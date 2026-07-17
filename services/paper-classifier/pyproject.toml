@@ -5,6 +5,7 @@ description = "Paper classification and reliability knowledge extraction service
 requires-python = ">=3.12"
 dependencies = [
   "psycopg[binary]>=3.2.0",
+  "pypdf>=5.0.0,<7.0.0",
 ]
 
 [project.scripts]

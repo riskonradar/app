@@ -6,6 +6,8 @@ export type BillingPlan = {
   priceLabel: string;
   amountValue: string | null;
   includedSeats: number | null;
+  additionalSeatAmountValue: string | null;
+  additionalSeatPriceLabel: string | null;
   billingScope: "user" | "organization";
   description: string;
   features: string[];
@@ -18,6 +20,8 @@ export const billingPlans: BillingPlan[] = [
     priceLabel: "EUR 49 / month",
     amountValue: "49.00",
     includedSeats: 1,
+    additionalSeatAmountValue: null,
+    additionalSeatPriceLabel: null,
     billingScope: "user",
     description: "For one engineer validating evidence-backed reliability work.",
     features: [
@@ -33,10 +37,13 @@ export const billingPlans: BillingPlan[] = [
     priceLabel: "EUR 399 / month",
     amountValue: "399.00",
     includedSeats: 3,
+    additionalSeatAmountValue: "99.00",
+    additionalSeatPriceLabel: "EUR 99 / additional seat / month",
     billingScope: "organization",
     description: "For reliability teams that need shared review and traceability.",
     features: [
       "Organization workspace",
+      "3 named seats included",
       "Member invitations and roles",
       "Shared Failure Mode and Effects Analysis projects",
       "Audit trail for review decisions",
@@ -48,6 +55,8 @@ export const billingPlans: BillingPlan[] = [
     priceLabel: "Custom",
     amountValue: null,
     includedSeats: null,
+    additionalSeatAmountValue: null,
+    additionalSeatPriceLabel: null,
     billingScope: "organization",
     description: "For procurement-led deployments with enterprise identity requirements.",
     features: [
@@ -61,4 +70,13 @@ export const billingPlans: BillingPlan[] = [
 
 export function getBillingPlan(planKey: string | null | undefined) {
   return billingPlans.find((plan) => plan.key === planKey);
+}
+
+export function getPlanMonthlyAmount(plan: BillingPlan, seats: number) {
+  const baseAmount = Number(plan.amountValue ?? 0);
+  const includedSeats = plan.includedSeats ?? 1;
+  const additionalSeatAmount = Number(plan.additionalSeatAmountValue ?? 0);
+  const additionalSeats = Math.max(0, seats - includedSeats);
+
+  return Number((baseAmount + additionalSeats * additionalSeatAmount).toFixed(2));
 }

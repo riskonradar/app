@@ -49,6 +49,11 @@ class Paper:
     source: str
     cited_by: int | None = None
     openalex_id: str | None = None
+    full_text: str | None = None
+    full_text_id: str | None = None
+    full_text_source_url: str | None = None
+    full_text_license: str | None = None
+    full_text_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +63,7 @@ class EvidenceSpan:
     char_start: int | None
     char_end: int | None
     license_safe: bool = True
+    source_record_id: str | None = None
 
 
 @dataclass(frozen=True)

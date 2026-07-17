@@ -19,7 +19,7 @@ from paper_classifier.models import (
     SupportType,
 )
 
-LLM_CLASSIFIER_VERSION = "llm-extractor-v4"
+LLM_CLASSIFIER_VERSION = "llm-extractor-v5"
 
 
 @dataclass(frozen=True)
@@ -105,7 +105,7 @@ Return only valid JSON with this shape:
       "normalized_value": "concise cleaned phrase or null",
       "support_type": "direct_span" | "inferred_from_span",
       "confidence": 0.0,
-      "source_field": "title" | "abstract",
+      "source_field": "title" | "abstract" | "full_text",
       "evidence_text": "exact quote from source_field for direct claims; supporting quote for inferred claims",
       "inference_rationale": "required only for inferred_from_span"
     }}
@@ -117,7 +117,8 @@ Return only valid JSON with this shape:
       "object_claim_index": 1,
       "support_type": "direct_span" | "inferred_from_span",
       "confidence": 0.0,
-      "relationship_evidence_text": "exact quote from title or abstract supporting this relationship",
+      "relationship_source_field": "title" | "abstract" | "full_text",
+      "relationship_evidence_text": "exact quote from that source field supporting this relationship",
       "inference_rationale": "required only for inferred_from_span"
     }}
   ]
@@ -141,9 +142,9 @@ Claim type definitions:
 Rules:
 - Extract only reliability/FMEA-relevant facts.
 - Do not invent unsupported claims.
-- Direct claims must use evidence_text copied exactly from the title or abstract.
+- Direct claims must use evidence_text copied exactly from the named source field.
 - Inferred claims must still cite evidence_text and include inference_rationale.
-- Direct relationships must use relationship_evidence_text copied exactly from the title or abstract.
+- Direct relationships must use relationship_evidence_text copied exactly from the named source field.
 - Inferred relationships must still cite relationship_evidence_text and include inference_rationale.
 - Prefer atomic claims: one fact per claim row.
 - For failure_mode normalized_value, preserve the most specific mechanism supported by
@@ -171,6 +172,7 @@ Paper:
 DOI: {paper.doi or ""}
 Title: {paper.title}
 Abstract: {paper.abstract or ""}
+Full text: {paper.full_text or ""}
 Journal: {paper.journal or ""}
 Year: {paper.year or ""}
 """.strip()
@@ -360,6 +362,9 @@ def _result_from_payload(paper: Paper, payload: dict[str, Any], config: LlmConfi
             "claims_returned": len(raw_claims) if isinstance(raw_claims, list) else 0,
             "relationships_returned": len(raw_relationships) if isinstance(raw_relationships, list) else 0,
             "direct_claims_kept": direct_kept,
+            "input_source": "full_text" if paper.full_text else "title_abstract",
+            "full_text_id": paper.full_text_id,
+            "full_text_sha256": paper.full_text_sha256,
         },
     )
 
@@ -376,10 +381,10 @@ def _claim_from_payload(paper: Paper, raw_claim: Any) -> EvidenceClaim | None:
     raw_value = _clean_text(raw_claim.get("raw_value"))
     evidence_text = _clean_text(raw_claim.get("evidence_text"))
     source_field = raw_claim.get("source_field")
-    if source_field not in {"title", "abstract"} or not raw_value or not evidence_text:
+    if source_field not in {"title", "abstract", "full_text"} or not raw_value or not evidence_text:
         return None
 
-    source_text = paper.title if source_field == "title" else paper.abstract or ""
+    source_text = _source_text(paper, source_field)
     span = _find_span(source_text, evidence_text)
     if span is None:
         return None
@@ -401,9 +406,30 @@ def _claim_from_payload(paper: Paper, raw_claim: Any) -> EvidenceClaim | None:
         normalized_value=normalized_value,
         support_type=support_type,
         confidence=_bounded_float(raw_claim.get("confidence"), default=0.5),
-        spans=(EvidenceSpan(source_field, source_text[char_start:char_end], char_start, char_end),),
+        spans=(
+            EvidenceSpan(
+                source_field,
+                source_text[char_start:char_end],
+                char_start,
+                char_end,
+                license_safe=True,
+                source_record_id=paper.full_text_id if source_field == "full_text" else None,
+            ),
+        ),
         inference_rationale=rationale,
-        metadata={"extractor": "llm"},
+        metadata={
+            "extractor": "llm",
+            **(
+                {
+                    "full_text_id": paper.full_text_id,
+                    "full_text_source_url": paper.full_text_source_url,
+                    "full_text_license": paper.full_text_license,
+                    "full_text_sha256": paper.full_text_sha256,
+                }
+                if source_field == "full_text"
+                else {}
+            ),
+        },
     )
 
 
@@ -436,22 +462,40 @@ def _relationship_from_payload(
     metadata = {"extractor": "llm"}
     relationship_evidence_text = _clean_text(raw_relationship.get("relationship_evidence_text"))
     inference_rationale = _clean_text(raw_relationship.get("inference_rationale"))
-    if support_type == SupportType.DIRECT_SPAN:
-        # Same hallucination guard as claims: a direct relationship's quote must
-        # exist in the source text, and we store the source's own slice.
-        if not relationship_evidence_text:
-            return None
-        verified = None
-        for source_text in (paper.title, paper.abstract or ""):
-            span = _find_span(source_text, relationship_evidence_text)
-            if span is not None:
-                verified = source_text[span[0]:span[1]]
-                break
-        if verified is None:
-            return None
-        relationship_evidence_text = verified
-    elif not inference_rationale:
+    if not relationship_evidence_text:
         return None
+    if support_type == SupportType.INFERRED_FROM_SPAN and not inference_rationale:
+        return None
+
+    # Same hallucination guard as claims for both direct and inferred edges:
+    # the supporting quote must exist, and provenance stores the source slice.
+    verified = None
+    verified_source_field = None
+    verified_offsets = None
+    requested_source_field = raw_relationship.get("relationship_source_field")
+    sources = (
+        ((requested_source_field, _source_text(paper, requested_source_field)),)
+        if requested_source_field in {"title", "abstract", "full_text"}
+        else _source_items(paper)
+    )
+    for source_field, source_text in sources:
+        span = _find_span(source_text, relationship_evidence_text)
+        if span is not None:
+            verified = source_text[span[0]:span[1]]
+            verified_source_field = source_field
+            verified_offsets = span
+            break
+    if verified is None:
+        return None
+    relationship_evidence_text = verified
+    metadata["relationship_source_field"] = verified_source_field
+    metadata["relationship_char_start"] = verified_offsets[0]
+    metadata["relationship_char_end"] = verified_offsets[1]
+    if verified_source_field == "full_text":
+        metadata["full_text_id"] = paper.full_text_id
+        metadata["full_text_source_url"] = paper.full_text_source_url
+        metadata["full_text_license"] = paper.full_text_license
+        metadata["full_text_sha256"] = paper.full_text_sha256
     if relationship_evidence_text:
         metadata["relationship_evidence_text"] = relationship_evidence_text
     if inference_rationale:
@@ -509,6 +553,24 @@ def _find_span(source_text: str, evidence_text: str) -> tuple[int, int] | None:
     if match is None:
         return None
     return match.start(), match.end()
+
+
+def _source_text(paper: Paper, source_field: str) -> str:
+    if source_field == "title":
+        return paper.title
+    if source_field == "abstract":
+        return paper.abstract or ""
+    if source_field == "full_text":
+        return paper.full_text or ""
+    return ""
+
+
+def _source_items(paper: Paper) -> tuple[tuple[str, str], ...]:
+    return (
+        ("title", paper.title),
+        ("abstract", paper.abstract or ""),
+        ("full_text", paper.full_text or ""),
+    )
 
 
 def _bounded_float(value: Any, default: float) -> float:

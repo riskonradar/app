@@ -1,0 +1,17 @@
+[Unit]
+Description=Risk on Radar weekly paper discovery
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/riskonradar
+EnvironmentFile=/etc/riskonradar/pipeline.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/opt/riskonradar/services/deploy/healthcheck-ping DISCOVERY_HEALTHCHECK_URL start
+ExecStart=/opt/riskonradar/venv/bin/paper-discovery --limit 25 --since-days 30
+ExecStartPost=/opt/riskonradar/services/deploy/healthcheck-ping DISCOVERY_HEALTHCHECK_URL success
+ExecStopPost=/opt/riskonradar/services/deploy/healthcheck-ping DISCOVERY_HEALTHCHECK_URL result
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

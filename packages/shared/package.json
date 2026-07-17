@@ -2,8 +2,5 @@
   "name": "@riskonradar/shared",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "exports": {
-    "./taxonomy": "./src/taxonomy.ts"
-  }
+  "type": "module"
 }

@@ -7,6 +7,7 @@ import { maskEmail, resolvePlanDisplay } from "@/lib/account/display";
 type AccountOverviewProps = {
   billingStatus: string;
   memberCount: number;
+  seatLimit?: number | null;
   serverPlan: string;
   role: string;
   workspaceName: string;
@@ -16,6 +17,7 @@ type AccountOverviewProps = {
 export function AccountOverview({
   billingStatus,
   memberCount,
+  seatLimit,
   serverPlan,
   role,
   workspaceName,
@@ -63,8 +65,8 @@ export function AccountOverview({
           </div>
           <div className="summary-tile">
             <span>Seats</span>
-            <strong>{memberCount}</strong>
-            <small>{memberCount === 1 ? "active user" : "active users"}</small>
+            <strong>{seatLimit ? `${memberCount} of ${seatLimit}` : memberCount}</strong>
+            <small>{seatLimit ? "active seats" : memberCount === 1 ? "active user" : "active users"}</small>
           </div>
         </div>
       ) : (

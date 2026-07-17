@@ -1,268 +1,189 @@
 # Risk on Radar
 
-Evidence-backed FMEA workspace for reliability and quality engineering teams. The app turns peer-reviewed failure literature and airworthiness directives into reviewable FMEA rows — every field backed by an exact source span and a DOI-linked citation.
+Risk on Radar is an authenticated, evidence-backed FMEA and system-risk workspace for
+reliability and quality engineering teams. It turns scientific literature and regulatory
+evidence into reviewable engineering claims, exact source spans, typed relationships, and
+traceable FMEA rows.
 
-**Current scope:** only the turbofan engine dataset is live. The knowledge base covers bearings, blades, combustors, compressors, fuel systems, oil systems, seals, shafts, turbines, and structural components in commercial aviation context. Other domains and systems are in roadmap scope but not yet searchable.
+The public website and whitepaper live at https://riskonradar.com/. This repository is the
+product application and its ingestion services, not the marketing site.
 
-Live: https://riskonradar.com/ — whitepaper: https://riskonradar.com/whitepaper.pdf
+## Product Surfaces
 
----
+- `/fmea`: taxonomy-aware live evidence search, engineer-owned S/O/D ratings, review state,
+  exact evidence spans, citations, transactional saves, audit history, and CSV/XLSX export.
+- `/systems`: tenant-defined system trees, component-taxonomy references, dependencies,
+  reviewed failure-propagation edges, cascade analysis, and change history.
+- `/account` and `/organization`: personal/team workspaces, Clerk membership management,
+  role enforcement, seats, and Stripe billing lifecycle.
+- `/admin`: bookmark-only internal pipeline view. Access is hidden with `notFound()` unless
+  the signed-in primary email is listed in `ADMIN_EMAILS`.
 
-## Live Knowledge Base (June 2026)
+Do not put database counts in documentation. They change continuously. Use `/admin` or
+schema-qualified database queries for current paper, job, claim, span, and relationship
+counts.
 
-| Metric | Count |
-|---|---|
-| Paper candidates indexed | 3,417 |
-| — Peer-reviewed corpus papers | 3,098 |
-| — EASA airworthiness directives | 319 |
-| Classified papers | 3,413 |
-| Pending (no abstract) | 4 |
-| Atomic evidence claims | 14,990 |
-| Evidence spans (exact source text + character offsets) | 20,365 |
-| Claim relationships (FMEA-typed links between claims) | 3,729 |
+## Architecture
 
-Active classifier: `llm-extractor-v2:gemini:gemini-2.5-flash-lite`
+```text
+OpenAlex / EASA / corpus imports
+          |
+          v
+papers_raw.paper_candidates
+          |
+          v
+knowledge.classification_jobs
+knowledge.evidence_claims
+knowledge.evidence_spans
+knowledge.claim_relationships
+          |
+          v
+Next.js product workflows -> app.fmea_* / app.asset_*
+```
 
----
+- `apps/web`: Next.js 16, Clerk, Supabase service-role server access, Stripe Billing,
+  Cloudflare Workers deployment.
+- `services/paper-discovery`: OpenAlex-only discovery with trusted ISSNs, deduplication,
+  lifecycle-state preservation, citation metadata, and open-access metadata backfill.
+- `services/paper-classifier`: auditable LLM extraction, legal OA full-text ingestion,
+  taxonomy linking, a fixed-sample model-evaluation harness, and an optional aggregate
+  system-reasoning stage whose outputs remain review-only suggestions.
+- `supabase/migrations`: schema, RLS, RPCs, taxonomy, billing, FMEA, and system-model changes.
 
-## Classification Pipeline
+The web server deliberately uses the Supabase service role at this stage. Every product
+route first resolves the Clerk user and active workspace, scopes reads by organization, and
+checks roles before mutations. Clerk-to-Supabase end-user JWT bridging is not implemented.
+That is a documented MVP boundary, not permission to omit route-level workspace checks.
 
-### 1. Paper Discovery (`services/paper-discovery`)
+## Evidence Pipeline
 
-Python 3.12+ CLI. Runs weekly on DigitalOcean via systemd timer.
+### Discovery
 
-- Searches the OpenAlex REST API (sole source; Crossref removed 2026-07 — OpenAlex has the abstracts, and abstract-less papers are unclassifiable).
-- Restricted to trusted journal ISSNs listed in `data/journals.json`.
-- Broad search query packs from `data/queries.json` — these are recall filters only; the classifier decides relevance.
-- Deduplicates by: `canonical_doi` → `title_fingerprint + publication_year` → `abstract_hash`.
-- Upserts raw metadata into `papers_raw.paper_candidates` with `lifecycle_status = 'pending_classification'`.
-- Papers are never hard-deleted. Lifecycle state transitions: `discovered → pending_classification → classified → stale → removed`.
-- Tracks each run in `papers_raw.discovery_runs`.
+`paper-discovery` searches OpenAlex only. Query packs are broad recall filters; they do not
+classify engineering truth. Candidates are deduplicated by canonical DOI, title fingerprint
+plus year, then abstract hash. Routine jobs never hard-delete evidence.
 
-### 2. Evidence Extraction (`services/paper-classifier`)
-
-Python 3.12+ CLI. Runs continuously on DigitalOcean, polling every 5 minutes.
-
-**Input:** paper title and abstract from `papers_raw.paper_candidates`.
-
-**Extraction modes:**
-
-- `--extractor llm`: structured JSON extraction via LLM. Direct claims (`support_type = direct_span`) are accepted only when `evidence_text` appears verbatim in the title or abstract (tolerant of whitespace differences only) — the classifier locates the quote in the source, stores the source's own text slice, and records `char_start`/`char_end` offsets. Inferred claims (`inferred_from_span`) must include `inference_rationale`. Output that fails schema validation or span verification is dropped, not stored.
-- `--extractor keyword`: deterministic keyword/span preprocessor (`keyword-span-preprocessor-v1`). Matches alias lists against source text, generates `direct_span` claims, and infers a small set of compound claims (e.g. corrosion + fatigue → corrosion fatigue) and sentence-level effect/control claims via pattern matching. Conservative recall; no LLM calls.
-- `--extractor auto`: uses `llm` when `LLM_PROVIDER` is set, otherwise falls back to `keyword`.
-
-**LLM providers:**
-
-| `LLM_PROVIDER` | Default model | API |
-|---|---|---|
-| `openai` | `gpt-5.4-nano` | OpenAI Responses API (`/v1/responses`) |
-
-All LLM calls use `temperature = 0`.
-
-**What gets extracted per paper:**
-
-Claim types: `component`, `failure_mode`, `cause`, `effect`, `control`, `corrective_action`, `analysis_method`, `application`, `operating_context`, `detection_method`, `maintenance_action`, `material`, `environment`.
-
-Relationship types: `has_failure_mode`, `caused_by`, `has_effect`, `mitigated_by`, `detected_by`, `corrected_by`, `analysed_by`, `has_context`. Relationship direction is validated before storage; invalid directions are dropped. Direct relationships must also carry a supporting quote verified against the source text (same guard as claims); inferred relationships require a rationale.
-
-Failure mode normalized values preserve the most specific mechanism supported by the source. The database taxonomy linker then maps those values to hierarchical failure-mode nodes using exact, alias, and fuzzy matching; unresolved values remain available for taxonomy review instead of being discarded.
-
-**Output written to Supabase:**
-
-- `knowledge.classification_jobs` — one auditable attempt per paper × classifier version, with LLM provider, model, paper input hash, relevance, and confidence.
-- `knowledge.evidence_claims` — one row per atomic claim with `claim_type`, `raw_value`, `normalized_value`, `support_type`, `confidence`, `classifier_version`, `llm_provider`, `llm_model`.
-- `knowledge.evidence_spans` — one row per span with exact `text`, `char_start`, `char_end`, `source_field` (title or abstract).
-- `knowledge.claim_relationships` — typed links with `subject_index`, `relationship_type`, `object_index`, `support_type`, `confidence`.
-
-Paper is marked `lifecycle_status = 'classified'` on success.
-
-**Production command:**
 ```sh
-paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1
+cd services/paper-discovery
+pip install -e .
+paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
+paper-discovery --backfill-oa --limit 15000
 ```
 
----
+### Full Text
 
-## FMEA Workflow
+`paper-classifier ingest-full-text` only fetches public HTTPS PDFs with an explicit `CC-BY`,
+`CC0`, or public-domain license. It rejects private-network targets, non-PDF responses,
+oversized/encrypted files, and unsafe redirects. PDF bytes are hashed and discarded; bounded
+extracted text and retrieval provenance are retained.
 
-1. **Search** — query the knowledge base by component, system, or operating context. Results come from a Supabase RPC (`get_turbofan_fmea`) that aggregates evidence claims by component and failure mode.
-
-2. **Review** — ranked failure mode rows show cause, effect, controls, corrective actions, evidence count, and source citations (DOI / EASA AD reference). RPN (severity × occurrence × detection) is pre-computed; severity is inferred from effect text and propagation path matching, occurrence from weighted evidence count, detection from inspection/monitoring keyword presence and EASA AD instruction detection.
-
-3. **Accept / edit / reject** — `review_status` on `fmea_rows` tracks per-row state (`needs_review`, `accepted`, `rejected`). Model output and review state are stored separately. Human approval is required before classifier output becomes validated FMEA content.
-
-4. **Save** — analyses persist to `app.fmea_analyses` and `app.fmea_rows` under the current workspace (personal or organization). Free tier: 1 saved analysis. Pro tier: unlimited. Plan enforcement runs server-side on every save — the limit check and the insert are sequential to avoid race conditions.
-
-5. **Export** — CSV and XLSX export with full evidence lineage preserved per row.
-
----
-
-## Pricing
-
-Plans are defined in `apps/web/src/lib/billing/plans.ts`. Payment processing uses Stripe Billing with hosted Checkout Sessions (server-side only; keys never reach browser code). Currency: EUR.
-
-| Plan | Price | Scope | Seats | Key limits |
-|---|---|---|---|---|
-| Free | EUR 0 | user | 1 | 1 saved FMEA table |
-| Individual (Pro) | EUR 49 / month | user | 1 | Unlimited saved analyses, evidence-linked exports |
-
-`billing_status` on `app.organizations` drives plan enforcement: `active` and `comped` are treated as Pro; anything else falls back to free limits.
-
-Stripe webhook (`/api/billing/stripe-webhook`) updates `app.billing_payments`, `app.billing_subscriptions`, and `app.organizations` on subscription status changes, and writes audit events to `app.account_audit_events`.
-
----
-
-## Auth and Workspace
-
-Auth: Clerk. JWT verified server-side on every request via `CLERK_SECRET_KEY`. Supports both Bearer token and `__session` cookie.
-
-Workspace resolution (`ensureCurrentWorkspace`):
-- If Clerk org context present → upsert `app.organizations` by `clerk_organization_id` (team workspace).
-- Otherwise → upsert personal workspace by deterministic slug derived from `clerk_user_id`.
-
-Roles: `owner`, `admin`, `member` (normalized from Clerk's `org:owner` / `org:admin` claim names).
-
-Minimum Clerk user metadata mirrored to `app.user_accounts`.
-
----
-
-## Stack
-
-**Web app (`apps/web`):**
-- Next.js 16, App Router, TypeScript
-- Supabase Postgres via service role client (three schemas: `app`, `papers_raw`, `knowledge`)
-- Clerk for auth
-- Stripe Billing for payments
-- Deployed on Cloudflare Workers via OpenNext (`wrangler.toml`, `compatibility_flags = ["nodejs_compat"]`)
-
-**Pipeline services:**
-- Python 3.12+, stdlib only for HTTP (`urllib.request`) — no heavy framework dependencies
-- Same Supabase Postgres database; connects via session pooler (`aws-0-eu-west-1.pooler.supabase.com:5432`)
-- Deployed on DigitalOcean droplet (`164.92.153.187`) managed by systemd
-
-**Key database tables:**
-
-```
-papers_raw.paper_candidates        raw metadata, lifecycle state, dedupe fields
-papers_raw.discovery_runs          one row per discovery run
-
-knowledge.classification_jobs      auditable classifier attempt per paper × version
-knowledge.evidence_claims          atomic extracted or inferred reliability claim
-knowledge.evidence_spans           exact source text + character offsets
-knowledge.claim_relationships      typed links between claims from the same paper
-
-app.user_accounts                  Clerk user mirror
-app.organizations                  personal and team workspaces
-app.organization_memberships       user → workspace with role
-app.fmea_analyses                  saved FMEA analysis records
-app.fmea_rows                      individual FMEA rows with review state
-app.billing_payments               Stripe Checkout session/payment records
-app.account_audit_events           billing and workspace audit log
-app.workspace_invitations          pending team invitations
+```sh
+cd services/paper-classifier
+pip install -e .
+paper-classifier ingest-full-text --limit 100
 ```
 
----
+### Classification
+
+The code classifier prefix is `llm-extractor-v5`. A complete job version also includes the
+provider and model. Never infer the active production model from this file: query
+`knowledge.classification_jobs` and inspect `classifier_version` plus
+`classifier_metadata`. The production worker must use `--extractor llm`.
+
+Direct claims are kept only when their evidence text is found in the declared title,
+abstract, or licensed full-text source. Inferred claims require both supporting evidence and
+an inference rationale. Invalid claims and relationships are dropped. New machine claims
+remain unverified until an engineer reviews them.
+
+```sh
+paper-classifier classify \
+  --extractor llm \
+  --mode incremental \
+  --limit 25 \
+  --workers 1 \
+  --watch \
+  --interval-seconds 300
+
+paper-classifier link-taxonomy
+```
+
+Shared hierarchical taxonomies currently cover components, failure modes, analysis methods,
+and applications. Linking is deterministic: exact name, alias, trigram fuzzy match, then an
+unresolved taxonomy inbox. Causes, effects, and controls remain evidence-preserving free text
+because the audited corpus did not show a stable closed vocabulary for them.
 
 ## Local Development
 
-Prerequisites: Node.js, pnpm, Python 3.12+.
+Prerequisites: Node.js, pnpm, Python 3.12+, and the environment values in `.env.example`.
 
 ```sh
 pnpm install
 pnpm dev:web
-pnpm build:web
 pnpm lint:web
+pnpm test:web
+pnpm build:web
 ```
 
 ```sh
 cd services/paper-discovery
-pip install -e .
-paper-discovery --limit 10 --dry-run
-
-cd services/paper-classifier
-pip install -e .
-paper-classifier classify --extractor keyword --limit 5 --dry-run
-```
-
-Tests:
-```sh
-cd services/paper-discovery
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 
-cd services/paper-classifier
+cd ../paper-classifier
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 ```
 
----
+Never commit real values for Clerk, Supabase, Stripe, LLM providers, `ADMIN_EMAILS`, database
+URLs, or healthcheck endpoints.
 
-## Environment Variables
+Production pipeline services connect through the dedicated `riskonradar_pipeline` runtime
+role. Its login password is generated and installed out-of-band; it never belongs in a
+migration, repository file, or command transcript.
 
-Copy `.env.example` to `.env.local` at repo root.
+## Database Changes
 
-```sh
-# Web app
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_INDIVIDUAL_PRICE_ID=
-STRIPE_TEAM_PRICE_ID=
-
-# Pipeline services (both)
-DATABASE_URL=                           # or SUPABASE_DB_URL; session pooler port 5432
-DISCOVERY_CONTACT_EMAIL=               # polite pool priority for OpenAlex
-
-# Paper classifier — choose one provider
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash-lite     # default; thinkingBudget=0 set in code
-
-# LLM_PROVIDER=groq
-# GROQ_API_KEY=
-# GROQ_MODEL=llama-3.3-70b-versatile
-
-# LLM_PROVIDER=openai
-# OPENAI_API_KEY=
-# OPENAI_MODEL=gpt-5.4-nano
-
-# LLM_PROVIDER=anthropic
-# ANTHROPIC_API_KEY=
-# ANTHROPIC_MODEL=claude-haiku-4-5
-
-# LLM_PROVIDER=ollama
-# OLLAMA_MODEL=llama3.1:8b
-# OLLAMA_BASE_URL=http://localhost:11434
-```
-
-Never commit real keys. `/etc/riskonradar/pipeline.env` on the production droplet must not be committed.
-
----
-
-## Production Deployment
-
-**Web app:** Cloudflare Workers via `wrangler deploy`. Configuration in `apps/web/wrangler.toml`.
-
-**Pipeline services:** DigitalOcean droplet `164.92.153.187`.
+Always schema-qualify product SQL. Validate and apply migrations from the repository root:
 
 ```sh
-ssh -i ~/.ssh/riskonradar_do_ed25519 root@164.92.153.187
-systemctl status riskonradar-discovery.timer
-systemctl status riskonradar-classifier.service
-journalctl -u riskonradar-classifier.service -f
+supabase migration list --linked
+supabase db push --linked --dry-run --include-all
+supabase db push --linked --include-all
 ```
 
-Queue handoff is database state, not a direct service call. Discovery sets `lifecycle_status = 'pending_classification'`; the classifier polls that column.
+Routine app code must never query the retired `knowledge.paper_classifications`, the empty
+legacy `knowledge.evidence_records`, or the removed turbofan-only RPC.
 
----
+## Production Services
 
-## Design Principles
+Pipeline systemd definitions are versioned in `services/deploy/systemd/`:
 
-- Every suggestion is tied to a source span or explicitly marked as inference — nothing is presented as verified engineering truth.
-- Raw paper data (`papers_raw`) and classified knowledge (`knowledge`) are in separate schemas.
-- Review state (`review_status` on `fmea_rows`) is stored separately from model output.
-- Classifier version, LLM provider, LLM model, and paper input hash are recorded with every classification job for full audit trail.
+- `riskonradar-discovery.timer`: weekly incremental OpenAlex discovery.
+- `riskonradar-classifier.service`: continuous LLM-only classification.
+- `riskonradar-full-text.timer`: weekly OA metadata and licensed full-text ingestion.
+
+Each unit supports a Healthchecks-compatible URL through `DISCOVERY_HEALTHCHECK_URL`,
+`CLASSIFIER_HEALTHCHECK_URL`, or `FULL_TEXT_HEALTHCHECK_URL`. Monitoring failures never block
+the pipeline, while failed work exits nonzero and sends a failure signal.
+
+The production service snapshot is `/opt/riskonradar` on `164.92.153.187`; secrets live in
+`/etc/riskonradar/pipeline.env`. Deployment is not complete until migrations, service code,
+systemd units, backfills, a small classifier canary, and logs have all been verified.
+
+## Commercial Configuration
+
+Stripe products, prices, Tax, webhook signing, and Customer Portal settings are external
+configuration. Clerk production keys, organization settings, and webhook signing are also
+external. The application fails closed when required secrets are absent. Never invent or
+commit live values to make a deployment appear complete.
+
+Team billing uses one base subscription item for the included seats and a separate recurring
+extra-seat price for seats above that allowance. Stripe price semantics must match the plan
+definitions in `apps/web/src/lib/billing/plans.ts` before checkout is enabled.
+
+## Engineering Rules
+
+- Treat the app as a copilot, never an autopilot.
+- Preserve source, exact span, model/version, confidence, review state, and reviewer action.
+- Do not claim standards or regulatory compliance that the implementation does not provide.
+- Do not merge distinct taxonomy nodes through frontend string normalization.
+- Do not expose the Supabase service role or direct database URL to browser code.
+- Do not deploy prompt/model changes before the fixed human-annotated evaluation passes.

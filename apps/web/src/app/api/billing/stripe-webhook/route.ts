@@ -5,6 +5,7 @@ import {
   completeStripeWebhookEvent,
   failStripeWebhookEvent,
   persistStripeCheckoutSession,
+  persistStripeExpiredCheckoutSession,
   persistStripeSubscription,
 } from "@/lib/billing/server";
 import { getStripeWebhookSecret } from "@/lib/config";
@@ -15,7 +16,14 @@ function stripeObjectId(value: string | { id: string } | null | undefined) {
   return typeof value === "string" ? value : value.id;
 }
 
-async function persistCheckoutSession(session: Stripe.Checkout.Session) {
+function subscriptionEventContext(event: Stripe.Event) {
+  return {
+    eventCreated: event.created,
+    eventId: event.id,
+  };
+}
+
+async function persistCheckoutSession(session: Stripe.Checkout.Session, event: Stripe.Event) {
   const userAccountId = session.metadata?.userAccountId;
   if (!userAccountId) {
     return new Error("Stripe Checkout Session metadata does not reference an app user.");
@@ -28,30 +36,45 @@ async function persistCheckoutSession(session: Stripe.Checkout.Session) {
   if (!subscriptionId) return null;
 
   const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
-  return persistStripeSubscription(subscription);
+  return persistStripeSubscription(subscription, subscriptionEventContext(event));
 }
 
-async function persistInvoiceSubscription(invoice: Stripe.Invoice) {
+async function persistInvoiceSubscription(invoice: Stripe.Invoice, event: Stripe.Event) {
   const parent = invoice.parent as { subscription_details?: { subscription?: string | Stripe.Subscription | null } } | null;
   const subscriptionId = stripeObjectId(parent?.subscription_details?.subscription);
   if (!subscriptionId) return null;
 
   const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
-  return persistStripeSubscription(subscription);
+  return persistStripeSubscription(subscription, subscriptionEventContext(event));
+}
+
+async function persistCurrentSubscription(
+  eventSubscription: Stripe.Subscription,
+  event: Stripe.Event,
+) {
+  const subscription = await getStripeClient().subscriptions.retrieve(eventSubscription.id);
+  return persistStripeSubscription(subscription, subscriptionEventContext(event));
 }
 
 async function handleStripeEvent(event: Stripe.Event) {
   switch (event.type) {
     case "checkout.session.completed":
     case "checkout.session.async_payment_succeeded":
-      return persistCheckoutSession(event.data.object as Stripe.Checkout.Session);
+      return persistCheckoutSession(event.data.object as Stripe.Checkout.Session, event);
+    case "checkout.session.expired":
+      return persistStripeExpiredCheckoutSession(
+        event.data.object as Stripe.Checkout.Session,
+      );
     case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted":
-      return persistStripeSubscription(event.data.object as Stripe.Subscription);
+      return persistCurrentSubscription(
+        event.data.object as Stripe.Subscription,
+        event,
+      );
     case "invoice.payment_succeeded":
     case "invoice.payment_failed":
-      return persistInvoiceSubscription(event.data.object as Stripe.Invoice);
+      return persistInvoiceSubscription(event.data.object as Stripe.Invoice, event);
     default:
       return null;
   }
@@ -84,8 +107,26 @@ export async function POST(request: Request) {
     return Response.json({ error: "Could not record webhook event." }, { status: 500 });
   }
 
-  if (webhookEvent.alreadyProcessed) {
-    return Response.json({ received: true, duplicate: true });
+  if (!webhookEvent.claimed) {
+    if (webhookEvent.status !== "completed") {
+      return Response.json(
+        {
+          error: "Stripe webhook event is already being processed.",
+          received: false,
+          status: webhookEvent.status,
+        },
+        {
+          status: 409,
+          headers: { "Retry-After": "60" },
+        },
+      );
+    }
+
+    return Response.json({
+      received: true,
+      duplicate: true,
+      status: webhookEvent.status,
+    });
   }
 
   try {

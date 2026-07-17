@@ -19,6 +19,9 @@ class DiscoveredPaper:
     is_oa: bool | None = None
     oa_url: str | None = None
     oa_status: str | None = None
+    oa_license: str | None = None
+    oa_license_url: str | None = None
+    oa_version: str | None = None
     cited_by_count: int | None = None
 
     @property

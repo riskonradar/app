@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Webhook } from "svix";
+import { clerkClient } from "@clerk/nextjs/server";
 
+import { normalizeClerkOrganizationRole } from "@/lib/auth/roles";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 type ClerkUserEvent = {
@@ -15,20 +17,10 @@ type ClerkUserEvent = {
   };
 };
 
+const TRIAL_ORGANIZATION_SEAT_LIMIT = 3;
+
 function appSchema() {
   return (getSupabaseServiceClient() as any).schema("app");
-}
-
-function normalizeRole(role: string | null | undefined) {
-  if (role === "org:admin" || role === "admin") {
-    return "admin";
-  }
-
-  if (role === "org:owner" || role === "owner") {
-    return "owner";
-  }
-
-  return "member";
 }
 
 async function findUserAccountId(clerkUserId: string | null | undefined) {
@@ -61,26 +53,58 @@ async function findOrganizationId(clerkOrganizationId: string | null | undefined
 
 async function upsertOrganization(data: Record<string, any>) {
   const createdByUserAccountId = await findUserAccountId(data.created_by ?? data.created_by_user_id);
-
-  const { error } = await appSchema()
+  const { data: existingOrganization, error: existingOrganizationError } = await appSchema()
     .from("organizations")
-    .upsert(
-      {
-        clerk_organization_id: data.id,
-        name: data.name ?? "Engineering workspace",
-        slug: data.slug ?? null,
-        domain: data.domains?.[0]?.name ?? null,
-        created_by_user_account_id: createdByUserAccountId,
-        metadata: {
-          imageUrl: data.image_url ?? null,
-          publicMetadata: data.public_metadata ?? {},
-          privateMetadata: data.private_metadata ?? {},
-        },
-      },
-      { onConflict: "clerk_organization_id" },
-    );
+    .select("billing_status, seat_limit")
+    .eq("clerk_organization_id", data.id)
+    .maybeSingle();
 
-  return error;
+  if (existingOrganizationError) return existingOrganizationError;
+
+  const organizationPayload: Record<string, unknown> = {
+    clerk_organization_id: data.id,
+    name: data.name ?? "Engineering workspace",
+    slug: data.slug ?? null,
+    domain: data.domains?.[0]?.name ?? null,
+    created_by_user_account_id: createdByUserAccountId,
+    metadata: {
+      imageUrl: data.image_url ?? null,
+      publicMetadata: data.public_metadata ?? {},
+      privateMetadata: data.private_metadata ?? {},
+    },
+  };
+
+  if (
+    !existingOrganization ||
+    (existingOrganization.billing_status === "trialing" && !existingOrganization.seat_limit)
+  ) {
+    organizationPayload.seat_limit = TRIAL_ORGANIZATION_SEAT_LIMIT;
+  }
+
+  const { data: organization, error } = await appSchema()
+    .from("organizations")
+    .upsert(organizationPayload, { onConflict: "clerk_organization_id" })
+    .select("seat_limit")
+    .single();
+
+  if (error) return error;
+
+  const seatLimit = Number(organization?.seat_limit ?? TRIAL_ORGANIZATION_SEAT_LIMIT);
+  const clerkSeatLimit = Number(data.max_allowed_memberships ?? data.maxAllowedMemberships ?? 0);
+  if (seatLimit > 0 && clerkSeatLimit !== seatLimit) {
+    try {
+      const clerk = await clerkClient();
+      await clerk.organizations.updateOrganization(data.id, {
+        maxAllowedMemberships: seatLimit,
+      });
+    } catch (seatError) {
+      return seatError instanceof Error
+        ? seatError
+        : new Error("Could not apply the workspace seat limit in Clerk.");
+    }
+  }
+
+  return null;
 }
 
 async function upsertMembership(data: Record<string, any>) {
@@ -100,7 +124,7 @@ async function upsertMembership(data: Record<string, any>) {
         organization_id: organizationId,
         user_account_id: userAccountId,
         clerk_membership_id: data.id,
-        role: normalizeRole(data.role),
+        role: normalizeClerkOrganizationRole(data.role),
         status: "active",
       },
       { onConflict: "organization_id,user_account_id" },
@@ -125,7 +149,7 @@ async function upsertInvitation(data: Record<string, any>) {
         organization_id: organizationId,
         clerk_invitation_id: data.id,
         email: data.email_address ?? data.email ?? "unknown@example.com",
-        role: normalizeRole(data.role),
+        role: normalizeClerkOrganizationRole(data.role),
         status: data.status ?? "pending",
         invited_by_user_account_id: invitedByUserAccountId,
       },

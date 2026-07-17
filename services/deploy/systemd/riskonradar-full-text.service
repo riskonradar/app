@@ -1,0 +1,51 @@
+[Unit]
+Description=Risk on Radar open-access metadata and full-text ingestion
+Wants=network-online.target
+After=network-online.target riskonradar-discovery.service
+
+[Service]
+Type=oneshot
+DynamicUser=true
+WorkingDirectory=/opt/riskonradar
+EnvironmentFile=/etc/riskonradar/pipeline.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=TMPDIR=/tmp
+ExecStartPre=/opt/riskonradar/services/deploy/healthcheck-ping FULL_TEXT_HEALTHCHECK_URL start
+ExecStart=/opt/riskonradar/venv/bin/paper-discovery --backfill-oa --limit 15000
+ExecStart=/opt/riskonradar/venv/bin/paper-classifier ingest-full-text --limit 500 --retry-failed
+ExecStartPost=/opt/riskonradar/services/deploy/healthcheck-ping FULL_TEXT_HEALTHCHECK_URL success
+ExecStopPost=/opt/riskonradar/services/deploy/healthcheck-ping FULL_TEXT_HEALTHCHECK_URL result
+NoNewPrivileges=true
+PrivateTmp=true
+TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=128M
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+RemoveIPC=true
+UMask=0077
+MemoryHigh=768M
+MemoryMax=1G
+CPUQuota=200%
+TasksMax=32
+LimitNOFILE=256
+RuntimeMaxSec=4h
+TimeoutStartSec=4h10m
+
+[Install]
+WantedBy=multi-user.target

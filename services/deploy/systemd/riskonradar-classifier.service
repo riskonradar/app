@@ -1,0 +1,24 @@
+[Unit]
+Description=Risk on Radar paper classifier worker
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/riskonradar
+EnvironmentFile=/etc/riskonradar/pipeline.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/opt/riskonradar/services/deploy/healthcheck-ping CLASSIFIER_HEALTHCHECK_URL start
+ExecStart=/opt/riskonradar/venv/bin/paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1
+ExecStopPost=/opt/riskonradar/services/deploy/healthcheck-ping CLASSIFIER_HEALTHCHECK_URL result
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

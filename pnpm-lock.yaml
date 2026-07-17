@@ -13,9 +13,6 @@ importers:
       '@clerk/nextjs':
         specifier: ^7.5.7
         version: 7.5.7(next@16.2.9(@babel/core@7.29.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@riskonradar/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.108.2
         version: 2.108.2

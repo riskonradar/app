@@ -144,28 +144,31 @@ describe("production hardening flows", () => {
     expect(source).toContain("/api/fmea/analyses/${analysis.id}");
   });
 
-  test("saved FMEA analysis queries match organization or user ownership", async () => {
+  test("saved FMEA analysis queries stay inside the active organization", async () => {
     const source = await readFile("src/lib/fmea/server.ts", "utf8");
 
-    expect(source).toContain("organization_id.eq.${workspace.organization.id}");
-    expect(source).toContain("user_account_id.eq.${workspace.userAccount.id}");
-    expect(source.match(/\.or\(ownerFilterForWorkspace/g)?.length).toBeGreaterThanOrEqual(5);
+    expect(source.match(/\.eq\("organization_id", workspace\.organization\.id\)/g)?.length)
+      .toBeGreaterThanOrEqual(3);
+    expect(source).not.toContain("ownerFilterForWorkspace");
+    expect(source).not.toContain("user_account_id.eq.${workspace.userAccount.id}");
   });
 
   test("knowledge APIs require a workspace before returning product evidence", async () => {
-    const [componentsRoute, searchRoute, fmeaRoute] = await Promise.all([
+    const [componentsRoute, searchRoute, reviewRoute] = await Promise.all([
       readFile("src/app/api/knowledge/components/route.ts", "utf8"),
       readFile("src/app/api/knowledge/search/route.ts", "utf8"),
-      readFile("src/app/api/knowledge/fmea/route.ts", "utf8"),
+      readFile("src/app/api/knowledge/review/route.ts", "utf8"),
     ]);
 
-    for (const source of [componentsRoute, searchRoute, fmeaRoute]) {
+    for (const source of [componentsRoute, searchRoute]) {
       expect(source).toContain("ensureCurrentWorkspace(request)");
       expect(source).toContain('Response.json({ error: "Unauthorized" }, { status: 401 })');
     }
 
-    expect(fmeaRoute).toContain("getSupabaseServiceClient");
-    expect(fmeaRoute).not.toContain("getSupabaseAnonClient");
+    expect(reviewRoute).toContain('requireWorkspaceMutationAccess(request, "content")');
+
+    expect(searchRoute).toContain("getSupabaseServiceClient");
+    expect(searchRoute).not.toContain("getSupabaseAnonClient");
   });
 
   test("middleware protects authenticated product routes and product APIs", async () => {
@@ -174,6 +177,7 @@ describe("production hardening flows", () => {
     expect(source).toContain("clerkMiddleware");
     expect(source).toContain("createRouteMatcher");
     expect(source).toContain('"/fmea(.*)"');
+    expect(source).toContain('"/admin(.*)"');
     expect(source).toContain('"/api/knowledge(.*)"');
     expect(source).toContain('"/api/fmea(.*)"');
     expect(source).toContain('"/api/billing/payment-status"');
@@ -181,19 +185,41 @@ describe("production hardening flows", () => {
     expect(source).not.toContain("stripe-webhook");
   });
 
-  test("knowledge search routes through the shared component taxonomy", async () => {
-    const [searchRoute, componentsRoute, taxonomySource, webPackage] = await Promise.all([
-      readFile("src/app/api/knowledge/search/route.ts", "utf8"),
-      readFile("src/app/api/knowledge/components/route.ts", "utf8"),
-      readFile("../../packages/shared/src/taxonomy.ts", "utf8"),
-      readFile("package.json", "utf8"),
+  test("account bootstrap cannot overwrite webhook identity or paid-plan state", async () => {
+    const [accountSource, clerkWebhookSource] = await Promise.all([
+      readFile("src/lib/account/server.ts", "utf8"),
+      readFile("src/app/api/webhooks/clerk/route.ts", "utf8"),
     ]);
 
-    expect(webPackage).toContain('"@riskonradar/shared": "workspace:*"');
-    expect(taxonomySource).toContain("COMPONENT_TAXONOMY");
-    expect(taxonomySource).toContain("findComponentTaxonomyNode");
-    expect(searchRoute).toContain('from "@riskonradar/shared/taxonomy"');
+    expect(accountSource.match(/ignoreDuplicates: true/g)?.length).toBe(3);
+    expect(accountSource).toContain('.eq("clerk_user_id", userId)');
+    expect(accountSource).toContain('.eq("clerk_organization_id", context.orgId)');
+    expect(accountSource).toContain('.eq("slug", slug)');
+    expect(clerkWebhookSource).toContain("email: primaryEmail");
+    expect(clerkWebhookSource).toContain("first_name: first_name ?? null");
+    expect(clerkWebhookSource).toContain("last_name: last_name ?? null");
+  });
+
+  test("billing return always requires server-side Stripe confirmation", async () => {
+    const source = await readFile("src/app/billing/return/page.tsx", "utf8");
+
+    expect(source).toContain("/api/billing/payment-status?session_id=");
+    expect(source).not.toContain("isLocalDevCheckout");
+    expect(source).not.toContain("window.location.hostname");
+  });
+
+  test("knowledge search resolves component and failure-mode taxonomies in Postgres", async () => {
+    const [searchRoute, componentsRoute, taxonomyMigration] = await Promise.all([
+      readFile("src/app/api/knowledge/search/route.ts", "utf8"),
+      readFile("src/app/api/knowledge/components/route.ts", "utf8"),
+      readFile("../../supabase/migrations/20260717170000_failure_mode_taxonomy_search.sql", "utf8"),
+    ]);
+
+    expect(searchRoute).toContain('"resolve_fmea_taxonomy_node"');
     expect(searchRoute).toContain('"search_fmea_by_component"');
+    expect(searchRoute).toContain('"search_fmea_by_failure_mode"');
+    expect(taxonomyMigration).toContain("component_taxonomy_id");
+    expect(taxonomyMigration).toContain("failure_mode_taxonomy_id");
     expect(componentsRoute).toContain('"get_component_taxonomy"');
   });
 
@@ -213,19 +239,32 @@ describe("production hardening flows", () => {
     expect(source).not.toContain('CREATE POLICY "authenticated read paper_classifications"');
   });
 
+  test("the obsolete turbofan-only knowledge RPC is retired", async () => {
+    const source = await readFile(
+      "../../supabase/migrations/20260717190000_remove_legacy_turbofan_rpc.sql",
+      "utf8",
+    );
+
+    expect(source).toContain("DROP FUNCTION IF EXISTS public.get_turbofan_fmea(integer)");
+  });
+
   test("viewer workspace role cannot mutate saved analyses or evidence reviews", async () => {
-    const [accountServer, fmeaServer, reviewRoute] = await Promise.all([
-      readFile("src/lib/account/server.ts", "utf8"),
+    const [roleMapping, fmeaServer, reviewRoute, workspaceAccess] = await Promise.all([
+      readFile("src/lib/auth/roles.ts", "utf8"),
       readFile("src/lib/fmea/server.ts", "utf8"),
       readFile("src/app/api/knowledge/review/route.ts", "utf8"),
+      readFile("src/lib/auth/workspace-access.ts", "utf8"),
     ]);
 
-    expect(accountServer).toContain('role === "org:viewer" || role === "viewer"');
-    expect(fmeaServer).toContain("function canMutateWorkspace");
-    expect(fmeaServer).toContain('workspace.role === "owner"');
+    expect(roleMapping).toContain('case "org:viewer"');
+    expect(roleMapping).toContain('case "org:member"');
+    expect(roleMapping).toContain('default:');
+    expect(roleMapping).toContain('return "viewer"');
+    expect(fmeaServer).toContain('requireWorkspaceMutationAccess(request, "content")');
     expect(fmeaServer).toContain("forbidden: true as const");
-    expect(reviewRoute).toContain('workspace.role === "viewer"');
-    expect(reviewRoute).toContain("{ status: 403 }");
+    expect(reviewRoute).toContain('requireWorkspaceMutationAccess(request, "content")');
+    expect(workspaceAccess).toContain('content: new Set(["owner", "admin", "member"])');
+    expect(workspaceAccess).toContain("status: 403");
   });
 
   test("account membership display prefers server billing status over localStorage", async () => {

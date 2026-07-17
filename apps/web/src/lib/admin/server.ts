@@ -231,19 +231,20 @@ export async function getAdminDashboard({
     lifecycle_status: string;
     updated_at: string;
   }>;
-  const failedPaperIds = paperRows
-    .filter((paper) => paper.classification_status === "failed")
-    .map((paper) => paper.id);
+  // A failed LLM attempt can be followed by a successful keyword fallback,
+  // which returns the candidate to `classified`. Inspect every visible paper
+  // so that the failed provider attempt remains operationally visible.
+  const visiblePaperIds = paperRows.map((paper) => paper.id);
   const failedJobsByPaper = new Map<
     string,
     { attempts: number; last_error: string | null; classifier_version: string }
   >();
 
-  if (failedPaperIds.length) {
+  if (visiblePaperIds.length) {
     const failedJobsResult = (await schema("knowledge")
       .from("classification_jobs")
       .select("paper_candidate_id, attempts, last_error, classifier_version, updated_at")
-      .in("paper_candidate_id", failedPaperIds)
+      .in("paper_candidate_id", visiblePaperIds)
       .eq("status", "failed")
       .order("updated_at", { ascending: false })) as QueryResult<
       Array<{

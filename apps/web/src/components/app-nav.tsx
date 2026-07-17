@@ -29,6 +29,9 @@ export function AppNav() {
           <Link className="nav-link" href="/dashboard">
             Dashboard
           </Link>
+          <Link className="nav-link" href="/systems">
+            Systems
+          </Link>
           <Link className="nav-link" href="/account">
             Account
           </Link>
