@@ -14,6 +14,14 @@ from psycopg.rows import dict_row
 from paper_classifier.models import ClassificationResult, Paper
 
 
+TAXONOMY_LINKERS: tuple[tuple[str, str], ...] = (
+    ("components", "knowledge.link_component_claims"),
+    ("failure_modes", "knowledge.link_failure_mode_claims"),
+    ("analysis_methods", "knowledge.link_analysis_method_claims"),
+    ("applications", "knowledge.link_application_claims"),
+)
+
+
 @dataclass(frozen=True)
 class CandidatePaper:
     id: str
@@ -543,15 +551,18 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
         safe to run after every batch or as a full-corpus backfill.
         """
         counts: dict[str, int] = {}
-        for label, function in (
-            ("components", "knowledge.link_component_claims"),
-            ("failure_modes", "knowledge.link_failure_mode_claims"),
-        ):
-            row = self._connection().execute(
-                f"select count(*) as linked from {function}(%(dry_run)s)",
-                {"dry_run": dry_run},
-            ).fetchone()
-            counts[label] = int(row["linked"])
+        with self._connection().transaction():
+            # Direct Postgres connections do not carry the Supabase JWT claim
+            # checked by the service-role-only SECURITY DEFINER linkers.
+            self._connection().execute(
+                "select set_config('request.jwt.claim.role', 'service_role', true)"
+            )
+            for label, function in TAXONOMY_LINKERS:
+                row = self._connection().execute(
+                    f"select count(*) as linked from {function}(%(dry_run)s)",
+                    {"dry_run": dry_run},
+                ).fetchone()
+                counts[label] = int(row["linked"])
         return counts
 
     def _connection(self) -> psycopg.Connection[dict[str, Any]]:

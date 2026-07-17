@@ -86,7 +86,7 @@ def main() -> None:
 
     link_parser = subparsers.add_parser(
         "link-taxonomy",
-        help="Link component and failure-mode claims to taxonomy nodes (exact -> alias -> fuzzy). Incremental; safe to re-run.",
+        help="Link supported evidence claims to taxonomy nodes (exact -> alias -> fuzzy). Incremental; safe to re-run.",
     )
     link_parser.add_argument("--dry-run", action="store_true")
 
@@ -106,10 +106,7 @@ def main() -> None:
         with PostgresRepository() as repository:
             counts = repository.link_taxonomy(dry_run=args.dry_run)
         action = "Would link" if args.dry_run else "Linked"
-        print(
-            f"{action} {counts['components']} component claim(s) and "
-            f"{counts['failure_modes']} failure-mode claim(s) to taxonomy nodes."
-        )
+        print(f"{action} taxonomy claims: {_taxonomy_link_summary(counts)}.")
     elif args.command == "classify":
         _classify_pending(
             args.limit,
@@ -248,14 +245,17 @@ def _classify_batch(
         try:
             with PostgresRepository() as repository:
                 linked = repository.link_taxonomy()
-            print(
-                f"Taxonomy linking: {linked['components']} component, "
-                f"{linked['failure_modes']} failure-mode claim(s) linked."
-            )
+            print(f"Taxonomy linking: {_taxonomy_link_summary(linked)}.")
         except Exception as exc:
             # unlinked claims stay in the taxonomy inbox; never fail the batch
             print(f"Taxonomy linking skipped: {exc}")
     return count
+
+
+def _taxonomy_link_summary(counts: dict[str, int]) -> str:
+    return ", ".join(
+        f"{count} {label.replace('_', '-')} claim(s)" for label, count in counts.items()
+    )
 
 
 if __name__ == "__main__":
