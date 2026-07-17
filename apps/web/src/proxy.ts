@@ -22,6 +22,7 @@ export const config = {
     "/",
     "/account/:path*",
     "/dashboard/:path*",
+    "/admin/:path*",
     "/fmea/:path*",
     "/api/fmea/:path*",
     "/api/knowledge/:path*",
