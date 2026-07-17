@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+import httpx
+
 from paper_discovery.journals import TRUSTED_JOURNALS, Journal
 from paper_discovery.models import DiscoveredPaper
 from paper_discovery.queries import DISCOVERY_QUERIES
@@ -164,43 +166,45 @@ def _backfill_oa(limit: int, dry_run: bool, contact_email: str | None) -> None:
     oa_count = 0
     missing = 0
     errors = 0
-    for candidate in candidates:
-        try:
-            work = openalex.fetch_work_by_doi(candidate["doi"], contact_email)
-        except openalex.DiscoverySourceError as exc:
-            errors += 1
-            print(f"  Warning: {candidate['doi']}: {exc}")
-            continue
+    with httpx.Client(timeout=30) as client:
+        for candidate in candidates:
+            try:
+                work = openalex.fetch_work_by_doi(
+                    candidate["doi"], contact_email, client=client
+                )
+            except openalex.DiscoverySourceError as exc:
+                errors += 1
+                print(f"  Warning: {candidate['doi']}: {exc}")
+                continue
 
-        patch: dict[str, object] = {"oa_checked": True}
-        if work is not None:
-            open_access = work.get("open_access") or {}
-            best_oa_location = work.get("best_oa_location") or {}
-            patch["is_oa"] = bool(open_access.get("is_oa"))
-            oa_url = best_oa_location.get("pdf_url") or open_access.get("oa_url")
-            if oa_url:
-                patch["oa_url"] = oa_url
-            if open_access.get("oa_status"):
-                patch["oa_status"] = open_access["oa_status"]
-            if best_oa_location.get("license"):
-                patch["oa_license"] = best_oa_location["license"]
-                license_url = openalex.license_url_for(best_oa_location["license"])
-                if license_url:
-                    patch["oa_license_url"] = license_url
-            if best_oa_location.get("version"):
-                patch["oa_version"] = best_oa_location["version"]
-            if work.get("cited_by_count") is not None:
-                patch["cited_by_count"] = work["cited_by_count"]
-            if patch.get("is_oa"):
-                oa_count += 1
-        else:
-            patch["is_oa"] = False
-            missing += 1
+            patch: dict[str, object] = {"oa_checked": True}
+            if work is not None:
+                open_access = work.get("open_access") or {}
+                best_oa_location = work.get("best_oa_location") or {}
+                patch["is_oa"] = bool(open_access.get("is_oa"))
+                oa_url = best_oa_location.get("pdf_url") or open_access.get("oa_url")
+                if oa_url:
+                    patch["oa_url"] = oa_url
+                if open_access.get("oa_status"):
+                    patch["oa_status"] = open_access["oa_status"]
+                if best_oa_location.get("license"):
+                    patch["oa_license"] = best_oa_location["license"]
+                    license_url = openalex.license_url_for(best_oa_location["license"])
+                    if license_url:
+                        patch["oa_license_url"] = license_url
+                if best_oa_location.get("version"):
+                    patch["oa_version"] = best_oa_location["version"]
+                if work.get("cited_by_count") is not None:
+                    patch["cited_by_count"] = work["cited_by_count"]
+                if patch.get("is_oa"):
+                    oa_count += 1
+            else:
+                patch["is_oa"] = False
+                missing += 1
 
-        if not dry_run:
-            with DiscoveryRepository() as repo:
-                repo.merge_discovery_metadata(str(candidate["id"]), patch)
-        time.sleep(0.1)  # OpenAlex polite rate limit
+            if not dry_run:
+                with DiscoveryRepository() as repo:
+                    repo.merge_discovery_metadata(str(candidate["id"]), patch)
 
     action = "Would update" if dry_run else "Updated"
     print(

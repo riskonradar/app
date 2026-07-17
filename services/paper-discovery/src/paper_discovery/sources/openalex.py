@@ -11,7 +11,46 @@ from paper_discovery.models import DiscoveredPaper
 _BASE = "https://api.openalex.org/works"
 _SELECT = "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,open_access,best_oa_location,cited_by_count"
 _PAGE_SIZE = 100
-_REQUEST_DELAY = 0.1  # OpenAlex polite rate limit
+_REQUEST_DELAY = 0.125  # OpenAlex polite rate limit (max 10 req/s; stay under it)
+_MAX_ATTEMPTS = 5
+_BACKOFF_BASE_SECONDS = 2.0
+_BACKOFF_CAP_SECONDS = 60.0
+_RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+_last_request_at = 0.0
+
+
+def _throttle() -> None:
+    """Keep every OpenAlex request in this process under the polite rate limit."""
+    global _last_request_at
+    wait = _REQUEST_DELAY - (time.monotonic() - _last_request_at)
+    if wait > 0:
+        time.sleep(wait)
+    _last_request_at = time.monotonic()
+
+
+def _get_with_backoff(
+    client: httpx.Client,
+    url: str,
+    params: dict[str, Any],
+    sleep=time.sleep,
+) -> httpx.Response:
+    """GET with retry on rate-limit/transient errors, honoring Retry-After."""
+    response: httpx.Response
+    for attempt in range(_MAX_ATTEMPTS):
+        _throttle()
+        response = client.get(url, params=params)
+        if response.status_code not in _RETRYABLE_STATUSES:
+            return response
+        if attempt == _MAX_ATTEMPTS - 1:
+            break
+        retry_after = response.headers.get("Retry-After")
+        try:
+            delay = float(retry_after) if retry_after else _BACKOFF_BASE_SECONDS * (2**attempt)
+        except ValueError:
+            delay = _BACKOFF_BASE_SECONDS * (2**attempt)
+        sleep(min(delay, _BACKOFF_CAP_SECONDS))
+    return response
 
 
 def fetch(
@@ -46,7 +85,7 @@ def fetch(
         while fetched < limit:
             params["per-page"] = min(limit - fetched, _PAGE_SIZE)
             try:
-                response = client.get(_BASE, params=params)
+                response = _get_with_backoff(client, _BASE, params)
                 response.raise_for_status()
             except httpx.HTTPError as exc:
                 raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
@@ -69,7 +108,6 @@ def fetch(
             if not next_cursor or len(results) < _PAGE_SIZE:
                 break
             params["cursor"] = next_cursor
-            time.sleep(_REQUEST_DELAY)
 
 
 def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
@@ -132,10 +170,15 @@ def _format_authorship(authorship: dict[str, Any]) -> str | None:
     return name or None
 
 
-def fetch_work_by_doi(doi: str, contact_email: str | None = None) -> dict[str, Any] | None:
+def fetch_work_by_doi(
+    doi: str,
+    contact_email: str | None = None,
+    client: httpx.Client | None = None,
+) -> dict[str, Any] | None:
     """Fetch a single OpenAlex work by DOI (open-access + citation fields only).
 
-    Returns None when OpenAlex has no record for the DOI.
+    Returns None when OpenAlex has no record for the DOI. Pass a shared client
+    when calling in a loop so connections are reused across requests.
     """
     url = f"{_BASE}/https://doi.org/{doi}"
     params: dict[str, Any] = {
@@ -143,15 +186,23 @@ def fetch_work_by_doi(doi: str, contact_email: str | None = None) -> dict[str, A
     }
     if contact_email:
         params["mailto"] = contact_email
-    with httpx.Client(timeout=30) as client:
-        response = client.get(url, params=params)
-        if response.status_code == 404:
-            return None
-        try:
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
-        return response.json()
+    if client is None:
+        with httpx.Client(timeout=30) as own_client:
+            return _fetch_work(own_client, url, params)
+    return _fetch_work(client, url, params)
+
+
+def _fetch_work(
+    client: httpx.Client, url: str, params: dict[str, Any]
+) -> dict[str, Any] | None:
+    response = _get_with_backoff(client, url, params)
+    if response.status_code == 404:
+        return None
+    try:
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
+    return response.json()
 
 
 class DiscoverySourceError(RuntimeError):
