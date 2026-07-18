@@ -117,6 +117,7 @@ DATABASE_URL=postgresql://...
 SUPABASE_DB_URL=postgresql://...
 
 DISCOVERY_CONTACT_EMAIL=you@example.com
+OPENALEX_API_KEY=...                     # free production API key
 ```
 
 ## Classifier Service

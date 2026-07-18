@@ -125,12 +125,15 @@ These cannot be completed safely from source code. Do them in this order.
 7. [ ] Upgrade Supabase to Pro before relying on it for a paid production workload.
 8. [ ] Create three Healthchecks.io checks and set `DISCOVERY_HEALTHCHECK_URL`,
        `CLASSIFIER_HEALTHCHECK_URL`, and `FULL_TEXT_HEALTHCHECK_URL` on the pipeline host.
-9. [ ] After applying the migrations, generate a strong password for the NOLOGIN
+9. [x] After applying the migrations, generate a strong password for the NOLOGIN
        `riskonradar_pipeline` role, enable LOGIN in the Supabase SQL editor, and replace the
        stale droplet `DATABASE_URL` with that role's session-pooler URL. Never put the
        password in this repository or a shell transcript.
 10. [ ] Deploy the reviewed service snapshot and systemd units to `/opt/riskonradar`, enable
         the discovery/full-text timers, run the taxonomy and OA backfills, and inspect logs.
+        Snapshot/unit deployment, timers, database connectivity, and taxonomy linking are
+        verified. The OA run now requires a free `OPENALEX_API_KEY`; the anonymous daily
+        allowance was exhausted and the retry loop was stopped.
 11. [ ] Hand-label roughly 50 representative papers in the evaluation annotation file, run
        the candidate-model comparison, review errors with both founders, and select the
        production extraction model. Do not start continuous classification before this.

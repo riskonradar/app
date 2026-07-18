@@ -77,6 +77,9 @@ It should not:
 
 Trusted journals live in `paper-discovery/data/journals.json`. Query packs live in `paper-discovery/data/queries.json`.
 
+Production discovery also requires `OPENALEX_API_KEY`. Email-only polite-pool access does
+not provide enough daily allowance for the journal/query sweep or OA metadata backfill.
+
 Queries are broad recall filters. They are not the source of truth for components or failures.
 
 ## Classifier Details

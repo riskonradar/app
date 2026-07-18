@@ -25,8 +25,10 @@ paper-discovery --limit 25 --since-days 30
 paper-discovery --backfill-oa --limit 15000
 ```
 
-Set `DATABASE_URL` (or `SUPABASE_DB_URL`) and `DISCOVERY_CONTACT_EMAIL`. A watch process can
-use `DISCOVERY_HEALTHCHECK_URL`; failed batches exit nonzero and send `/fail`.
+Set `DATABASE_URL` (or `SUPABASE_DB_URL`), `DISCOVERY_CONTACT_EMAIL`, and a free
+`OPENALEX_API_KEY` for production-scale runs. The OA backfill batches up to 100 DOI lookups
+per request and aborts immediately when the daily allowance is exhausted. A watch process
+can use `DISCOVERY_HEALTHCHECK_URL`; failed batches exit nonzero and send `/fail`.
 
 ## Lifecycle
 

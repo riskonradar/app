@@ -5,9 +5,11 @@ import unittest
 import httpx
 
 from paper_discovery.sources.openalex import (
+    DiscoverySourceError,
     _get_with_backoff,
     _paper_from_item,
     fetch_work_by_doi,
+    fetch_works_by_dois,
     license_url_for,
 )
 
@@ -110,6 +112,22 @@ class RateLimitBackoffTests(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(sleeps, [])
 
+    def test_exhausted_daily_limit_fails_without_sleeping(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                429,
+                headers={"X-RateLimit-Remaining": "0", "Retry-After": "3600"},
+            )
+
+        sleeps: list[float] = []
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            response = _get_with_backoff(
+                client, "https://api.openalex.org/works", {}, sleep=sleeps.append
+            )
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(sleeps, [])
+
     def test_fetch_work_by_doi_reuses_provided_client(self) -> None:
         seen: list[str] = []
 
@@ -122,6 +140,56 @@ class RateLimitBackoffTests(unittest.TestCase):
 
         self.assertIsNotNone(work)
         self.assertEqual(len(seen), 1)
+
+    def test_api_key_is_added_to_singleton_requests(self) -> None:
+        seen_key: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen_key.append(request.url.params.get("api_key"))
+            return httpx.Response(200, json={"doi": "10.1000/x"})
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            fetch_work_by_doi("10.1000/x", api_key="secret-key", client=client)
+
+        self.assertEqual(seen_key, ["secret-key"])
+
+    def test_api_key_is_not_exposed_in_http_errors(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(400, request=request)
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            with self.assertRaises(DiscoverySourceError) as raised:
+                fetch_work_by_doi(
+                    "10.1000/x", api_key="secret-key", client=client
+                )
+
+        self.assertNotIn("secret-key", str(raised.exception))
+        self.assertEqual(
+            str(raised.exception), "OpenAlex request failed with HTTP 400."
+        )
+
+    def test_batch_doi_lookup_maps_results_by_canonical_doi(self) -> None:
+        seen_filter: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen_filter.append(request.url.params.get("filter"))
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {"doi": "https://doi.org/10.1000/A", "cited_by_count": 1},
+                        {"doi": "https://doi.org/10.1000/b", "cited_by_count": 2},
+                    ]
+                },
+            )
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            works = fetch_works_by_dois(
+                ["10.1000/a", "10.1000/B"], api_key="secret-key", client=client
+            )
+
+        self.assertEqual(seen_filter, ["doi:10.1000/a|10.1000/b"])
+        self.assertEqual(set(works), {"10.1000/a", "10.1000/b"})
 
 
 if __name__ == "__main__":

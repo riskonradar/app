@@ -561,7 +561,11 @@ paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
 
 ### Source
 
-- **OpenAlex** (sole source): ISSN + keyword filter, reconstructs abstract from inverted index, cursor pagination. Crossref support was removed 2026-07 — papers without abstracts are unclassifiable downstream, and OpenAlex ingests Crossref data with better abstract coverage.
+- **OpenAlex** (sole source): ISSN + keyword filter, reconstructs abstract from inverted
+  index, cursor pagination. Crossref support was removed 2026-07 — papers without abstracts
+  are unclassifiable downstream, and OpenAlex ingests Crossref data with better abstract
+  coverage. Production-scale sweeps and OA backfills require a free `OPENALEX_API_KEY`;
+  email-only polite-pool identification does not provide sufficient daily allowance.
 
 Writes to `papers_raw.paper_candidates` with `source='discovery'` and deduplicates by canonical DOI (then title fingerprint + year as fallback).
 

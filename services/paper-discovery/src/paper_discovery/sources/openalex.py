@@ -16,6 +16,7 @@ _MAX_ATTEMPTS = 5
 _BACKOFF_BASE_SECONDS = 2.0
 _BACKOFF_CAP_SECONDS = 60.0
 _RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
+_DOI_BATCH_SIZE = 100
 
 _last_request_at = 0.0
 
@@ -42,6 +43,8 @@ def _get_with_backoff(
         response = client.get(url, params=params)
         if response.status_code not in _RETRYABLE_STATUSES:
             return response
+        if response.status_code == 429 and _daily_limit_exhausted(response):
+            return response
         if attempt == _MAX_ATTEMPTS - 1:
             break
         retry_after = response.headers.get("Retry-After")
@@ -49,8 +52,14 @@ def _get_with_backoff(
             delay = float(retry_after) if retry_after else _BACKOFF_BASE_SECONDS * (2**attempt)
         except ValueError:
             delay = _BACKOFF_BASE_SECONDS * (2**attempt)
+        if delay > _BACKOFF_CAP_SECONDS:
+            return response
         sleep(min(delay, _BACKOFF_CAP_SECONDS))
     return response
+
+
+def _daily_limit_exhausted(response: httpx.Response) -> bool:
+    return response.headers.get("X-RateLimit-Remaining") == "0"
 
 
 def fetch(
@@ -59,6 +68,7 @@ def fetch(
     limit: int,
     contact_email: str | None = None,
     from_publication_date: str | None = None,
+    api_key: str | None = None,
 ) -> Iterator[DiscoveredPaper]:
     """Yield papers from a single OpenAlex ISSN + keyword search, up to limit.
 
@@ -79,16 +89,15 @@ def fetch(
         params["sort"] = "publication_date:desc"
     if contact_email:
         params["mailto"] = contact_email
+    if api_key:
+        params["api_key"] = api_key
 
     fetched = 0
     with httpx.Client(timeout=30) as client:
         while fetched < limit:
             params["per-page"] = min(limit - fetched, _PAGE_SIZE)
-            try:
-                response = _get_with_backoff(client, _BASE, params)
-                response.raise_for_status()
-            except httpx.HTTPError as exc:
-                raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
+            response = _request_with_backoff(client, _BASE, params)
+            _raise_for_status(response)
 
             data = response.json()
             results: list[dict[str, Any]] = data.get("results", [])
@@ -173,6 +182,7 @@ def _format_authorship(authorship: dict[str, Any]) -> str | None:
 def fetch_work_by_doi(
     doi: str,
     contact_email: str | None = None,
+    api_key: str | None = None,
     client: httpx.Client | None = None,
 ) -> dict[str, Any] | None:
     """Fetch a single OpenAlex work by DOI (open-access + citation fields only).
@@ -186,26 +196,104 @@ def fetch_work_by_doi(
     }
     if contact_email:
         params["mailto"] = contact_email
+    if api_key:
+        params["api_key"] = api_key
     if client is None:
         with httpx.Client(timeout=30) as own_client:
             return _fetch_work(own_client, url, params)
     return _fetch_work(client, url, params)
 
 
+def fetch_works_by_dois(
+    dois: list[str],
+    contact_email: str | None = None,
+    api_key: str | None = None,
+    client: httpx.Client | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Fetch up to 100 works in one filtered request, keyed by canonical DOI."""
+    normalized_dois = [_normalize_doi(doi) for doi in dois]
+    if len(normalized_dois) > _DOI_BATCH_SIZE:
+        raise ValueError(f"OpenAlex DOI batches are limited to {_DOI_BATCH_SIZE} works")
+    if not normalized_dois:
+        return {}
+
+    params: dict[str, Any] = {
+        "filter": f"doi:{'|'.join(normalized_dois)}",
+        "select": "id,doi,open_access,best_oa_location,cited_by_count",
+        "per-page": len(normalized_dois),
+    }
+    if contact_email:
+        params["mailto"] = contact_email
+    if api_key:
+        params["api_key"] = api_key
+
+    if client is None:
+        with httpx.Client(timeout=30) as own_client:
+            return _fetch_works(own_client, params)
+    return _fetch_works(client, params)
+
+
+def _fetch_works(
+    client: httpx.Client, params: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    response = _request_with_backoff(client, _BASE, params)
+    _raise_for_status(response)
+    results = response.json().get("results", [])
+    return {
+        _normalize_doi(item["doi"]): item
+        for item in results
+        if isinstance(item, dict) and item.get("doi")
+    }
+
+
 def _fetch_work(
     client: httpx.Client, url: str, params: dict[str, Any]
 ) -> dict[str, Any] | None:
-    response = _get_with_backoff(client, url, params)
+    response = _request_with_backoff(client, url, params)
     if response.status_code == 404:
         return None
-    try:
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
+    _raise_for_status(response)
     return response.json()
 
 
+def _request_with_backoff(
+    client: httpx.Client, url: str, params: dict[str, Any]
+) -> httpx.Response:
+    try:
+        return _get_with_backoff(client, url, params)
+    except httpx.RequestError as exc:
+        raise DiscoverySourceError(
+            f"OpenAlex request failed: {type(exc).__name__}."
+        ) from None
+
+
+def _raise_for_status(response: httpx.Response) -> None:
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After") or response.headers.get(
+            "X-RateLimit-Reset"
+        )
+        retry_hint = f" Retry after {retry_after} seconds." if retry_after else ""
+        raise OpenAlexRateLimitError(
+            "OpenAlex API allowance is exhausted or rate-limited."
+            f"{retry_hint} Configure OPENALEX_API_KEY for production runs."
+        )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        raise DiscoverySourceError(
+            f"OpenAlex request failed with HTTP {response.status_code}."
+        ) from None
+
+
+def _normalize_doi(doi: str) -> str:
+    return doi.strip().lower().removeprefix("https://doi.org/")
+
+
 class DiscoverySourceError(RuntimeError):
+    pass
+
+
+class OpenAlexRateLimitError(DiscoverySourceError):
     pass
 
 

@@ -207,6 +207,7 @@ DATABASE_URL=postgresql://postgres.PROJECT:PASSWORD@aws-0-eu-west-1.pooler.supab
 
 # Paper discovery
 DISCOVERY_CONTACT_EMAIL=you@example.com   # polite pool priority for OpenAlex
+OPENALEX_API_KEY=...                      # free key required for production-scale calls
 
 # Paper classifier — example provider, not a claim about production
 LLM_PROVIDER=gemini
