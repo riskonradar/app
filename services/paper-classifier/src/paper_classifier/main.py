@@ -389,7 +389,12 @@ def _classify_batch(
     topic_filter: str | None,
 ) -> BatchOutcome:
     with PostgresRepository() as repository:
-        candidates = repository.pending_candidates(limit, classifier_version, topic_filter)
+        candidates = repository.pending_candidates(
+            limit,
+            classifier_version,
+            topic_filter,
+            claim_lease=not dry_run,
+        )
         taxonomy_terms = (
             repository.active_taxonomy_terms()
             if candidates and extractor in {"auto", "keyword"}
@@ -427,7 +432,13 @@ def _classify_batch(
 
         with PostgresRepository() as repo:
             if llm_failure is not None and not dry_run:
-                repo.record_failure(candidate, classifier_version, mode, str(llm_failure))
+                repo.record_failure(
+                    candidate,
+                    classifier_version,
+                    mode,
+                    str(llm_failure),
+                    release_lease=False,
+                )
             repo.save_classification(candidate, result, result_version, mode, dry_run)
 
         claims_returned = result.metadata.get("claims_returned")

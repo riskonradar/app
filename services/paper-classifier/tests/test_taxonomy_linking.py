@@ -16,6 +16,12 @@ MIGRATION = (
     / "migrations"
     / "20260717120000_extend_evidence_taxonomies.sql"
 )
+BOUNDARY_MIGRATION = (
+    Path(__file__).parents[3]
+    / "supabase"
+    / "migrations"
+    / "20260718110000_pipeline_leases_and_taxonomy_boundaries.sql"
+)
 
 
 class _Result:
@@ -188,6 +194,15 @@ class TaxonomyLinkingTests(unittest.TestCase):
             "material",
         ):
             self.assertNotIn(f"ec.claim_type = '{claim_type}'", sql)
+
+    def test_component_subtree_counts_use_an_exact_or_slash_boundary(self) -> None:
+        sql = BOUNDARY_MIGRATION.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "subtree.path = node.path OR subtree.path LIKE node.path || '/%'",
+            sql,
+        )
+        self.assertNotIn("subtree.path LIKE node.path || '%'", sql)
 
 
 if __name__ == "__main__":

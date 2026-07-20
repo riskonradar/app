@@ -44,7 +44,6 @@ MemoryMax=1G
 CPUQuota=200%
 TasksMax=32
 LimitNOFILE=256
-RuntimeMaxSec=4h
 TimeoutStartSec=4h10m
 
 [Install]

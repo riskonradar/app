@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import uuid
 from collections.abc import Iterable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
@@ -25,6 +26,10 @@ TAXONOMY_LINKERS: tuple[tuple[str, str], ...] = (
 MAX_REASONING_COMPONENT_ROOTS = 5_000
 
 
+class CandidateLeaseLostError(RuntimeError):
+    """Raised when a worker tries to finish a candidate it no longer owns."""
+
+
 @dataclass(frozen=True)
 class CandidatePaper:
     id: str
@@ -41,6 +46,7 @@ class CandidatePaper:
     full_text_source_url: str | None = None
     full_text_license: str | None = None
     full_text_sha256: str | None = None
+    lease_token: str | None = None
 
 
 class PostgresRepository(AbstractContextManager["PostgresRepository"]):
@@ -173,6 +179,16 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                           or papers_raw.paper_candidates.abstract is distinct from excluded.abstract
                         then 'pending'
                         else papers_raw.paper_candidates.classification_status
+                      end,
+                      classification_lease_token = case
+                        when papers_raw.paper_candidates.title is distinct from excluded.title
+                          or papers_raw.paper_candidates.abstract is distinct from excluded.abstract
+                        then null else papers_raw.paper_candidates.classification_lease_token
+                      end,
+                      classification_lease_expires_at = case
+                        when papers_raw.paper_candidates.title is distinct from excluded.title
+                          or papers_raw.paper_candidates.abstract is distinct from excluded.abstract
+                        then null else papers_raw.paper_candidates.classification_lease_expires_at
                       end
                     """,
                     {
@@ -206,10 +222,26 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                 )
         return count
 
-    def pending_candidates(self, limit: int, classifier_version: str, topic_filter: str | None = None) -> list[CandidatePaper]:
+    def pending_candidates(
+        self,
+        limit: int,
+        classifier_version: str,
+        topic_filter: str | None = None,
+        *,
+        claim_lease: bool = True,
+        lease_seconds: int = 3_600,
+    ) -> list[CandidatePaper]:
+        """Atomically claim a classifier batch.
+
+        Production callers receive an expiring token obtained under
+        ``FOR UPDATE SKIP LOCKED``. A crashed worker therefore cannot block a
+        paper forever, while overlapping timer/manual workers cannot select the
+        same paper. Dry runs opt out so they never mutate queue state.
+        """
         where_clauses = [
             "coalesce(pc.lifecycle_status, 'pending_classification') not in ('stale', 'removed')",
             "pc.classification_status is distinct from 'skipped'",
+            "(pc.classification_lease_expires_at is null or pc.classification_lease_expires_at <= now())",
             """(
                 pc.classification_status in ('pending', 'failed')
                 or not exists (
@@ -230,7 +262,10 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
               )""",
         ]
         
-        params = {"limit": limit, "classifier_version": classifier_version}
+        params: dict[str, Any] = {
+            "limit": max(0, limit),
+            "classifier_version": classifier_version,
+        }
         
         if topic_filter:
             where_clauses.append("""(
@@ -241,9 +276,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
         
         where_clause = " AND ".join(where_clauses)
         
-        rows = self._connection().execute(
-            f"""
-            select
+        selected_columns = """
               pc.id,
               pc.doi,
               pc.title,
@@ -257,7 +290,10 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
               ft.extracted_text as full_text,
               ft.resolved_url as full_text_source_url,
               ft.license as full_text_license,
-              ft.content_sha256 as full_text_sha256
+              ft.content_sha256 as full_text_sha256,
+              pc.classification_lease_token as lease_token
+        """
+        full_text_join = """
             from papers_raw.paper_candidates pc
             left join lateral (
               select pft.id, pft.extracted_text, pft.resolved_url, pft.license, pft.content_sha256
@@ -267,12 +303,57 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
               order by pft.retrieved_at desc, pft.id desc
               limit 1
             ) ft on true
-            where {where_clause}
-            order by pc.publication_year desc nulls last, pc.created_at asc
-            limit %(limit)s
-            """,
-            params,
-        ).fetchall()
+        """
+
+        connection = self._connection()
+        if claim_lease:
+            lease_token = str(uuid.uuid4())
+            params.update(
+                {
+                    "lease_token": lease_token,
+                    "lease_seconds": min(max(lease_seconds, 60), 7_200),
+                }
+            )
+            with connection.transaction():
+                connection.execute(
+                    f"""
+                    with eligible as (
+                      select pc.id
+                      from papers_raw.paper_candidates pc
+                      where {where_clause}
+                      order by pc.publication_year desc nulls last, pc.created_at asc
+                      for update of pc skip locked
+                      limit %(limit)s
+                    )
+                    update papers_raw.paper_candidates pc
+                    set classification_lease_token = %(lease_token)s::uuid,
+                        classification_lease_expires_at = now() +
+                          make_interval(secs => %(lease_seconds)s)
+                    from eligible
+                    where pc.id = eligible.id
+                    """,
+                    params,
+                )
+                rows = connection.execute(
+                    f"""
+                    select {selected_columns}
+                    {full_text_join}
+                    where pc.classification_lease_token = %(lease_token)s::uuid
+                    order by pc.publication_year desc nulls last, pc.created_at asc
+                    """,
+                    params,
+                ).fetchall()
+        else:
+            rows = connection.execute(
+                f"""
+                select {selected_columns}
+                {full_text_join}
+                where {where_clause}
+                order by pc.publication_year desc nulls last, pc.created_at asc
+                limit %(limit)s
+                """,
+                params,
+            ).fetchall()
         return [
             CandidatePaper(
                 id=str(row["id"]),
@@ -289,6 +370,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                 full_text_source_url=row["full_text_source_url"],
                 full_text_license=row["full_text_license"],
                 full_text_sha256=row["full_text_sha256"],
+                lease_token=str(row["lease_token"]) if row["lease_token"] else None,
             )
             for row in rows
         ]
@@ -459,7 +541,9 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                 """
                 update papers_raw.paper_candidates
                 set classification_status = 'pending',
-                    lifecycle_status = 'pending_classification'
+                    lifecycle_status = 'pending_classification',
+                    classification_lease_token = null,
+                    classification_lease_expires_at = null
                 where id = %(paper_candidate_id)s
                   and coalesce(lifecycle_status, 'pending_classification') not in ('stale', 'removed')
                 """,
@@ -525,6 +609,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
 
         input_hash = input_hash_for(candidate.title, candidate.abstract, candidate.full_text_sha256 or candidate.full_text)
         with self._connection().transaction():
+            self._require_candidate_lease(candidate)
             job_row = self._connection().execute(
                 """
                 insert into knowledge.classification_jobs (
@@ -573,6 +658,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
             # makes concurrent workers and explicit replays idempotent without
             # deleting claims that may already have been reviewed or cited.
             if job_row is None:
+                self._mark_candidate_complete(candidate)
                 return
             job_id = job_row["id"]
 
@@ -715,17 +801,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
                     },
                 )
 
-            self._connection().execute(
-                """
-                update papers_raw.paper_candidates
-                set classification_status = 'classified',
-                    lifecycle_status = 'classified',
-                    stale_at = null,
-                    removed_at = null
-                where id = %(paper_candidate_id)s
-                """,
-                {"paper_candidate_id": candidate.id},
-            )
+            self._mark_candidate_complete(candidate)
 
     def mark_skipped(
         self,
@@ -735,11 +811,20 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
         reason: str,
     ) -> None:
         """Terminal state for papers that can never be classified (e.g. no abstract)."""
-        self._upsert_job_status(candidate, classifier_version, mode, "skipped", reason)
-        self._connection().execute(
-            "update papers_raw.paper_candidates set classification_status = 'skipped' where id = %(id)s",
-            {"id": candidate.id},
-        )
+        with self._connection().transaction():
+            self._require_candidate_lease(candidate)
+            self._upsert_job_status(candidate, classifier_version, mode, "skipped", reason)
+            self._connection().execute(
+                """
+                update papers_raw.paper_candidates
+                set classification_status = 'skipped',
+                    classification_lease_token = null,
+                    classification_lease_expires_at = null
+                where id = %(id)s
+                  and (%(lease_token)s::uuid is null or classification_lease_token = %(lease_token)s::uuid)
+                """,
+                {"id": candidate.id, "lease_token": candidate.lease_token},
+            )
 
     def record_failure(
         self,
@@ -747,13 +832,28 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
         classifier_version: str,
         mode: str,
         error: str,
+        *,
+        release_lease: bool = True,
     ) -> None:
         """Persist a failed attempt; papers with 3 failed attempts stop being re-polled."""
-        self._upsert_job_status(candidate, classifier_version, mode, "failed", error[:2000])
-        self._connection().execute(
-            "update papers_raw.paper_candidates set classification_status = 'failed' where id = %(id)s",
-            {"id": candidate.id},
-        )
+        with self._connection().transaction():
+            self._require_candidate_lease(candidate)
+            self._upsert_job_status(candidate, classifier_version, mode, "failed", error[:2000])
+            self._connection().execute(
+                """
+                update papers_raw.paper_candidates
+                set classification_status = 'failed',
+                    classification_lease_token = case when %(release_lease)s then null else classification_lease_token end,
+                    classification_lease_expires_at = case when %(release_lease)s then null else classification_lease_expires_at end
+                where id = %(id)s
+                  and (%(lease_token)s::uuid is null or classification_lease_token = %(lease_token)s::uuid)
+                """,
+                {
+                    "id": candidate.id,
+                    "lease_token": candidate.lease_token,
+                    "release_lease": release_lease,
+                },
+            )
 
     def reasoning_input(
         self,
@@ -1200,6 +1300,49 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
             {"id": job_id, "attempt": attempt, "error": error[:2000]},
         )
 
+    def _require_candidate_lease(self, candidate: CandidatePaper) -> None:
+        if candidate.lease_token is None:
+            return
+        row = self._connection().execute(
+            """
+            select id
+            from papers_raw.paper_candidates
+            where id = %(id)s
+              and classification_lease_token = %(lease_token)s::uuid
+              and classification_lease_expires_at > now()
+            for update
+            """,
+            {"id": candidate.id, "lease_token": candidate.lease_token},
+        ).fetchone()
+        if row is None:
+            raise CandidateLeaseLostError(
+                f"Classifier lease expired or changed for candidate {candidate.id}."
+            )
+
+    def _mark_candidate_complete(self, candidate: CandidatePaper) -> None:
+        result = self._connection().execute(
+            """
+            update papers_raw.paper_candidates
+            set classification_status = 'classified',
+                lifecycle_status = 'classified',
+                stale_at = null,
+                removed_at = null,
+                classification_lease_token = null,
+                classification_lease_expires_at = null
+            where id = %(paper_candidate_id)s
+              and (%(lease_token)s::uuid is null or classification_lease_token = %(lease_token)s::uuid)
+            returning id
+            """,
+            {
+                "paper_candidate_id": candidate.id,
+                "lease_token": candidate.lease_token,
+            },
+        ).fetchone()
+        if result is None:
+            raise CandidateLeaseLostError(
+                f"Classifier lease expired or changed for candidate {candidate.id}."
+            )
+
     def _upsert_job_status(
         self,
         candidate: CandidatePaper,
@@ -1224,6 +1367,7 @@ class PostgresRepository(AbstractContextManager["PostgresRepository"]):
               attempts = knowledge.classification_jobs.attempts + 1,
               started_at = excluded.started_at,
               last_error = excluded.last_error
+            where knowledge.classification_jobs.status <> 'completed'
             """,
             {
                 "paper_candidate_id": candidate.id,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from contextlib import nullcontext
 from typing import Any
 from unittest.mock import Mock
 
@@ -25,8 +26,8 @@ class _Connection:
         self.queries.append(query)
         return _Result(self.row)
 
-    def commit(self) -> None:
-        pass
+    def transaction(self) -> Any:
+        return nullcontext()
 
 
 def _paper() -> DiscoveredPaper:
@@ -42,6 +43,21 @@ def _paper() -> DiscoveredPaper:
 
 
 class DiscoveryRepositoryTests(unittest.TestCase):
+    def test_batch_writes_run_in_an_explicit_transaction(self) -> None:
+        repository = DiscoveryRepository("postgresql://unused")
+        connection = _Connection()
+        repository.connection = connection  # type: ignore[assignment]
+        repository._find_existing_candidate = Mock(return_value=None)  # type: ignore[method-assign]
+        repository._insert_paper = Mock(return_value=True)  # type: ignore[method-assign]
+
+        transaction = Mock(return_value=nullcontext())
+        connection.transaction = transaction  # type: ignore[method-assign]
+
+        stats = repository.upsert_papers("run-1", [_paper()])
+
+        self.assertEqual(stats.inserted, 1)
+        transaction.assert_called_once_with()
+
     def test_insert_uses_doi_conflict_guard(self) -> None:
         repository = DiscoveryRepository("postgresql://unused")
         connection = _Connection(row=None)

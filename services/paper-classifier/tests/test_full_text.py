@@ -462,12 +462,13 @@ class FullTextTests(unittest.TestCase):
             "TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=128M",
             "MemoryMax=1G",
             "CPUQuota=200%",
-            "RuntimeMaxSec=4h",
+            "TimeoutStartSec=4h10m",
             "TasksMax=32",
             "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
             "CapabilityBoundingSet=",
         ):
             self.assertIn(directive, unit)
+        self.assertNotIn("RuntimeMaxSec=", unit)
 
 
 if __name__ == "__main__":

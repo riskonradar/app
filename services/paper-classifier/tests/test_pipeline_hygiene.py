@@ -24,6 +24,12 @@ PIPELINE_ROLE_MIGRATION = (
     / "migrations"
     / "20260717193000_pipeline_runtime_role.sql"
 )
+LEASE_MIGRATION = (
+    Path(__file__).parents[3]
+    / "supabase"
+    / "migrations"
+    / "20260718110000_pipeline_leases_and_taxonomy_boundaries.sql"
+)
 
 
 def _paper() -> Paper:
@@ -185,6 +191,20 @@ class PipelineHygieneTests(unittest.TestCase):
         self.assertIn("TO riskonradar_pipeline", migration)
         self.assertIn("GRANT SELECT, INSERT, UPDATE ON TABLE", migration)
         self.assertNotIn("GRANT SELECT, INSERT, UPDATE, DELETE", migration)
+
+    def test_classifier_queue_has_an_expiring_lease_contract(self) -> None:
+        migration = LEASE_MIGRATION.read_text(encoding="utf-8")
+        repository = (
+            Path(__file__).parents[1]
+            / "src"
+            / "paper_classifier"
+            / "repository.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("classification_lease_token uuid", migration)
+        self.assertIn("classification_lease_expires_at timestamptz", migration)
+        self.assertIn("for update of pc skip locked", repository.lower())
+        self.assertIn("make_interval", repository)
 
 
 if __name__ == "__main__":
