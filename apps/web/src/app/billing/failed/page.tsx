@@ -13,7 +13,7 @@ function BillingFailedContent() {
   return (
     <div className="app-shell">
       <AppNav />
-      <main className="app-main billing-result-main">
+      <main id="main-content" className="app-main billing-result-main" tabIndex={-1}>
         <section className="billing-result-panel billing-result-failed" aria-labelledby="payment-failed-title">
           <div className="billing-result-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img">
@@ -63,7 +63,7 @@ export default function BillingFailedPage() {
       fallback={
         <div className="app-shell">
           <AppNav />
-          <main className="app-main billing-result-main">
+          <main id="main-content" className="app-main billing-result-main" tabIndex={-1}>
             <section className="billing-result-panel">
               <p className="notice">Loading payment result...</p>
             </section>

@@ -6,6 +6,7 @@ import { maskEmail, resolvePlanDisplay } from "@/lib/account/display";
 
 type AccountOverviewProps = {
   billingStatus: string;
+  hasWorkspaceData?: boolean;
   memberCount: number;
   seatLimit?: number | null;
   serverPlan: string;
@@ -16,6 +17,7 @@ type AccountOverviewProps = {
 
 export function AccountOverview({
   billingStatus,
+  hasWorkspaceData = true,
   memberCount,
   seatLimit,
   serverPlan,
@@ -45,7 +47,14 @@ export function AccountOverview({
       </div>
 
       {!isLoaded ? (
-        <p className="notice standalone">Loading your account...</p>
+        <p className="notice standalone" role="status" aria-live="polite">Loading your account...</p>
+      ) : isSignedIn && !hasWorkspaceData ? (
+        <div className="account-data-error" role="alert">
+          <strong>Workspace details are unavailable</strong>
+          <p>
+            We could not verify your workspace, role, or plan. Refresh the page before making billing or access decisions.
+          </p>
+        </div>
       ) : isSignedIn ? (
         <div className="account-summary-grid">
           <div className="summary-tile">
@@ -60,7 +69,7 @@ export function AccountOverview({
           </div>
           <div className="summary-tile">
             <span>User</span>
-            <strong>{email}</strong>
+            <strong>{email || "Email unavailable"}</strong>
             <small>{role}</small>
           </div>
           <div className="summary-tile">

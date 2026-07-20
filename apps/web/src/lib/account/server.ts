@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { currentUser } from "@clerk/nextjs/server";
+import { clerkClient, currentUser } from "@clerk/nextjs/server";
 
 import { getCurrentClerkContext } from "@/lib/auth/server";
 import { normalizeClerkOrganizationRole } from "@/lib/auth/roles";
@@ -12,6 +12,7 @@ type UserAccount = {
   email: string | null;
   first_name: string | null;
   last_name: string | null;
+  status: "active" | "deleted";
 };
 
 type OrganizationAccount = {
@@ -22,6 +23,7 @@ type OrganizationAccount = {
   plan_key: string;
   billing_status: string;
   seat_limit: number | null;
+  status: "active" | "archived";
 };
 
 function appSchema() {
@@ -30,6 +32,24 @@ function appSchema() {
 
 function personalWorkspaceSlug(clerkUserId: string) {
   return `personal-${clerkUserId.replace(/[^a-zA-Z0-9]+/g, "-").slice(-24)}`;
+}
+
+async function verifyClerkOrganizationMembership(
+  clerkOrganizationId: string,
+  clerkUserId: string,
+) {
+  try {
+    const clerk = await clerkClient();
+    const memberships = await clerk.organizations.getOrganizationMembershipList({
+      organizationId: clerkOrganizationId,
+      userId: [clerkUserId],
+      limit: 1,
+    });
+    return memberships.data[0] ?? null;
+  } catch (error) {
+    console.error("Failed to verify removed Clerk membership:", error);
+    return null;
+  }
 }
 
 export async function ensureCurrentUserAccount(request?: Request): Promise<UserAccount | null> {
@@ -62,7 +82,7 @@ export async function ensureCurrentUserAccount(request?: Request): Promise<UserA
 
   const { data, error } = await appSchema()
     .from("user_accounts")
-    .select("id, clerk_user_id, email, first_name, last_name")
+    .select("id, clerk_user_id, email, first_name, last_name, status")
     .eq("clerk_user_id", userId)
     .single();
 
@@ -71,7 +91,8 @@ export async function ensureCurrentUserAccount(request?: Request): Promise<UserA
     throw new Error("Could not resolve user account.");
   }
 
-  return data as UserAccount;
+  const account = data as UserAccount;
+  return account.status === "active" ? account : null;
 }
 
 export async function ensureCurrentWorkspace(request?: Request): Promise<{
@@ -109,7 +130,7 @@ export async function ensureCurrentWorkspace(request?: Request): Promise<{
 
     const { data: organization, error: orgError } = await appSchema()
       .from("organizations")
-      .select("id, clerk_organization_id, name, slug, plan_key, billing_status, seat_limit")
+      .select("id, clerk_organization_id, name, slug, plan_key, billing_status, seat_limit, status")
       .eq("clerk_organization_id", context.orgId)
       .single();
 
@@ -118,18 +139,51 @@ export async function ensureCurrentWorkspace(request?: Request): Promise<{
       throw new Error("Could not resolve organization.");
     }
 
-    const role = normalizeClerkOrganizationRole(context.orgRole);
-    const { error: membershipError } = await appSchema()
+    if ((organization as OrganizationAccount).status !== "active") {
+      return null;
+    }
+
+    const { data: existingMembership, error: existingMembershipError } = await appSchema()
       .from("organization_memberships")
-      .upsert(
-        {
-          organization_id: organization.id,
-          user_account_id: userAccount.id,
-          role,
-          status: "active",
-        },
-        { onConflict: "organization_id,user_account_id" },
-      );
+      .select("clerk_membership_id, role, status")
+      .eq("organization_id", organization.id)
+      .eq("user_account_id", userAccount.id)
+      .maybeSingle();
+    if (existingMembershipError) {
+      console.error("Failed to resolve organization membership:", existingMembershipError);
+      throw new Error("Could not resolve organization membership.");
+    }
+
+    let role = normalizeClerkOrganizationRole(context.orgRole);
+    let clerkMembershipId = existingMembership?.clerk_membership_id ?? null;
+    if (existingMembership?.status === "active") {
+      // The database role is the authorization source of truth. Avoid writing
+      // on every request so a concurrent deletion webhook cannot be undone by
+      // a stale session token.
+      role = existingMembership.role;
+    } else if (existingMembership?.status === "removed") {
+      const verified = await verifyClerkOrganizationMembership(context.orgId, context.userId);
+      if (!verified) return null;
+      role = normalizeClerkOrganizationRole(verified.role);
+      clerkMembershipId = verified.id;
+    }
+
+    const membershipWrite = existingMembership?.status === "active"
+      ? { error: null }
+      : await appSchema()
+        .from("organization_memberships")
+        .upsert(
+          {
+            organization_id: organization.id,
+            user_account_id: userAccount.id,
+            clerk_membership_id: clerkMembershipId,
+            role,
+            status: "active",
+            removed_at: null,
+          },
+          { onConflict: "organization_id,user_account_id" },
+        );
+    const membershipError = membershipWrite.error;
 
     if (membershipError) {
       console.error("Failed to ensure membership:", membershipError);
@@ -164,13 +218,17 @@ export async function ensureCurrentWorkspace(request?: Request): Promise<{
 
   const { data: organization, error: orgError } = await appSchema()
     .from("organizations")
-    .select("id, clerk_organization_id, name, slug, plan_key, billing_status, seat_limit")
+    .select("id, clerk_organization_id, name, slug, plan_key, billing_status, seat_limit, status")
     .eq("slug", slug)
     .single();
 
   if (orgError) {
     console.error("Failed to ensure personal workspace:", orgError);
     throw new Error("Could not resolve personal workspace.");
+  }
+
+  if ((organization as OrganizationAccount).status !== "active") {
+    return null;
   }
 
   const { error: membershipError } = await appSchema()
@@ -181,6 +239,7 @@ export async function ensureCurrentWorkspace(request?: Request): Promise<{
         user_account_id: userAccount.id,
         role: "owner",
         status: "active",
+        removed_at: null,
       },
       { onConflict: "organization_id,user_account_id" },
     );
