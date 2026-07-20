@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingRoot: path.resolve(__dirname, "../.."),
   transpilePackages: ["@riskonradar/shared"],
   turbopack: {
     root: path.resolve(__dirname, "../.."),

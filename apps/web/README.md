@@ -71,7 +71,8 @@ Files:
 - `src/app/sign-up/[[...sign-up]]/page.tsx`
 - `src/app/account/page.tsx`
 
-The scaffold does not crash if Clerk keys are missing. Without keys, the nav falls back to the landing waitlist button.
+Protected product routes fail closed if Clerk keys are missing. Local development therefore needs
+the Clerk values in `.env.local`; a missing key is a configuration error, never an auth bypass.
 
 ## Database
 
@@ -107,13 +108,15 @@ Current packaging direction:
 - Team: default B2B workspace plan with invitations and shared review.
 - Enterprise: sales-led setup for SSO/SAML/OIDC, procurement terms, and future SCIM/domain controls.
 
-## Integration Health
+## Service Health
 
-Use this endpoint locally to see which integrations have env vars:
+Railway and other orchestrators can use the non-sensitive liveness endpoint:
 
 ```text
-/api/integrations/status
+/api/health
 ```
+
+It deliberately does not reveal which Clerk, Stripe, or Supabase credentials are configured.
 
 ## Notes
 
