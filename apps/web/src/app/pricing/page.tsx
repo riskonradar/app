@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
@@ -18,11 +19,16 @@ const freePlan = {
   ],
 };
 
+export const metadata: Metadata = {
+  title: "Plans and pricing",
+  description: "Compare Risk on Radar workspace plans and analysis limits.",
+};
+
 export default function PricingPage() {
   return (
     <div className="app-shell">
       <AppNav />
-      <main className="app-main pricing-main">
+      <main id="main-content" className="app-main pricing-main" tabIndex={-1}>
         <section className="page-card pricing-card pricing-card-wide">
           <div className="page-heading">
             <span className="metric-label">Pricing</span>

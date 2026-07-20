@@ -16,6 +16,14 @@ function optionLabel(name: string, depth: number) {
   return `${"  ".repeat(depth)}${name}`;
 }
 
+function contextValue(value: unknown) {
+  if (Array.isArray(value)) return value.map(String).join(", ");
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return value == null ? "Not recorded" : JSON.stringify(value);
+}
+
 const auditTimestampFormatter = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -246,6 +254,18 @@ export function SystemModelWorkspace({ initialWorkspace }: { initialWorkspace: W
                 <span className="propagation">Propagation</span>
               </div>
             </div>
+            {Object.keys(activeAsset.operatingContext).length ? (
+              <dl className="systems-operating-context" aria-label="Asset operating context">
+                {Object.entries(activeAsset.operatingContext).map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label.replaceAll("_", " ")}</dt>
+                    <dd>{contextValue(value)}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="systems-context-empty">Operating context has not been recorded for this asset.</p>
+            )}
             <SystemGraph instances={instances} dependencies={dependencies} propagations={propagations} />
           </section>
 
@@ -462,5 +482,43 @@ function PropagationList({ propagations, instanceById, busy, canWrite, onReview,
   onDelete: (edge: FailurePropagation) => Promise<void>;
 }) {
   if (!propagations.length) return <p className="systems-empty">No failure-propagation edges.</p>;
-  return <ul className="systems-propagation-list">{propagations.map((edge) => <li key={edge.id}><div><strong>{instanceById.get(edge.sourceInstanceId)?.name} / {edge.failureModeName}</strong><span aria-hidden="true">&rarr;</span><strong>{instanceById.get(edge.targetInstanceId)?.name}</strong><p>{edge.targetEffect}</p><small>{edge.likelihood} likelihood · {edge.reviewStatus.replace("_", " ")} · {edge.confidence === null ? "confidence unknown" : `${Math.round(edge.confidence * 100)}% confidence`}</small>{edge.evidenceClaimId && <code title="Evidence claim ID">{edge.evidenceClaimId}</code>}</div>{canWrite && <div className="systems-review-actions">{edge.reviewStatus !== "accepted" && <button type="button" className="systems-accept-action" disabled={busy} onClick={() => void onReview(edge, "accepted")}>Accept</button>}{edge.reviewStatus !== "rejected" && <button type="button" className="systems-reject-action" disabled={busy} onClick={() => void onReview(edge, "rejected")}>Reject</button>}<button type="button" className="systems-row-action" disabled={busy} onClick={() => void onDelete(edge)}>Delete</button></div>}</li>)}</ul>;
+  return (
+    <ul className="systems-propagation-list">
+      {propagations.map((edge) => {
+        const edgeLabel = `${instanceById.get(edge.sourceInstanceId)?.name ?? "Source component"} ${edge.failureModeName}`;
+        return (
+          <li key={edge.id}>
+            <div>
+              <strong>{instanceById.get(edge.sourceInstanceId)?.name} / {edge.failureModeName}</strong>
+              <span aria-hidden="true">&rarr;</span>
+              <strong>{instanceById.get(edge.targetInstanceId)?.name}</strong>
+              <p>{edge.targetEffect}</p>
+              <small>{edge.likelihood} likelihood · {edge.reviewStatus.replace("_", " ")} · {edge.confidence === null ? "confidence unknown" : `${Math.round(edge.confidence * 100)}% confidence`}</small>
+              <dl className="systems-propagation-evidence">
+                <div>
+                  <dt>Trigger condition</dt>
+                  <dd>{edge.triggerCondition || "Not specified"}</dd>
+                </div>
+                <div>
+                  <dt>Engineering rationale</dt>
+                  <dd>{edge.rationale}</dd>
+                </div>
+                <div>
+                  <dt>Evidence claim</dt>
+                  <dd>{edge.evidenceClaimId ? <code>{edge.evidenceClaimId}</code> : "No evidence claim linked"}</dd>
+                </div>
+              </dl>
+            </div>
+            {canWrite && (
+              <div className="systems-review-actions" aria-label={`Review propagation from ${edgeLabel}`}>
+                {edge.reviewStatus !== "accepted" && <button type="button" className="systems-accept-action" disabled={busy} onClick={() => void onReview(edge, "accepted")}>Accept</button>}
+                {edge.reviewStatus !== "rejected" && <button type="button" className="systems-reject-action" disabled={busy} onClick={() => void onReview(edge, "rejected")}>Reject</button>}
+                <button type="button" className="systems-row-action" disabled={busy} onClick={() => void onDelete(edge)}>Delete</button>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
 }

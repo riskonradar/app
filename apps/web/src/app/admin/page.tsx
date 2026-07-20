@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
@@ -9,6 +10,9 @@ import {
 } from "@/lib/admin/server";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Pipeline administration",
+};
 
 type AdminPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -69,7 +73,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   return (
     <div className="app-shell">
       <AppNav />
-      <main className="app-main dashboard-main admin-main">
+      <main id="main-content" className="app-main dashboard-main admin-main" tabIndex={-1}>
         <section className="dashboard-header dashboard-header-simple admin-header">
           <div className="page-heading">
             <span className="metric-label">Internal operations · Read-only</span>

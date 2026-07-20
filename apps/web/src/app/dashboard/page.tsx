@@ -1,4 +1,5 @@
 import { currentUser } from "@clerk/nextjs/server";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
@@ -6,6 +7,10 @@ import { AnalysisList } from "@/components/fmea/analysis-list";
 import { getWorkspaceSummary } from "@/lib/account/server";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Dashboard",
+  description: "Open and manage evidence-backed FMEA analyses.",
+};
 
 export default async function DashboardPage() {
   const user = await currentUser().catch(() => null);
@@ -21,7 +26,7 @@ export default async function DashboardPage() {
   return (
     <div className="app-shell">
       <AppNav />
-      <main className="app-main dashboard-main">
+      <main id="main-content" className="app-main dashboard-main" tabIndex={-1}>
         <section className="dashboard-header dashboard-header-simple">
           <div className="page-heading">
             <span className="metric-label">Failure Mode and Effects Analysis workspace</span>

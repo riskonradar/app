@@ -4,7 +4,10 @@ import { AppAuthProvider } from "@/components/auth/app-auth-provider";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.riskonradar.com"),
-  title: "Risk on Radar",
+  title: {
+    default: "Risk on Radar",
+    template: "%s · Risk on Radar",
+  },
   description: "Evidence-backed reliability intelligence workspace.",
   icons: {
     icon: "/favicon.svg",

@@ -98,6 +98,7 @@ export async function GET(request: Request) {
     rows
       .map((row: { failure_mode_claim_id?: string }) => row.failure_mode_claim_id)
       .filter(Boolean),
+    workspace.organization.id,
   );
 
   return Response.json({
