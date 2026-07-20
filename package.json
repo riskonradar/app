@@ -8,5 +8,10 @@
     "lint:web": "pnpm --filter web lint",
     "test:web": "pnpm --filter web test"
   },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.15"
+    }
+  },
   "packageManager": "pnpm@9.4.0"
 }

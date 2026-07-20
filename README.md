@@ -42,7 +42,7 @@ Next.js product workflows -> app.fmea_* / app.asset_*
 ```
 
 - `apps/web`: Next.js 16, Clerk, Supabase service-role server access, Stripe Billing,
-  Cloudflare Workers deployment.
+  and a Railway-ready standalone Node deployment.
 - `services/paper-discovery`: OpenAlex-only discovery with trusted ISSNs, deduplication,
   lifecycle-state preservation, citation metadata, and open-access metadata backfill.
 - `services/paper-classifier`: auditable LLM extraction, legal OA full-text ingestion,
@@ -163,6 +163,23 @@ Pipeline systemd definitions are versioned in `services/deploy/systemd/`:
 Each unit supports a Healthchecks-compatible URL through `DISCOVERY_HEALTHCHECK_URL`,
 `CLASSIFIER_HEALTHCHECK_URL`, or `FULL_TEXT_HEALTHCHECK_URL`. Monitoring failures never block
 the pipeline, while failed work exits nonzero and sends a failure signal.
+
+## Web Deployment (Railway)
+
+The repository root contains the production `Dockerfile` and `railway.toml`. Railway builds the
+Next.js standalone server, starts `node apps/web/server.js`, and checks `/api/health`. Configure
+the production domain and every required value from `.env.example` in Railway; secrets must never
+be Docker build arguments or committed files.
+
+`NEXT_PUBLIC_*` values are declared as Docker build arguments because Next.js inlines them into
+browser bundles; configure the same values as Railway service variables. Server-only Clerk,
+Supabase service-role, Stripe, and webhook credentials remain runtime variables only.
+
+The previous automatic Cloudflare workflow was removed because the current OpenNext adapter
+rejects this app's Node.js Clerk middleware after a successful Next build. Pull requests and main
+now run pinned lint/test/build CI instead of attempting a deployment that is known to fail.
+Configure Railway to deploy only after the GitHub `CI` check succeeds, and require that check in
+main branch protection.
 
 The production service snapshot is `/opt/riskonradar` on `164.92.153.187`; secrets live in
 `/etc/riskonradar/pipeline.env`. Deployment is not complete until migrations, service code,
