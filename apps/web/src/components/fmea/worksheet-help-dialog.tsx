@@ -1,5 +1,9 @@
 "use client";
 
+import { useId } from "react";
+
+import { ModalDialog } from "@/components/ui/modal-dialog";
+
 type WorksheetHelpDialogProps = {
   onClose: () => void;
 };
@@ -10,7 +14,6 @@ const shortcuts = [
   ["Ctrl+A / Cmd+A", "Select all visible rows"],
   ["Ctrl+Click / Cmd+Click", "Add or remove a row from the current selection"],
   ["Delete", "Delete selected rows after confirmation"],
-  ["Ctrl+D / Cmd+D", "Toggle include or exclude on selected rows"],
   ["Ctrl+H / Ctrl+?", "Open help"],
   ["Escape", "Close dialogs, dropdowns, or the current selection"],
 ] as const;
@@ -33,6 +36,7 @@ const fields = [
 
 const statuses = [
   ["Needs Review", "Row requires engineer review and validation"],
+  ["Edited", "Accepted content changed and must be reviewed again"],
   ["Accepted", "Row has been reviewed and validated"],
   ["Rejected", "Row has been reviewed and rejected"],
 ] as const;
@@ -48,24 +52,17 @@ function HelpList({ entries }: { entries: ReadonlyArray<readonly [string, string
 }
 
 export function WorksheetHelpDialog({ onClose }: WorksheetHelpDialogProps) {
+  const titleId = useId();
+
   return (
-    <div className="source-dialog-backdrop" role="presentation" onClick={onClose}>
-      <section
-        className="source-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Keyboard shortcuts and help"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button className="dialog-close" type="button" aria-label="Close help" onClick={onClose}>×</button>
+    <ModalDialog ariaLabelledBy={titleId} closeLabel="Close help" onClose={onClose}>
         <span className="metric-label">Help</span>
-        <h3>Keyboard shortcuts</h3>
+        <h2 id={titleId}>Keyboard shortcuts and worksheet help</h2>
         <HelpList entries={shortcuts} />
         <h3>Worksheet fields</h3>
         <HelpList entries={fields} />
         <h3>Row status</h3>
         <HelpList entries={statuses} />
-      </section>
-    </div>
+    </ModalDialog>
   );
 }

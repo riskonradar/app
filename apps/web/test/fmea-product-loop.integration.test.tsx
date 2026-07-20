@@ -8,7 +8,15 @@ import { buildCsv, neutralizeSpreadsheetFormula } from "@/lib/fmea/export";
 import { parseKnowledgeSearchParams } from "@/lib/fmea/search";
 import { scoreSuggestionsForRow } from "@/lib/fmea/scoring";
 import type { FmeaRow } from "@/lib/fmea/types";
-import { knowledgeRowsToEvidenceRows, toFmeaRows } from "@/lib/fmea/worksheet";
+import {
+  applyFmeaRowUpdate,
+  canPersistWorksheet,
+  knowledgeRowsToEvidenceRows,
+  normalizeSavedRows,
+  selectRowsForExport,
+  templateRowsForComponents,
+  toFmeaRows,
+} from "@/lib/fmea/worksheet";
 
 const mocks = vi.hoisted(() => ({
   ensureCurrentWorkspace: vi.fn(),
@@ -84,6 +92,11 @@ function row(): FmeaRow {
     owner: "Riley",
     status: "accepted",
     included: true,
+    provenance: "evidence",
+    engineerEditedFields: [],
+    reviewedAt: "2026-07-18T10:00:00.000Z",
+    domains: ["Aviation"],
+    operatingContexts: ["turbofan at cruise"],
   };
 }
 
@@ -142,6 +155,23 @@ describe("FMEA product loop", () => {
     }));
   });
 
+  test("an existing analysis cannot save without a verified loaded-row baseline", async () => {
+    const { saveFmeaAnalysis } = await import("@/lib/fmea/server");
+    const request = new Request("https://app.example/api/fmea/analyses", { method: "POST" });
+
+    const result = await saveFmeaAnalysis(request, {
+      id: "analysis-1",
+      name: "Bearing FMEA",
+      rows: [],
+    });
+
+    expect(result).toEqual({
+      conflict: true,
+      message: "Reload this analysis before saving; no verified row baseline was supplied.",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   test("evidence drawer shows DOI, confidence, exact span, offsets, and claim ID", () => {
     render(<EvidenceDrawer row={row()} onClose={() => undefined} />);
 
@@ -180,6 +210,82 @@ describe("FMEA product loop", () => {
     expect(neutralizeSpreadsheetFormula("  @SUM(A1:A2)")).toBe("'  @SUM(A1:A2)");
     expect(csv).toContain("'=");
     expect(csv).toContain("' +cmd");
+  });
+
+  test("editing accepted evidence-backed content invalidates acceptance and only stale field lineage", () => {
+    const edited = applyFmeaRowUpdate(
+      row(),
+      { failureMode: "Engineer-corrected fatigue fracture" },
+      "2026-07-18T12:00:00.000Z",
+    );
+
+    expect(edited.status).toBe("edited");
+    expect(edited.reviewedAt).toBeUndefined();
+    expect(edited.engineerEditedFields).toContain("failureMode");
+    expect(edited.evidence).toHaveLength(0);
+    expect(edited.evidenceCount).toBe(0);
+    expect(edited.sources).toHaveLength(0);
+  });
+
+  test("saved engineer overrides cannot regain reconstructed stale field lineage", () => {
+    const restored = normalizeSavedRows([{
+      ...row(),
+      status: "edited",
+      engineerEditedFields: ["failureMode"],
+    }]);
+
+    expect(restored[0].evidence).toHaveLength(0);
+    expect(restored[0].sources).toHaveLength(0);
+    expect(restored[0].evidenceCount).toBe(0);
+  });
+
+  test("failed or unverified saved-analysis loads are never saveable", () => {
+    expect(canPersistWorksheet("loading", null, null)).toBe(false);
+    expect(canPersistWorksheet("error", null, null)).toBe(false);
+    expect(canPersistWorksheet("ready", "analysis-1", null)).toBe(false);
+    expect(canPersistWorksheet("ready", "analysis-1", [])).toBe(true);
+    expect(canPersistWorksheet("idle", null, null)).toBe(true);
+  });
+
+  test("final exports include only complete accepted evidence while drafts exclude rejected rows", () => {
+    const accepted = row();
+    const needsReview = { ...row(), id: "needs-review", status: "needs_review" as const };
+    const rejected = { ...row(), id: "rejected", status: "rejected" as const };
+    const manual = {
+      ...row(),
+      id: "manual",
+      provenance: "manual" as const,
+      evidence: [],
+      sources: [],
+      evidenceCount: 0,
+    };
+
+    expect(selectRowsForExport([accepted, needsReview, rejected, manual], "final")).toEqual([accepted]);
+    expect(selectRowsForExport([accepted, needsReview, rejected, manual], "draft")).toEqual([
+      accepted,
+      needsReview,
+      manual,
+    ]);
+    expect(buildCsv([accepted, needsReview, rejected, manual])).toContain("FINAL — accepted evidence-backed row");
+    expect(buildCsv([accepted, needsReview, rejected, manual])).not.toContain("needs-review");
+    expect(buildCsv([accepted, needsReview, rejected, manual], "draft")).toContain("DRAFT — engineering review required");
+  });
+
+  test("manual worksheet rows start blank, unconfirmed, and excluded", () => {
+    const [manual] = templateRowsForComponents(["Bearing"]);
+
+    expect(manual).toMatchObject({
+      component: "Bearing",
+      function: "",
+      requirement: "",
+      industry: "",
+      currentControl: "",
+      failureMode: "",
+      status: "needs_review",
+      included: false,
+      provenance: "manual",
+      evidenceCount: 0,
+    });
   });
 
   test("taxonomy-backed rows preserve specific labels and canonical IDs", () => {

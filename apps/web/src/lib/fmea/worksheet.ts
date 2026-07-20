@@ -1,9 +1,10 @@
-import fmeaData from "@/data/fmea-turbofan-data.json";
+import { turbofanComponents } from "@/data/turbofan-components";
 import { scoreSuggestionsForRow } from "@/lib/fmea/scoring";
 import { scoreOptions } from "@/lib/fmea/table";
 import type {
   EvidenceReference,
   EvidenceRow,
+  FmeaEvidenceField,
   FmeaRow,
   KnowledgeSearchRow,
   Source,
@@ -21,6 +22,7 @@ export type SystemTemplate = {
 
 export type SelectionStep = "initial" | "table";
 export type LoadingAction = "upload" | "system" | "export" | null;
+export type AnalysisLoadState = "idle" | "loading" | "ready" | "error";
 
 export type SavedAnalysisResponse = {
   analysis?: { id: string; name: string; rows: FmeaRow[] };
@@ -50,17 +52,8 @@ export const systemTemplates: SystemTemplate[] = [
     domain: "Aviation propulsion",
     source: "Live shared knowledge graph",
     description: "Queries current taxonomy-linked evidence for the major turbofan components.",
-    components: fmeaData.components as string[],
+    components: [...turbofanComponents],
   },
-];
-
-const defaultControls = [
-  "Visual inspection",
-  "Vibration monitoring",
-  "Oil debris analysis",
-  "Scheduled overhaul",
-  "Borescope inspection",
-  "Thermal trend monitoring",
 ];
 
 function normalizedKey(value: string) {
@@ -92,6 +85,12 @@ function mergeListValues(...values: string[]) {
   ).join("; ");
 }
 
+function mergeStringArrays(...values: Array<string[] | undefined>) {
+  return Array.from(
+    new Set(values.flatMap((value) => value ?? []).map((value) => value.trim()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b));
+}
+
 function sourceKey(source: Source) {
   return source.doi || source.url || source.title || JSON.stringify(source);
 }
@@ -112,7 +111,13 @@ function mergeEvidenceRows(rows: EvidenceRow[]) {
     if (!component || !failureMode) continue;
     const componentKey = row.componentTaxonomyId || normalizedKey(component);
     const failureModeKey = row.failureModeTaxonomyId || normalizedKey(failureMode);
-    const key = `${componentKey}::${failureModeKey}`;
+    const domains = mergeStringArrays(row.domains);
+    const operatingContexts = mergeStringArrays(row.operatingContexts);
+    // Cross-domain evidence remains in separate worksheet contributions. Risk
+    // scores and controls cannot safely be transferred between contexts merely
+    // because component and failure-mode taxonomy nodes match.
+    const contextKey = [...domains, ...operatingContexts].map(normalizedKey).join("|");
+    const key = `${componentKey}::${failureModeKey}::${contextKey || "unscoped"}`;
     const existing = merged.get(key);
     const safeEvidence = displaySafeEvidence(row.evidence ?? []);
 
@@ -131,6 +136,8 @@ function mergeEvidenceRows(rows: EvidenceRow[]) {
         evidenceCount: Number(row.evidenceCount || 0),
         sources: row.sources ?? [],
         evidence: safeEvidence,
+        domains,
+        operatingContexts,
       });
       continue;
     }
@@ -156,6 +163,8 @@ function mergeEvidenceRows(rows: EvidenceRow[]) {
       evidenceCount: sourcesByKey.size,
       sources: Array.from(sourcesByKey.values()),
       evidence: Array.from(evidenceByKey.values()),
+      domains: mergeStringArrays(existing.domains, row.domains),
+      operatingContexts: mergeStringArrays(existing.operatingContexts, row.operatingContexts),
     });
   }
 
@@ -175,27 +184,51 @@ export function toFmeaRows(rows: EvidenceRow[]): FmeaRow[] {
       detection: "",
       scoreSuggestions: scoreSuggestionsForRow(evidenceRow),
       id: makeRowId(row, index),
-      function: `Define intended function for ${row.component}`,
-      requirement: "Maintain intended system function under defined operating conditions",
+      function: "",
+      requirement: "",
       industry: industryForRow(row),
       owner: "",
       status: "needs_review",
       included: true,
+      provenance: "evidence",
+      engineerEditedFields: [],
     };
   });
 }
 
-export function normalizeSavedRows(rows: FmeaRow[]) {
-  return rows.map((row, index) => ({
-    ...row,
-    id: row.id || makeRowId(row, index),
-    severity: scoreValue(row.severity),
-    occurrence: scoreValue(row.occurrence),
-    detection: scoreValue(row.detection),
-    sources: Array.isArray(row.sources) ? row.sources : [],
-    evidence: displaySafeEvidence(Array.isArray(row.evidence) ? row.evidence : []),
-    scoreSuggestions: row.scoreSuggestions ?? scoreSuggestionsForRow(row),
-  }));
+export function normalizeSavedRows(rows: FmeaRow[]): FmeaRow[] {
+  return rows.map((row, index) => {
+    const engineerEditedFields = Array.isArray(row.engineerEditedFields)
+      ? row.engineerEditedFields.filter((field): field is string => typeof field === "string")
+      : [];
+    const invalidatedEvidenceFields = new Set(
+      engineerEditedFields
+        .map((field) => evidenceFieldForWorksheetField[field as keyof FmeaRow])
+        .filter((field): field is FmeaEvidenceField => Boolean(field)),
+    );
+    const evidence = displaySafeEvidence(Array.isArray(row.evidence) ? row.evidence : []).filter(
+      (reference) => !invalidatedEvidenceFields.has(reference.field),
+    );
+    const sources = Array.from(
+      new Map(evidence.map((reference) => [sourceKey(reference.source), reference.source])).values(),
+    );
+    return {
+      ...row,
+      id: row.id || makeRowId(row, index),
+      severity: scoreValue(row.severity),
+      occurrence: scoreValue(row.occurrence),
+      detection: scoreValue(row.detection),
+      sources,
+      evidence,
+      evidenceCount: sources.length,
+      scoreSuggestions: row.scoreSuggestions ?? scoreSuggestionsForRow(row),
+      domains: Array.isArray(row.domains) ? row.domains : [],
+      operatingContexts: Array.isArray(row.operatingContexts) ? row.operatingContexts : [],
+      provenance: row.provenance === "manual" ? "manual" : "evidence",
+      engineerEditedFields,
+      reviewedAt: typeof row.reviewedAt === "string" ? row.reviewedAt : undefined,
+    };
+  });
 }
 
 export function knowledgeRowsToEvidenceRows(rows: KnowledgeSearchRow[]): EvidenceRow[] {
@@ -227,27 +260,33 @@ export function knowledgeRowsToEvidenceRows(rows: KnowledgeSearchRow[]): Evidenc
       evidenceCount: 1,
       sources: [source],
       evidence,
+      domains: row.domain ? [row.domain] : [],
+      operatingContexts: evidence
+        .filter((reference) => ["operating_context", "environment"].includes(reference.claimType))
+        .map((reference) => reference.value),
     };
   });
 }
 
 function industryForRow(row: EvidenceRow) {
+  const domains = mergeStringArrays(row.domains);
+  if (domains.length) return domains.join("; ");
   const sourceText = row.sources
     .map((source) => `${source.category ?? ""} ${source.title ?? ""}`)
     .join(" ")
     .toLowerCase();
   return sourceText.includes("easa") || sourceText.includes("turbofan") || sourceText.includes("aircraft")
     ? "Aviation"
-    : "Cross-industry reliability";
+    : "";
 }
 
 export function templateRowsForComponents(components: string[]): FmeaRow[] {
   return components.map((component, index) => ({
     id: makeRowId({ component, failureMode: "" }, index),
     component,
-    function: `Define intended function for ${component}`,
-    requirement: "Define requirement",
-    industry: "Cross-industry reliability",
+    function: "",
+    requirement: "",
+    industry: "",
     failureMode: "",
     effect: "",
     cause: "",
@@ -255,15 +294,19 @@ export function templateRowsForComponents(components: string[]): FmeaRow[] {
     occurrence: "",
     detection: "",
     correctiveAction: "",
-    currentControl: defaultControls[index % defaultControls.length],
+    currentControl: "",
     owner: "",
     status: "needs_review",
-    included: true,
+    included: false,
     rpn: "",
     evidenceCount: 0,
     sources: [],
     evidence: [],
     scoreSuggestions: {},
+    domains: [],
+    operatingContexts: [],
+    provenance: "manual",
+    engineerEditedFields: [],
   }));
 }
 
@@ -299,8 +342,143 @@ export function defaultAnalysisName(rows: FmeaRow[]) {
     : "Reliability evidence Failure Mode and Effects Analysis";
 }
 
+const evidenceFieldForWorksheetField: Partial<Record<keyof FmeaRow, FmeaEvidenceField>> = {
+  component: "component",
+  failureMode: "failure_mode",
+  effect: "effect",
+  cause: "cause",
+  currentControl: "controls",
+  correctiveAction: "recommended_action",
+};
+
+const reviewSensitiveFields = new Set<keyof FmeaRow>([
+  "component",
+  "function",
+  "requirement",
+  "industry",
+  "failureMode",
+  "effect",
+  "severity",
+  "cause",
+  "occurrence",
+  "currentControl",
+  "detection",
+  "correctiveAction",
+]);
+
+function sourceIdentity(source: Source) {
+  return source.doi || source.url || `${source.title}:${source.year ?? ""}`;
+}
+
+/**
+ * Applies an engineer edit without allowing an accepted row or field-level
+ * evidence reference to remain falsely current. The database records the
+ * accepted -> edited/needs-review transition in its immutable review events.
+ */
+export function applyFmeaRowUpdate(
+  row: FmeaRow,
+  update: Partial<FmeaRow>,
+  editedAt = new Date().toISOString(),
+) {
+  const changedFields = (Object.keys(update) as Array<keyof FmeaRow>).filter(
+    (field) => update[field] !== undefined && update[field] !== row[field],
+  );
+  if (!changedFields.length) return row;
+
+  const contentFields = changedFields.filter((field) => reviewSensitiveFields.has(field));
+  const invalidatedEvidenceFields = new Set(
+    contentFields
+      .map((field) => evidenceFieldForWorksheetField[field])
+      .filter((field): field is FmeaEvidenceField => Boolean(field)),
+  );
+  const remainingEvidence = invalidatedEvidenceFields.size
+    ? row.evidence.filter((reference) => !invalidatedEvidenceFields.has(reference.field))
+    : row.evidence;
+  const sources = invalidatedEvidenceFields.size
+    ? Array.from(
+        new Map(remainingEvidence.map((reference) => [sourceIdentity(reference.source), reference.source])).values(),
+      )
+    : row.sources;
+
+  const statusWasExplicitlyChanged = changedFields.includes("status");
+  const nextStatus = statusWasExplicitlyChanged
+    ? update.status ?? row.status
+    : contentFields.length && row.status === "accepted"
+      ? "edited"
+      : contentFields.length && row.status === "rejected"
+        ? "needs_review"
+        : row.status;
+
+  return {
+    ...row,
+    ...update,
+    status: nextStatus,
+    evidence: remainingEvidence,
+    sources,
+    evidenceCount: sources.length,
+    engineerEditedFields: contentFields.length
+      ? mergeStringArrays(row.engineerEditedFields, contentFields.map(String))
+      : row.engineerEditedFields,
+    reviewedAt:
+      statusWasExplicitlyChanged && update.status === "accepted"
+        ? editedAt
+        : contentFields.length
+          ? undefined
+          : row.reviewedAt,
+  } satisfies FmeaRow;
+}
+
+export function applyEvidenceClaimReview(
+  row: FmeaRow,
+  claimId: string,
+  reviewStatus: "accepted" | "rejected" | "needs_review",
+) {
+  if (!row.evidence.some((reference) => reference.claimId === claimId)) return row;
+  const evidence = row.evidence
+    .map((reference) =>
+      reference.claimId === claimId ? { ...reference, reviewStatus } : reference,
+    )
+    .filter((reference) => reference.reviewStatus !== "rejected");
+  const sources = Array.from(
+    new Map(evidence.map((reference) => [sourceIdentity(reference.source), reference.source])).values(),
+  );
+  return {
+    ...row,
+    evidence,
+    sources,
+    evidenceCount: sources.length,
+    status: row.status === "accepted" ? "edited" : row.status,
+    reviewedAt: row.status === "accepted" ? undefined : row.reviewedAt,
+  } satisfies FmeaRow;
+}
+
+export function canPersistWorksheet(
+  loadState: AnalysisLoadState,
+  currentAnalysisId: string | null,
+  expectedRowIds: string[] | null,
+) {
+  if (loadState === "loading" || loadState === "error") return false;
+  // An existing analysis is saveable only after a successful load supplied an
+  // exact baseline. New, unsaved analyses do not require this concurrency guard.
+  return currentAnalysisId === null || expectedRowIds !== null;
+}
+
+export function isFinalExportEligible(row: FmeaRow) {
+  return (
+    row.included &&
+    row.status === "accepted" &&
+    row.provenance === "evidence" &&
+    row.evidence.length > 0 &&
+    isComplete(row)
+  );
+}
+
+export function selectRowsForExport(rows: FmeaRow[], mode: "final" | "draft") {
+  if (mode === "final") return rows.filter(isFinalExportEligible);
+  return rows.filter((row) => row.included && row.status !== "rejected");
+}
+
 export function isComplete(row: FmeaRow) {
-  if (!row.included) return true;
   return Boolean(
     row.component &&
       row.function &&

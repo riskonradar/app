@@ -1,7 +1,16 @@
 import type { EvidenceReference, FmeaRow } from "@/lib/fmea/types";
-import { rowRpn } from "@/lib/fmea/worksheet";
+import { rowRpn, selectRowsForExport } from "@/lib/fmea/worksheet";
+
+export type FmeaExportMode = "final" | "draft";
 
 const headers = [
+  "Artifact type",
+  "Review status",
+  "Provenance",
+  "Reviewed at",
+  "Engineer-edited fields",
+  "Evidence domains",
+  "Operating contexts",
   "Component",
   "Function",
   "Failure mode",
@@ -19,6 +28,9 @@ const headers = [
   "Evidence claim IDs",
   "Exact evidence spans",
   "Claim confidence",
+  "Claim review states",
+  "Evidence support types",
+  "Classifier lineage",
 ];
 
 function displaySafeEvidence(evidence: EvidenceReference[]) {
@@ -50,8 +62,36 @@ function evidenceConfidenceSummary(evidence: EvidenceReference[]) {
     .join("; ");
 }
 
-function exportRows(rows: FmeaRow[]) {
+function evidenceReviewSummary(evidence: EvidenceReference[]) {
+  return [...new Set(evidence.map((reference) => `${reference.field}:${reference.reviewStatus}`))].join("; ");
+}
+
+function evidenceSupportSummary(evidence: EvidenceReference[]) {
+  return [...new Set(evidence.map((reference) => `${reference.field}:${reference.supportType}`))].join("; ");
+}
+
+function classifierLineageSummary(evidence: EvidenceReference[]) {
+  return [
+    ...new Set(
+      evidence
+        .map((reference) => {
+          const model = [reference.llmProvider, reference.llmModel].filter(Boolean).join(":");
+          return [reference.classifierVersion, model].filter(Boolean).join(" · ");
+        })
+        .filter(Boolean),
+    ),
+  ].join("; ");
+}
+
+function exportRows(rows: FmeaRow[], mode: FmeaExportMode) {
   return rows.map((row) => [
+    mode === "final" ? "FINAL — accepted evidence-backed row" : "DRAFT — engineering review required",
+    row.status,
+    row.provenance,
+    row.reviewedAt,
+    row.engineerEditedFields.join("; "),
+    (row.domains ?? []).join("; "),
+    (row.operatingContexts ?? []).join("; "),
     row.component,
     row.function,
     row.failureMode,
@@ -69,6 +109,9 @@ function exportRows(rows: FmeaRow[]) {
     evidenceClaimIds(row.evidence),
     evidenceSpanSummary(row.evidence),
     evidenceConfidenceSummary(row.evidence),
+    evidenceReviewSummary(row.evidence),
+    evidenceSupportSummary(row.evidence),
+    classifierLineageSummary(row.evidence),
   ]);
 }
 
@@ -104,8 +147,8 @@ export function downloadFile(filename: string, mimeType: string, content: BlobPa
   URL.revokeObjectURL(url);
 }
 
-export function buildCsv(rows: FmeaRow[]) {
-  return [headers, ...exportRows(rows)]
+export function buildCsv(rows: FmeaRow[], mode: FmeaExportMode = "final") {
+  return [headers, ...exportRows(selectRowsForExport(rows, mode), mode)]
     .map((line) => line.map((cell) => csvEscape(cell)).join(","))
     .join("\n");
 }
@@ -187,7 +230,7 @@ function zipStore(files: { name: string; content: string }[]) {
 }
 
 function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
-  const columnWidths = [24, 30, 30, 38, 10, 34, 12, 34, 12, 10, 34, 18, 14, 55, 42, 70, 30];
+  const columnWidths = [34, 16, 14, 22, 30, 28, 34, 24, 30, 30, 38, 10, 34, 12, 34, 12, 10, 34, 18, 14, 55, 42, 70, 30, 28, 30, 48];
   const columnName = (index: number) => {
     let name = "";
     let value = index + 1;
@@ -274,6 +317,6 @@ function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
   ]);
 }
 
-export function buildExcelWorkbook(rows: FmeaRow[]) {
-  return buildXlsxWorkbook([headers, ...exportRows(rows)]);
+export function buildExcelWorkbook(rows: FmeaRow[], mode: FmeaExportMode = "final") {
+  return buildXlsxWorkbook([headers, ...exportRows(selectRowsForExport(rows, mode), mode)]);
 }

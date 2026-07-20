@@ -27,14 +27,20 @@ export type PersistedFmeaRow = {
   evidence: EvidenceReference[];
   scoreSuggestions?: ScoreSuggestions;
   owner: string;
-  status: "needs_review" | "accepted" | "rejected";
+  status: "needs_review" | "accepted" | "edited" | "rejected";
   included: boolean;
+  domains?: string[];
+  operatingContexts?: string[];
+  provenance: "evidence" | "manual";
+  engineerEditedFields: string[];
+  reviewedAt?: string;
 };
 
 export type FmeaAnalysisPayload = {
   id?: string | null;
   name?: string | null;
   rows?: PersistedFmeaRow[];
+  expectedRowIds?: string[] | null;
 };
 
 type Workspace = NonNullable<Awaited<ReturnType<typeof ensureCurrentWorkspace>>>;
@@ -48,7 +54,7 @@ function isProWorkspace(workspace: Workspace) {
 }
 
 function normalizeStatus(value: unknown): PersistedFmeaRow["status"] {
-  if (value === "accepted" || value === "rejected") return value;
+  if (value === "accepted" || value === "edited" || value === "rejected") return value;
   return "needs_review";
 }
 
@@ -87,7 +93,80 @@ function clientRowFromDb(row: any): PersistedFmeaRow {
     owner: row.responsible_owner ?? "",
     status: normalizeStatus(row.review_status),
     included: metadata.included !== false,
+    domains: Array.isArray(metadata.domains) ? metadata.domains : [],
+    operatingContexts: Array.isArray(metadata.operatingContexts) ? metadata.operatingContexts : [],
+    provenance: metadata.provenance === "manual" ? "manual" : "evidence",
+    engineerEditedFields: Array.isArray(metadata.engineerEditedFields)
+      ? metadata.engineerEditedFields.filter((field: unknown) => typeof field === "string")
+      : [],
+    reviewedAt: typeof metadata.reviewedAt === "string" ? metadata.reviewedAt : undefined,
   };
+}
+
+const MAX_ANALYSIS_NAME_LENGTH = 200;
+const MAX_FMEA_ROWS = 1_000;
+const MAX_ROW_TEXT_LENGTH = 10_000;
+const MAX_EVIDENCE_REFERENCES_PER_ROW = 100;
+
+function validateFmeaPayload(payload: FmeaAnalysisPayload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return "Analysis payload must be an object.";
+  }
+  if (payload.id != null && typeof payload.id !== "string") {
+    return "Analysis id must be a string.";
+  }
+  if (payload.name != null && typeof payload.name !== "string") {
+    return "Analysis name must be a string.";
+  }
+  if (typeof payload.name === "string" && payload.name.length > MAX_ANALYSIS_NAME_LENGTH) {
+    return `Analysis names cannot exceed ${MAX_ANALYSIS_NAME_LENGTH} characters.`;
+  }
+  if (!Array.isArray(payload.rows)) return "rows must be an array.";
+  if (payload.rows.length > MAX_FMEA_ROWS) {
+    return `An analysis cannot contain more than ${MAX_FMEA_ROWS} rows.`;
+  }
+  if (payload.expectedRowIds != null && !Array.isArray(payload.expectedRowIds)) {
+    return "expectedRowIds must be an array when updating an analysis.";
+  }
+  if (
+    Array.isArray(payload.expectedRowIds) &&
+    (payload.expectedRowIds.length > MAX_FMEA_ROWS ||
+      payload.expectedRowIds.some(
+        (id) => typeof id !== "string" || !id.trim() || id.length > MAX_ROW_TEXT_LENGTH,
+      ))
+  ) {
+    return "expectedRowIds contains an invalid row id.";
+  }
+
+  const textFields: Array<keyof PersistedFmeaRow> = [
+    "id",
+    "component",
+    "function",
+    "requirement",
+    "industry",
+    "failureMode",
+    "effect",
+    "cause",
+    "currentControl",
+    "correctiveAction",
+    "owner",
+  ];
+  for (const row of payload.rows) {
+    if (!row || typeof row !== "object") return "Every row must be an object.";
+    if (typeof row.id !== "string" || !row.id.trim()) return "Every row requires a string id.";
+    if (
+      textFields.some((field) => {
+        const value = row[field];
+        return value != null && (typeof value !== "string" || value.length > MAX_ROW_TEXT_LENGTH);
+      })
+    ) {
+      return `Individual row fields cannot exceed ${MAX_ROW_TEXT_LENGTH} characters.`;
+    }
+    if (!Array.isArray(row.evidence) || row.evidence.length > MAX_EVIDENCE_REFERENCES_PER_ROW) {
+      return `Each row can contain at most ${MAX_EVIDENCE_REFERENCES_PER_ROW} evidence references.`;
+    }
+  }
+  return null;
 }
 
 function rowRpn(row: PersistedFmeaRow) {
@@ -250,13 +329,49 @@ export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPa
     status: workspace.organization.billing_status,
   };
 
-  const rows = Array.isArray(payload.rows) ? payload.rows : [];
+  const validationError = validateFmeaPayload(payload);
+  if (validationError) return { invalid: true as const, message: validationError };
+
+  const rows = payload.rows ?? [];
   const name = payload.name?.trim() || "Untitled Failure Mode and Effects Analysis";
   const existingId = payload.id?.trim() || null;
 
   if (existingId) {
     const ownedAnalysis = await getOwnedAnalysis(workspace, existingId);
     if (!ownedAnalysis) return { notFound: true as const };
+
+    // Updating an existing analysis requires the exact baseline row IDs from a
+    // successful GET/save. A failed or stale load therefore cannot submit an
+    // empty worksheet and supersede authoritative rows.
+    if (!Array.isArray(payload.expectedRowIds)) {
+      return {
+        conflict: true as const,
+        message: "Reload this analysis before saving; no verified row baseline was supplied.",
+      };
+    }
+    const { data: currentRows, error: currentRowsError } = await appSchema()
+      .from("fmea_rows")
+      .select("client_row_id")
+      .eq("analysis_id", existingId)
+      .neq("review_status", "superseded");
+    if (currentRowsError) {
+      console.error("Failed to verify FMEA row baseline:", currentRowsError);
+      throw new Error("Could not verify analysis state.");
+    }
+    const currentRowIds = (currentRows ?? [])
+      .map((row: { client_row_id?: string }) => row.client_row_id)
+      .filter((id: unknown): id is string => typeof id === "string")
+      .sort();
+    const expectedRowIds = [...new Set(payload.expectedRowIds)].sort();
+    if (
+      currentRowIds.length !== expectedRowIds.length ||
+      currentRowIds.some((id: string, index: number) => id !== expectedRowIds[index])
+    ) {
+      return {
+        conflict: true as const,
+        message: "This analysis changed after it was loaded. Reload it before saving.",
+      };
+    }
   } else {
     const { count, error: countError } = await appSchema()
       .from("fmea_analyses")

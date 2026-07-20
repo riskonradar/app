@@ -24,6 +24,10 @@ export type EvidenceReference = {
   confidence: number | null;
   supportType: string;
   reviewStatus: string;
+  inferenceRationale?: string;
+  classifierVersion?: string;
+  llmProvider?: string;
+  llmModel?: string;
   relationshipId?: string;
   spans: EvidenceSpan[];
   source: Source;
@@ -67,6 +71,8 @@ export type EvidenceRow = {
   sources: Source[];
   evidence: EvidenceReference[];
   scoreSuggestions?: ScoreSuggestions;
+  domains?: string[];
+  operatingContexts?: string[];
 };
 
 export type FmeaRow = EvidenceRow & {
@@ -76,8 +82,11 @@ export type FmeaRow = EvidenceRow & {
   industry: string;
   currentControl: string;
   owner: string;
-  status: "needs_review" | "accepted" | "rejected";
+  status: "needs_review" | "accepted" | "edited" | "rejected";
   included: boolean;
+  provenance: "evidence" | "manual";
+  engineerEditedFields: string[];
+  reviewedAt?: string;
 };
 
 export type KnowledgeSearchRow = {

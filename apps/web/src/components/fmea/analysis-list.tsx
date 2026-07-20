@@ -27,9 +27,11 @@ type AnalysesResponse = {
 export function AnalysisList() {
   const [analyses, setAnalyses] = useState<SavedFmeaAnalysis[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [mutationError, setMutationError] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   const fetchAnalyses = useCallback(async () => {
     try {
@@ -43,7 +45,7 @@ export function AnalysisList() {
       }
       setAnalyses(payload.analyses ?? []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load saved analyses.");
+      setLoadError(loadError instanceof Error ? loadError.message : "Could not load saved analyses.");
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +53,7 @@ export function AnalysisList() {
 
   function retryLoadAnalyses() {
     setIsLoading(true);
-    setError("");
+    setLoadError("");
     void fetchAnalyses();
   }
 
@@ -66,6 +68,8 @@ export function AnalysisList() {
     if (!confirmed) return;
 
     const previousAnalyses = analyses;
+    setMutationError("");
+    setPendingAction(`delete:${analysis.id}`);
     setAnalyses((current) => current.filter((item) => item.id !== analysis.id));
     try {
       const response = await fetch(`/api/fmea/analyses/${analysis.id}`, {
@@ -77,7 +81,9 @@ export function AnalysisList() {
       }
     } catch (deleteError) {
       setAnalyses(previousAnalyses);
-      setError(deleteError instanceof Error ? deleteError.message : "Could not delete analysis.");
+      setMutationError(deleteError instanceof Error ? deleteError.message : "Could not delete analysis.");
+    } finally {
+      setPendingAction(null);
     }
   }
 
@@ -100,6 +106,8 @@ export function AnalysisList() {
       item.id === analysis.id ? { ...item, name: nextName } : item,
     );
     setAnalyses(nextAnalyses);
+    setMutationError("");
+    setPendingAction(`rename:${analysis.id}`);
 
     try {
       const response = await fetch(`/api/fmea/analyses/${analysis.id}`, {
@@ -116,18 +124,27 @@ export function AnalysisList() {
       setDraftName("");
     } catch (renameError) {
       setAnalyses(previousAnalyses);
-      setError(renameError instanceof Error ? renameError.message : "Could not rename analysis.");
+      setMutationError(renameError instanceof Error ? renameError.message : "Could not rename analysis.");
+    } finally {
+      setPendingAction(null);
     }
   }
 
   if (isLoading) {
-    return <p className="notice standalone">Loading saved analyses...</p>;
+    return (
+      <div className="analysis-list-skeleton" role="status" aria-live="polite">
+        <span className="visually-hidden">Loading saved analyses</span>
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+      </div>
+    );
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="dashboard-panel-muted">
-        <p className="notice standalone error">{error}</p>
+        <p className="notice standalone error" role="alert">{loadError}</p>
         <button type="button" className="btn btn-secondary btn-sm" onClick={retryLoadAnalyses}>
           Try again
         </button>
@@ -147,18 +164,22 @@ export function AnalysisList() {
   }
 
   return (
-    <div className="fmea-analysis-list">
+    <div className="fmea-analysis-list" aria-busy={pendingAction !== null}>
+      {mutationError ? (
+        <p className="notice standalone error" role="alert">
+          {mutationError} Your saved data was not changed.
+        </p>
+      ) : null}
       {analyses.map((analysis) => (
         <article key={analysis.id} className="fmea-analysis-row">
           <div className="fmea-analysis-main">
-            <Link href={`/fmea?analysis=${analysis.id}`} className="fmea-analysis-link">
+            <div className="fmea-analysis-link">
               <span>
                 {renamingId === analysis.id ? (
                   <input
                     className="fmea-analysis-name-input"
                     value={draftName}
                     onChange={(event) => setDraftName(event.target.value)}
-                    onClick={(event) => event.preventDefault()}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
@@ -173,7 +194,9 @@ export function AnalysisList() {
                     autoFocus
                   />
                 ) : (
-                  <strong>{analysis.name}</strong>
+                  <Link href={`/fmea?analysis=${analysis.id}`} className="fmea-analysis-open">
+                    <strong>{analysis.name}</strong>
+                  </Link>
                 )}
                 <small>
                   {analysis.componentCount} component{analysis.componentCount === 1 ? "" : "s"} ·{" "}
@@ -182,7 +205,7 @@ export function AnalysisList() {
               </span>
               <span>{analysis.updatedAt}</span>
               <em>Max RPN {analysis.highestRpn || "-"}</em>
-            </Link>
+            </div>
             <div className="fmea-analysis-actions">
               {renamingId === analysis.id ? (
                 <>
@@ -190,9 +213,9 @@ export function AnalysisList() {
                     type="button"
                     className="fmea-analysis-action"
                     onClick={() => saveRename(analysis)}
-                    disabled={!draftName.trim()}
+                    disabled={!draftName.trim() || pendingAction === `rename:${analysis.id}`}
                   >
-                    Save name
+                    {pendingAction === `rename:${analysis.id}` ? "Saving" : "Save name"}
                   </button>
                   <button
                     type="button"
@@ -207,6 +230,7 @@ export function AnalysisList() {
                   type="button"
                   className="fmea-analysis-action"
                   onClick={() => startRenaming(analysis)}
+                  disabled={pendingAction !== null}
                 >
                   Rename
                 </button>
@@ -216,8 +240,9 @@ export function AnalysisList() {
                 className="fmea-analysis-delete"
                 onClick={() => deleteAnalysis(analysis)}
                 aria-label={`Delete ${analysis.name}`}
+                disabled={pendingAction !== null}
               >
-                Delete
+                {pendingAction === `delete:${analysis.id}` ? "Deleting" : "Delete"}
               </button>
             </div>
           </div>
