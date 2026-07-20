@@ -27,6 +27,19 @@ export function isStripeConfigured() {
   return Boolean(getStripeSecretKey());
 }
 
+export function isStripeTaxEnabled() {
+  return process.env.STRIPE_TAX_ENABLED?.trim().toLowerCase() === "true";
+}
+
+export function isStripeLiveMode() {
+  const key = getStripeSecretKey();
+  return Boolean(key && (key.startsWith("sk_live_") || key.startsWith("rk_live_")));
+}
+
+export function getStripeCustomerPortalConfigurationId() {
+  return process.env.STRIPE_CUSTOMER_PORTAL_CONFIGURATION_ID || null;
+}
+
 export function getRequiredEnv(name: string) {
   const value = process.env[name];
   if (!value) {

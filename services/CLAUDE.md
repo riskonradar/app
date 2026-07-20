@@ -77,6 +77,9 @@ It should not:
 
 Trusted journals live in `paper-discovery/data/journals.json`. Query packs live in `paper-discovery/data/queries.json`.
 
+Production discovery also requires `OPENALEX_API_KEY`. Email-only polite-pool access does
+not provide enough daily allowance for the journal/query sweep or OA metadata backfill.
+
 Queries are broad recall filters. They are not the source of truth for components or failures.
 
 ## Classifier Details
@@ -137,10 +140,11 @@ Current schedule:
 
 - Discovery runs weekly.
 - Classifier polls every 5 minutes.
-- Classifier uses Gemini via `LLM_PROVIDER=gemini`.
+- Provider/model is an environment decision that must be verified from completed job metadata.
 - Worker count is `1` to protect quota/cost.
 
-If Gemini quota is exhausted, do not silently switch providers unless the user asks. Keep `--extractor llm` so failed LLM calls retry instead of saving keyword fallback under an LLM classifier version.
+Do not silently switch providers. Keep `--extractor llm` so failed LLM calls remain failed and
+observable instead of being represented as another model's output.
 
 ## Changing Production
 
@@ -173,6 +177,10 @@ cd services/paper-classifier
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 ```
 
+Production dependencies are pinned in `services/requirements.lock`. Install
+that file first, then install both packages with `--no-deps`; do not resolve
+fresh unbounded dependencies during a droplet rollout.
+
 Dry-run classifier database read:
 
 ```sh
@@ -182,6 +190,5 @@ paper-classifier classify --extractor keyword --limit 1 --mode incremental --dry
 Manual discovery run:
 
 ```sh
-paper-discovery --limit 5 --mark-stale-days 60 --mark-removed-days 180
+paper-discovery --limit 5 --since-days 30
 ```
-

@@ -1,10 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { ensureCurrentWorkspace } from "@/lib/account/server";
+import { requireWorkspaceMutationAccess } from "@/lib/auth/workspace-access";
+import type { EvidenceReference, ScoreSuggestions } from "@/lib/fmea/types";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 export type PersistedFmeaRow = {
   id: string;
+  componentTaxonomyId?: string;
+  failureModeTaxonomyId?: string;
   component: string;
   function: string;
   requirement: string;
@@ -20,15 +24,23 @@ export type PersistedFmeaRow = {
   rpn: string;
   evidenceCount: number;
   sources: unknown[];
+  evidence: EvidenceReference[];
+  scoreSuggestions?: ScoreSuggestions;
   owner: string;
-  status: "needs_review" | "accepted" | "rejected";
+  status: "needs_review" | "accepted" | "edited" | "rejected";
   included: boolean;
+  domains?: string[];
+  operatingContexts?: string[];
+  provenance: "evidence" | "manual";
+  engineerEditedFields: string[];
+  reviewedAt?: string;
 };
 
 export type FmeaAnalysisPayload = {
   id?: string | null;
   name?: string | null;
   rows?: PersistedFmeaRow[];
+  expectedRowIds?: string[] | null;
 };
 
 type Workspace = NonNullable<Awaited<ReturnType<typeof ensureCurrentWorkspace>>>;
@@ -37,66 +49,30 @@ function appSchema() {
   return (getSupabaseServiceClient() as any).schema("app");
 }
 
-function ownerFilterForWorkspace(workspace: Workspace) {
-  return `organization_id.eq.${workspace.organization.id},user_account_id.eq.${workspace.userAccount.id}`;
-}
-
 function isProWorkspace(workspace: Workspace) {
   return ["active", "comped"].includes(workspace.organization.billing_status);
 }
 
-function canMutateWorkspace(workspace: Workspace) {
-  return workspace.role === "owner" || workspace.role === "admin" || workspace.role === "member";
-}
-
-function parseScore(value: unknown) {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  return parsed >= 1 && parsed <= 10 ? parsed : null;
-}
-
 function normalizeStatus(value: unknown): PersistedFmeaRow["status"] {
-  if (value === "accepted" || value === "rejected") return value;
+  if (value === "accepted" || value === "edited" || value === "rejected") return value;
   return "needs_review";
-}
-
-function rowMetadata(row: PersistedFmeaRow, index: number) {
-  return {
-    clientRowId: row.id,
-    evidenceCount: Number(row.evidenceCount || 0),
-    included: row.included !== false,
-    industry: row.industry || "",
-    requirement: row.requirement || "",
-    rowOrder: index,
-    rpn: row.rpn || "",
-    sources: Array.isArray(row.sources) ? row.sources : [],
-  };
-}
-
-function dbRowFromClient(analysisId: string, row: PersistedFmeaRow, index: number) {
-  return {
-    analysis_id: analysisId,
-    component: row.component || "Unspecified component",
-    function: row.function || "",
-    failure_mode: row.failureMode || "Unspecified failure mode",
-    effect: row.effect || "",
-    severity: parseScore(row.severity),
-    cause: row.cause || "",
-    occurrence: parseScore(row.occurrence),
-    controls: row.currentControl || "",
-    detection: "",
-    detection_rating: parseScore(row.detection),
-    recommended_action: row.correctiveAction || "",
-    responsible_owner: row.owner || "",
-    review_status: normalizeStatus(row.status),
-    model_metadata: rowMetadata(row, index),
-  };
 }
 
 function clientRowFromDb(row: any): PersistedFmeaRow {
   const metadata = (row.model_metadata ?? {}) as Record<string, any>;
+  const evidence = (Array.isArray(metadata.evidence) ? metadata.evidence : []).map(
+    (reference: EvidenceReference) => ({
+      ...reference,
+      spans: Array.isArray(reference.spans)
+        ? reference.spans.filter((span) => span.licenseSafe === true)
+        : [],
+    }),
+  );
 
   return {
     id: String(metadata.clientRowId || row.id),
+    componentTaxonomyId: metadata.componentTaxonomyId || undefined,
+    failureModeTaxonomyId: metadata.failureModeTaxonomyId || undefined,
     component: row.component ?? "",
     function: row.function ?? "",
     requirement: String(metadata.requirement ?? ""),
@@ -112,10 +88,85 @@ function clientRowFromDb(row: any): PersistedFmeaRow {
     rpn: String(metadata.rpn ?? ""),
     evidenceCount: Number(metadata.evidenceCount || 0),
     sources: Array.isArray(metadata.sources) ? metadata.sources : [],
+    evidence,
+    scoreSuggestions: metadata.scoreSuggestions ?? {},
     owner: row.responsible_owner ?? "",
     status: normalizeStatus(row.review_status),
     included: metadata.included !== false,
+    domains: Array.isArray(metadata.domains) ? metadata.domains : [],
+    operatingContexts: Array.isArray(metadata.operatingContexts) ? metadata.operatingContexts : [],
+    provenance: metadata.provenance === "manual" ? "manual" : "evidence",
+    engineerEditedFields: Array.isArray(metadata.engineerEditedFields)
+      ? metadata.engineerEditedFields.filter((field: unknown) => typeof field === "string")
+      : [],
+    reviewedAt: typeof metadata.reviewedAt === "string" ? metadata.reviewedAt : undefined,
   };
+}
+
+const MAX_ANALYSIS_NAME_LENGTH = 200;
+const MAX_FMEA_ROWS = 1_000;
+const MAX_ROW_TEXT_LENGTH = 10_000;
+const MAX_EVIDENCE_REFERENCES_PER_ROW = 100;
+
+function validateFmeaPayload(payload: FmeaAnalysisPayload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return "Analysis payload must be an object.";
+  }
+  if (payload.id != null && typeof payload.id !== "string") {
+    return "Analysis id must be a string.";
+  }
+  if (payload.name != null && typeof payload.name !== "string") {
+    return "Analysis name must be a string.";
+  }
+  if (typeof payload.name === "string" && payload.name.length > MAX_ANALYSIS_NAME_LENGTH) {
+    return `Analysis names cannot exceed ${MAX_ANALYSIS_NAME_LENGTH} characters.`;
+  }
+  if (!Array.isArray(payload.rows)) return "rows must be an array.";
+  if (payload.rows.length > MAX_FMEA_ROWS) {
+    return `An analysis cannot contain more than ${MAX_FMEA_ROWS} rows.`;
+  }
+  if (payload.expectedRowIds != null && !Array.isArray(payload.expectedRowIds)) {
+    return "expectedRowIds must be an array when updating an analysis.";
+  }
+  if (
+    Array.isArray(payload.expectedRowIds) &&
+    (payload.expectedRowIds.length > MAX_FMEA_ROWS ||
+      payload.expectedRowIds.some(
+        (id) => typeof id !== "string" || !id.trim() || id.length > MAX_ROW_TEXT_LENGTH,
+      ))
+  ) {
+    return "expectedRowIds contains an invalid row id.";
+  }
+
+  const textFields: Array<keyof PersistedFmeaRow> = [
+    "id",
+    "component",
+    "function",
+    "requirement",
+    "industry",
+    "failureMode",
+    "effect",
+    "cause",
+    "currentControl",
+    "correctiveAction",
+    "owner",
+  ];
+  for (const row of payload.rows) {
+    if (!row || typeof row !== "object") return "Every row must be an object.";
+    if (typeof row.id !== "string" || !row.id.trim()) return "Every row requires a string id.";
+    if (
+      textFields.some((field) => {
+        const value = row[field];
+        return value != null && (typeof value !== "string" || value.length > MAX_ROW_TEXT_LENGTH);
+      })
+    ) {
+      return `Individual row fields cannot exceed ${MAX_ROW_TEXT_LENGTH} characters.`;
+    }
+    if (!Array.isArray(row.evidence) || row.evidence.length > MAX_EVIDENCE_REFERENCES_PER_ROW) {
+      return `Each row can contain at most ${MAX_EVIDENCE_REFERENCES_PER_ROW} evidence references.`;
+    }
+  }
+  return null;
 }
 
 function rowRpn(row: PersistedFmeaRow) {
@@ -159,7 +210,7 @@ async function getOwnedAnalysis(workspace: Workspace, analysisId: string) {
     .from("fmea_analyses")
     .select("id, name, status, metadata, created_at, updated_at")
     .eq("id", analysisId)
-    .or(ownerFilterForWorkspace(workspace))
+    .eq("organization_id", workspace.organization.id)
     .maybeSingle();
 
   if (error) {
@@ -192,7 +243,7 @@ export async function listFmeaAnalyses(request?: Request) {
     .from("fmea_analyses")
     .select("id, name, status, metadata, created_at, updated_at")
     .neq("status", "archived")
-    .or(ownerFilterForWorkspace(workspace))
+    .eq("organization_id", workspace.organization.id)
     .order("updated_at", { ascending: false });
 
   if (analysesError) {
@@ -207,7 +258,8 @@ export async function listFmeaAnalyses(request?: Request) {
     const { data: rows, error: rowsError } = await appSchema()
       .from("fmea_rows")
       .select("*")
-      .in("analysis_id", analysisIds);
+      .in("analysis_id", analysisIds)
+      .neq("review_status", "superseded");
 
     if (rowsError) {
       console.error("Failed to list FMEA analysis rows:", rowsError);
@@ -239,7 +291,8 @@ export async function getFmeaAnalysis(request: Request, analysisId: string) {
   const { data: rows, error } = await appSchema()
     .from("fmea_rows")
     .select("*")
-    .eq("analysis_id", analysisId);
+    .eq("analysis_id", analysisId)
+    .neq("review_status", "superseded");
 
   if (error) {
     console.error("Failed to load FMEA rows:", error);
@@ -264,47 +317,67 @@ export async function getFmeaAnalysis(request: Request, analysisId: string) {
 }
 
 export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPayload) {
-  const resolved = await resolveFmeaWorkspace(request);
-  if (!resolved) return null;
-
-  const { workspace, plan } = resolved;
-  if (!canMutateWorkspace(workspace)) {
-    return { forbidden: true as const };
+  const access = await requireWorkspaceMutationAccess(request, "content");
+  if (!access.ok) {
+    return access.status === 401 ? null : { forbidden: true as const };
   }
 
-  const rows = Array.isArray(payload.rows) ? payload.rows : [];
+  const workspace = access.workspace;
+  const plan = {
+    isPro: isProWorkspace(workspace),
+    savedAnalysisLimit: isProWorkspace(workspace) ? null : 1,
+    status: workspace.organization.billing_status,
+  };
+
+  const validationError = validateFmeaPayload(payload);
+  if (validationError) return { invalid: true as const, message: validationError };
+
+  const rows = payload.rows ?? [];
   const name = payload.name?.trim() || "Untitled Failure Mode and Effects Analysis";
   const existingId = payload.id?.trim() || null;
 
-  let analysisId = existingId;
-  if (analysisId) {
-    const ownedAnalysis = await getOwnedAnalysis(workspace, analysisId);
+  if (existingId) {
+    const ownedAnalysis = await getOwnedAnalysis(workspace, existingId);
     if (!ownedAnalysis) return { notFound: true as const };
 
-    const { error } = await appSchema()
-      .from("fmea_analyses")
-      .update({
-        organization_id: workspace.organization.id,
-        user_account_id: workspace.userAccount.id,
-        name,
-        metadata: {
-          rowCount: rows.length,
-          source: "web_editor",
-        },
-      })
-      .eq("id", analysisId)
-      .or(ownerFilterForWorkspace(workspace));
-
-    if (error) {
-      console.error("Failed to update FMEA analysis:", error);
-      throw new Error("Could not update analysis.");
+    // Updating an existing analysis requires the exact baseline row IDs from a
+    // successful GET/save. A failed or stale load therefore cannot submit an
+    // empty worksheet and supersede authoritative rows.
+    if (!Array.isArray(payload.expectedRowIds)) {
+      return {
+        conflict: true as const,
+        message: "Reload this analysis before saving; no verified row baseline was supplied.",
+      };
+    }
+    const { data: currentRows, error: currentRowsError } = await appSchema()
+      .from("fmea_rows")
+      .select("client_row_id")
+      .eq("analysis_id", existingId)
+      .neq("review_status", "superseded");
+    if (currentRowsError) {
+      console.error("Failed to verify FMEA row baseline:", currentRowsError);
+      throw new Error("Could not verify analysis state.");
+    }
+    const currentRowIds = (currentRows ?? [])
+      .map((row: { client_row_id?: string }) => row.client_row_id)
+      .filter((id: unknown): id is string => typeof id === "string")
+      .sort();
+    const expectedRowIds = [...new Set(payload.expectedRowIds)].sort();
+    if (
+      currentRowIds.length !== expectedRowIds.length ||
+      currentRowIds.some((id: string, index: number) => id !== expectedRowIds[index])
+    ) {
+      return {
+        conflict: true as const,
+        message: "This analysis changed after it was loaded. Reload it before saving.",
+      };
     }
   } else {
     const { count, error: countError } = await appSchema()
       .from("fmea_analyses")
       .select("id", { count: "exact", head: true })
       .neq("status", "archived")
-      .or(ownerFilterForWorkspace(workspace));
+      .eq("organization_id", workspace.organization.id);
 
     if (countError) {
       console.error("Failed to count FMEA analyses:", countError);
@@ -318,59 +391,37 @@ export async function saveFmeaAnalysis(request: Request, payload: FmeaAnalysisPa
       };
     }
 
-    const { data, error } = await appSchema()
-      .from("fmea_analyses")
-      .insert({
-        organization_id: workspace.organization.id,
-        user_account_id: workspace.userAccount.id,
-        created_by_user_account_id: workspace.userAccount.id,
-        name,
-        metadata: {
-          rowCount: rows.length,
-          source: "web_editor",
-        },
-      })
-      .select("id")
-      .single();
+  }
 
-    if (error) {
-      console.error("Failed to create FMEA analysis:", error);
-      throw new Error("Could not create analysis.");
+  const { data: analysisId, error } = await (getSupabaseServiceClient().rpc as any)(
+    "save_fmea_analysis_transaction",
+    {
+      p_analysis_id: existingId,
+      p_organization_id: workspace.organization.id,
+      p_user_account_id: workspace.userAccount.id,
+      p_name: name,
+      p_rows: rows.map((row, rowOrder) => ({ ...row, rowOrder })),
+    },
+  );
+
+  if (error || !analysisId) {
+    if (error?.message?.includes("FREE_PLAN_ANALYSIS_LIMIT")) {
+      return {
+        limitExceeded: true as const,
+        message: "Free tier includes 1 saved Failure Mode and Effects Analysis table. Upgrade to Pro for unlimited saved analyses.",
+      };
     }
-
-    analysisId = data.id;
+    console.error("Failed to save FMEA analysis transaction:", error);
+    throw new Error("Could not save analysis.");
   }
 
-  const { error: deleteError } = await appSchema()
-    .from("fmea_rows")
-    .delete()
-    .eq("analysis_id", analysisId);
-
-  if (deleteError) {
-    console.error("Failed to replace FMEA rows:", deleteError);
-    throw new Error("Could not replace analysis rows.");
-  }
-
-  if (rows.length) {
-    const { error: rowsError } = await appSchema()
-      .from("fmea_rows")
-      .insert(rows.map((row, index) => dbRowFromClient(analysisId!, row, index)));
-
-    if (rowsError) {
-      console.error("Failed to save FMEA rows:", rowsError);
-      throw new Error("Could not save analysis rows.");
-    }
-  }
-
-  return getFmeaAnalysis(request, analysisId!);
+  return getFmeaAnalysis(request, String(analysisId));
 }
 
 export async function renameFmeaAnalysis(request: Request, analysisId: string, name: string) {
-  const resolved = await resolveFmeaWorkspace(request);
-  if (!resolved) return null;
-  if (!canMutateWorkspace(resolved.workspace)) {
-    return { forbidden: true as const };
-  }
+  const access = await requireWorkspaceMutationAccess(request, "content");
+  if (!access.ok) return access.status === 401 ? null : { forbidden: true as const };
+  const resolved = { workspace: access.workspace };
 
   const ownedAnalysis = await getOwnedAnalysis(resolved.workspace, analysisId);
   if (!ownedAnalysis) return { notFound: true as const };
@@ -379,7 +430,7 @@ export async function renameFmeaAnalysis(request: Request, analysisId: string, n
     .from("fmea_analyses")
     .update({ name: name.trim() || ownedAnalysis.name })
     .eq("id", analysisId)
-    .or(ownerFilterForWorkspace(resolved.workspace));
+    .eq("organization_id", resolved.workspace.organization.id);
 
   if (error) {
     console.error("Failed to rename FMEA analysis:", error);
@@ -390,11 +441,9 @@ export async function renameFmeaAnalysis(request: Request, analysisId: string, n
 }
 
 export async function deleteFmeaAnalysis(request: Request, analysisId: string) {
-  const resolved = await resolveFmeaWorkspace(request);
-  if (!resolved) return null;
-  if (!canMutateWorkspace(resolved.workspace)) {
-    return { forbidden: true as const };
-  }
+  const access = await requireWorkspaceMutationAccess(request, "content");
+  if (!access.ok) return access.status === 401 ? null : { forbidden: true as const };
+  const resolved = { workspace: access.workspace };
 
   const ownedAnalysis = await getOwnedAnalysis(resolved.workspace, analysisId);
   if (!ownedAnalysis) return { notFound: true as const };
@@ -403,7 +452,7 @@ export async function deleteFmeaAnalysis(request: Request, analysisId: string) {
     .from("fmea_analyses")
     .delete()
     .eq("id", analysisId)
-    .or(ownerFilterForWorkspace(resolved.workspace));
+    .eq("organization_id", resolved.workspace.organization.id);
 
   if (error) {
     console.error("Failed to delete FMEA analysis:", error);

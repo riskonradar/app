@@ -10,7 +10,7 @@ enabled = true
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["public", "graphql_public"]
+schemas = ["public", "graphql_public", "app", "papers_raw", "knowledge"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
@@ -361,6 +361,9 @@ enabled = false
 enabled = false
 # Obtain from https://clerk.com/setup/supabase
 # domain = "example.clerk.accounts.dev"
+# The app currently verifies Clerk in Next.js and performs organization-scoped
+# server queries with the service role. Enable this only when end-user Clerk JWT
+# bridging is implemented and tested; local resets must not imply that bridge.
 
 # OAuth server configuration
 [auth.oauth_server]

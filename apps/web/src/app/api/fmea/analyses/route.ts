@@ -16,6 +16,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const contentLength = Number(request.headers.get("content-length") ?? 0);
+    if (Number.isFinite(contentLength) && contentLength > 2_000_000) {
+      return Response.json({ error: "Analysis payload is too large." }, { status: 413 });
+    }
     const payload = await request.json().catch(() => ({}));
     const result = await saveFmeaAnalysis(request, payload);
     if (!result) {
@@ -29,6 +33,12 @@ export async function POST(request: Request) {
     }
     if ("forbidden" in result) {
       return Response.json({ error: "You do not have permission to save analyses." }, { status: 403 });
+    }
+    if ("invalid" in result) {
+      return Response.json({ error: result.message }, { status: 400 });
+    }
+    if ("conflict" in result) {
+      return Response.json({ error: result.message }, { status: 409 });
     }
 
     return Response.json(result);

@@ -5,7 +5,7 @@ DROP POLICY IF EXISTS "service role all billing_payments"
   ON app.billing_payments;
 
 CREATE POLICY "service role all billing_payments"
-  ON app.billing_payments FOR ALL
+  ON app.billing_payments FOR ALL TO service_role
   USING (true)
   WITH CHECK (true);
 
@@ -13,7 +13,7 @@ DROP POLICY IF EXISTS "service role all billing_customers"
   ON app.billing_customers;
 
 CREATE POLICY "service role all billing_customers"
-  ON app.billing_customers FOR ALL
+  ON app.billing_customers FOR ALL TO service_role
   USING (true)
   WITH CHECK (true);
 
@@ -21,6 +21,6 @@ DROP POLICY IF EXISTS "service role all user_accounts"
   ON app.user_accounts;
 
 CREATE POLICY "service role all user_accounts"
-  ON app.user_accounts FOR ALL
+  ON app.user_accounts FOR ALL TO service_role
   USING (true)
   WITH CHECK (true);

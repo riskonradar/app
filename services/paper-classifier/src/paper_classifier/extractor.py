@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 
-from paper_classifier.failure_modes import canonical_failure_mode_label
-from paper_classifier.keywords import ALL_TERMS, KeywordTerm
+from paper_classifier.keywords import HEURISTIC_TERMS, KeywordTerm
 from paper_classifier.models import (
     ClaimRelationship,
     ClaimType,
@@ -16,11 +16,25 @@ from paper_classifier.models import (
     SupportType,
 )
 
-CLASSIFIER_VERSION = "keyword-span-preprocessor-v1"
+CLASSIFIER_VERSION = "keyword-taxonomy-preprocessor-v2"
 
 
-def classify_paper(paper: Paper) -> ClassificationResult:
-    claims = _dedupe_claims(_direct_keyword_claims(paper))
+@dataclass(frozen=True)
+class _TermMatch:
+    term: KeywordTerm
+    source_field: str
+    source_record_id: str | None
+    text: str
+    start: int
+    end: int
+
+
+def classify_paper(
+    paper: Paper,
+    taxonomy_terms: Iterable[KeywordTerm] = (),
+) -> ClassificationResult:
+    taxonomy_terms = tuple(taxonomy_terms)
+    claims = _dedupe_claims(_direct_keyword_claims(paper, taxonomy_terms))
     claims = tuple([*claims, *_inferred_claims(claims)])
     relationships = _relationships(claims)
 
@@ -37,92 +51,292 @@ def classify_paper(paper: Paper) -> ClassificationResult:
             "extractor": "deterministic keyword/span preprocessor",
             "claim_count": len(claims),
             "relationship_count": len(relationships),
+            "input_source": "full_text" if paper.full_text else "title_abstract",
+            "full_text_id": paper.full_text_id,
+            "full_text_sha256": paper.full_text_sha256,
+            "taxonomy_term_count": len(taxonomy_terms),
         },
     )
 
 
-def _direct_keyword_claims(paper: Paper) -> tuple[EvidenceClaim, ...]:
-    claims: list[EvidenceClaim] = []
-    fields = (("title", paper.title), ("abstract", paper.abstract or ""))
-    for term in ALL_TERMS:
-        for source_field, value in fields:
-            spans = tuple(_find_spans(source_field, value, term.aliases))
-            if not spans:
-                continue
-            normalized_value = term.normalized
-            if term.claim_type == ClaimType.FAILURE_MODE:
-                normalized_value = canonical_failure_mode_label(term.normalized)
-                if not normalized_value:
-                    continue
-            claims.append(
-                EvidenceClaim(
-                    claim_type=term.claim_type,
-                    raw_value=spans[0].text,
-                    normalized_value=normalized_value,
-                    support_type=SupportType.DIRECT_SPAN,
-                    confidence=_term_confidence(term, source_field),
-                    spans=spans,
-                    metadata={"matched_aliases": sorted({span.text.lower() for span in spans})},
-                )
-            )
-            break
-
+def _direct_keyword_claims(
+    paper: Paper,
+    taxonomy_terms: tuple[KeywordTerm, ...],
+) -> tuple[EvidenceClaim, ...]:
+    claims = [
+        *_taxonomy_keyword_claims(paper, taxonomy_terms),
+        *_heuristic_keyword_claims(paper),
+    ]
     claims.extend(_sentence_claims(paper))
     return tuple(claims)
 
 
+def _taxonomy_keyword_claims(
+    paper: Paper,
+    taxonomy_terms: tuple[KeywordTerm, ...],
+) -> tuple[EvidenceClaim, ...]:
+    grouped: dict[tuple[ClaimType, str], list[_TermMatch]] = {}
+    selected_field: dict[tuple[ClaimType, str], str] = {}
+
+    for source_field, value, source_record_id in _source_fields(paper):
+        matches = _select_non_overlapping(
+            _find_term_matches(
+                source_field,
+                value,
+                source_record_id,
+                taxonomy_terms,
+            )
+        )
+        for match in matches:
+            key = (match.term.claim_type, match.term.normalized.casefold())
+            first_field = selected_field.setdefault(key, source_field)
+            if first_field == source_field:
+                grouped.setdefault(key, []).append(match)
+
+    claims: list[EvidenceClaim] = []
+    for matches in grouped.values():
+        term = matches[0].term
+        spans = tuple(_span_from_match(match) for match in matches)
+        claims.append(
+            EvidenceClaim(
+                claim_type=term.claim_type,
+                raw_value=spans[0].text,
+                normalized_value=term.normalized,
+                support_type=SupportType.DIRECT_SPAN,
+                confidence=_term_confidence(term, matches[0].source_field),
+                spans=spans,
+                metadata={
+                    "matched_aliases": sorted({span.text.casefold() for span in spans}),
+                    "vocabulary_source": "knowledge_taxonomy",
+                },
+            )
+        )
+    return tuple(claims)
+
+
+def _heuristic_keyword_claims(paper: Paper) -> tuple[EvidenceClaim, ...]:
+    grouped: dict[tuple[ClaimType, str], list[_TermMatch]] = {}
+    selected_field: dict[tuple[ClaimType, str], str] = {}
+
+    for source_field, value, source_record_id in _source_fields(paper):
+        matches = _select_non_overlapping(
+            _find_term_matches(
+                source_field,
+                value,
+                source_record_id,
+                HEURISTIC_TERMS,
+            )
+        )
+        for match in matches:
+            # Open-ended fields are evidence phrases, not a closed vocabulary.
+            # Preserve the source phrase instead of replacing it with the broad
+            # heuristic bucket used to find it.
+            key = (match.term.claim_type, match.text.casefold())
+            first_field = selected_field.setdefault(key, source_field)
+            if first_field == source_field:
+                grouped.setdefault(key, []).append(match)
+
+    claims: list[EvidenceClaim] = []
+    for matches in grouped.values():
+        term = matches[0].term
+        spans = tuple(_span_from_match(match) for match in matches)
+        claims.append(
+            EvidenceClaim(
+                claim_type=term.claim_type,
+                raw_value=spans[0].text,
+                normalized_value=spans[0].text,
+                support_type=SupportType.DIRECT_SPAN,
+                confidence=_term_confidence(term, matches[0].source_field),
+                spans=spans,
+                metadata={
+                    "heuristic_group": term.normalized,
+                    "matched_aliases": sorted({span.text.casefold() for span in spans}),
+                },
+            )
+        )
+    return tuple(claims)
+
+
+def _source_fields(
+    paper: Paper,
+) -> tuple[tuple[str, str, str | None], ...]:
+    return (
+        ("title", paper.title, None),
+        ("abstract", paper.abstract or "", None),
+        ("full_text", paper.full_text or "", paper.full_text_id),
+    )
+
+
+def _find_term_matches(
+    source_field: str,
+    value: str,
+    source_record_id: str | None,
+    terms: Iterable[KeywordTerm],
+) -> tuple[_TermMatch, ...]:
+    matches: list[_TermMatch] = []
+    seen: set[tuple[ClaimType, str, int, int]] = set()
+    for term in sorted(
+        terms,
+        key=lambda item: (item.claim_type.value, item.normalized.casefold()),
+    ):
+        aliases = {term.normalized, *term.aliases}
+        for alias in sorted(aliases, key=lambda item: (-len(item), item.casefold())):
+            if not alias.strip():
+                continue
+            pattern = re.compile(
+                rf"(?<!\w){re.escape(alias)}(?!\w)",
+                re.IGNORECASE,
+            )
+            for match in pattern.finditer(value):
+                key = (
+                    term.claim_type,
+                    term.normalized.casefold(),
+                    match.start(),
+                    match.end(),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                matches.append(
+                    _TermMatch(
+                        term=term,
+                        source_field=source_field,
+                        source_record_id=source_record_id,
+                        text=value[match.start() : match.end()],
+                        start=match.start(),
+                        end=match.end(),
+                    )
+                )
+    return tuple(matches)
+
+
+def _select_non_overlapping(
+    matches: Iterable[_TermMatch],
+) -> tuple[_TermMatch, ...]:
+    by_type: dict[ClaimType, list[_TermMatch]] = {}
+    for match in matches:
+        by_type.setdefault(match.term.claim_type, []).append(match)
+
+    accepted: list[_TermMatch] = []
+    for claim_type in sorted(by_type, key=lambda item: item.value):
+        selected: list[_TermMatch] = []
+        candidates = sorted(
+            by_type[claim_type],
+            key=lambda item: (
+                -(item.end - item.start),
+                -item.term.depth,
+                -len(item.term.normalized),
+                item.start,
+                item.end,
+                item.term.normalized.casefold(),
+                item.text.casefold(),
+            ),
+        )
+        for candidate in candidates:
+            if any(
+                candidate.start < existing.end and existing.start < candidate.end
+                for existing in selected
+            ):
+                continue
+            selected.append(candidate)
+        accepted.extend(selected)
+    return tuple(
+        sorted(
+            accepted,
+            key=lambda item: (
+                item.start,
+                item.end,
+                item.term.claim_type.value,
+                item.term.normalized.casefold(),
+            ),
+        )
+    )
+
+
+def _span_from_match(match: _TermMatch) -> EvidenceSpan:
+    return EvidenceSpan(
+        match.source_field,
+        match.text,
+        match.start,
+        match.end,
+        source_record_id=match.source_record_id,
+    )
+
+
 def _sentence_claims(paper: Paper) -> tuple[EvidenceClaim, ...]:
     claims: list[EvidenceClaim] = []
-    abstract = paper.abstract or ""
-    for sentence in _sentences(abstract):
-        lower = sentence.lower()
-        if any(marker in lower for marker in ("effect", "resulted in", "leading to", "led to", "caused")):
-            if any(marker in lower for marker in ("failure", "loss", "damage", "shutdown", "leakage", "fracture")):
-                start = abstract.find(sentence)
+    for source_field, source_text, source_record_id in (
+        ("abstract", paper.abstract or "", None),
+        ("full_text", paper.full_text or "", paper.full_text_id),
+    ):
+        for sentence in _sentences(source_text):
+            lower = sentence.lower()
+            if any(marker in lower for marker in ("effect", "resulted in", "leading to", "led to", "caused")):
+                if any(marker in lower for marker in ("failure", "loss", "damage", "shutdown", "leakage", "fracture")):
+                    start = source_text.find(sentence)
+                    claims.append(
+                        EvidenceClaim(
+                            claim_type=ClaimType.EFFECT,
+                            raw_value=sentence,
+                            normalized_value=None,
+                            support_type=SupportType.DIRECT_SPAN,
+                            confidence=0.55,
+                            spans=(EvidenceSpan(source_field, sentence, start if start >= 0 else None, start + len(sentence) if start >= 0 else None, source_record_id=source_record_id),),
+                            metadata={"extractor": "effect_sentence_pattern"},
+                        )
+                    )
+            if any(marker in lower for marker in ("prevent", "mitigat", "improv", "strengthen", "inspection", "maintenance")):
+                start = source_text.find(sentence)
                 claims.append(
                     EvidenceClaim(
-                        claim_type=ClaimType.EFFECT,
+                        claim_type=ClaimType.CONTROL,
                         raw_value=sentence,
                         normalized_value=None,
                         support_type=SupportType.DIRECT_SPAN,
-                        confidence=0.55,
-                        spans=(EvidenceSpan("abstract", sentence, start if start >= 0 else None, start + len(sentence) if start >= 0 else None),),
-                        metadata={"extractor": "effect_sentence_pattern"},
+                        confidence=0.5,
+                        spans=(EvidenceSpan(source_field, sentence, start if start >= 0 else None, start + len(sentence) if start >= 0 else None, source_record_id=source_record_id),),
+                        metadata={"extractor": "control_sentence_pattern"},
                     )
                 )
-        if any(marker in lower for marker in ("prevent", "mitigat", "improv", "strengthen", "inspection", "maintenance")):
-            start = abstract.find(sentence)
-            claims.append(
-                EvidenceClaim(
-                    claim_type=ClaimType.CONTROL,
-                    raw_value=sentence,
-                    normalized_value=None,
-                    support_type=SupportType.DIRECT_SPAN,
-                    confidence=0.5,
-                    spans=(EvidenceSpan("abstract", sentence, start if start >= 0 else None, start + len(sentence) if start >= 0 else None),),
-                    metadata={"extractor": "control_sentence_pattern"},
-                )
-            )
     return tuple(claims)
 
 
 def _inferred_claims(claims: tuple[EvidenceClaim, ...]) -> tuple[EvidenceClaim, ...]:
-    normalized = {claim.normalized_value for claim in claims if claim.normalized_value}
+    normalized = {
+        claim.normalized_value.casefold()
+        for claim in claims
+        if claim.normalized_value
+    }
     by_type = {claim.claim_type for claim in claims}
     inferred: list[EvidenceClaim] = []
 
-    if "Corrosion / pitting" in normalized and "Fatigue" in normalized:
+    has_direct_corrosion_fatigue = any(
+        claim.claim_type == ClaimType.FAILURE_MODE
+        and claim.normalized_value
+        and "corrosion" in claim.normalized_value.casefold()
+        and "fatigue" in claim.normalized_value.casefold()
+        for claim in claims
+    )
+    if (
+        any("corrosion" in value for value in normalized)
+        and any("fatigue" in value for value in normalized)
+        and not has_direct_corrosion_fatigue
+    ):
         spans = tuple(
             span
             for claim in claims
-            if claim.normalized_value in {"Corrosion / pitting", "Fatigue"}
+            if claim.normalized_value
+            and any(
+                marker in claim.normalized_value.casefold()
+                for marker in ("corrosion", "fatigue")
+            )
             for span in claim.spans[:1]
         )
         inferred.append(
             EvidenceClaim(
                 claim_type=ClaimType.FAILURE_MODE,
                 raw_value="corrosion fatigue",
-                normalized_value=canonical_failure_mode_label("corrosion fatigue"),
+                normalized_value="corrosion fatigue",
                 support_type=SupportType.INFERRED_FROM_SPAN,
                 confidence=0.62,
                 spans=spans,
@@ -135,7 +349,11 @@ def _inferred_claims(claims: tuple[EvidenceClaim, ...]) -> tuple[EvidenceClaim, 
         spans = tuple(
             span
             for claim in claims
-            if claim.claim_type == ClaimType.FAILURE_MODE or claim.normalized_value == "cyclic loading"
+            if claim.claim_type == ClaimType.FAILURE_MODE
+            or (
+                claim.normalized_value
+                and claim.normalized_value.casefold() == "cyclic loading"
+            )
             for span in claim.spans[:1]
         )
         inferred.append(
@@ -184,13 +402,6 @@ def _relationships(claims: tuple[EvidenceClaim, ...]) -> tuple[ClaimRelationship
     return tuple(relationships)
 
 
-def _find_spans(source_field: str, value: str, aliases: Iterable[str]) -> Iterable[EvidenceSpan]:
-    for alias in aliases:
-        pattern = re.compile(rf"\b{re.escape(alias)}\b", re.IGNORECASE)
-        for match in pattern.finditer(value):
-            yield EvidenceSpan(source_field, value[match.start() : match.end()], match.start(), match.end())
-
-
 def _sentences(value: str) -> Iterable[str]:
     for sentence in re.split(r"(?<=[.!?])\s+", value):
         stripped = sentence.strip()
@@ -201,7 +412,11 @@ def _sentences(value: str) -> Iterable[str]:
 def _dedupe_claims(claims: Iterable[EvidenceClaim]) -> tuple[EvidenceClaim, ...]:
     deduped: dict[tuple[str, str, str], EvidenceClaim] = {}
     for claim in claims:
-        key = (claim.claim_type.value, claim.normalized_value or claim.raw_value.lower(), claim.support_type.value)
+        key = (
+            claim.claim_type.value,
+            (claim.normalized_value or claim.raw_value).casefold(),
+            claim.support_type.value,
+        )
         existing = deduped.get(key)
         if existing is None or claim.confidence > existing.confidence:
             deduped[key] = claim

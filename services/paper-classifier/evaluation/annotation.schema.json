@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://riskonradar.com/schemas/classifier-eval-annotation-v1.json",
+  "title": "Risk on Radar classifier human annotation record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "sample_id", "relevance", "claims", "relationships"],
+  "properties": {
+    "format_version": {"const": 1},
+    "sample_id": {"type": "string", "minLength": 1},
+    "relevance": {"enum": ["relevant", "possibly_relevant", "not_relevant"]},
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["annotation_id", "claim_type", "value", "source_field", "evidence_text"],
+        "properties": {
+          "annotation_id": {"type": "string", "minLength": 1},
+          "claim_type": {
+            "enum": ["component", "failure_mode", "cause", "effect", "control", "corrective_action", "analysis_method", "application", "operating_context", "detection_method", "maintenance_action", "material", "environment"]
+          },
+          "value": {"type": "string", "minLength": 1},
+          "source_field": {"enum": ["title", "abstract", "full_text"]},
+          "evidence_text": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject_annotation_id", "relationship_type", "object_annotation_id"],
+        "properties": {
+          "subject_annotation_id": {"type": "string", "minLength": 1},
+          "relationship_type": {"enum": ["has_failure_mode", "caused_by", "has_effect", "mitigated_by", "corrected_by", "detected_by", "analysed_by", "has_context"]},
+          "object_annotation_id": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "notes": {"type": "string"}
+  }
+}

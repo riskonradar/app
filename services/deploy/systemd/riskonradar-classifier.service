@@ -1,0 +1,51 @@
+[Unit]
+Description=Risk on Radar paper classifier worker
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=true
+WorkingDirectory=/opt/riskonradar
+EnvironmentFile=/etc/riskonradar/pipeline.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/opt/riskonradar/services/deploy/healthcheck-ping CLASSIFIER_HEALTHCHECK_URL start
+ExecStart=/opt/riskonradar/venv/bin/paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1
+ExecStopPost=/opt/riskonradar/services/deploy/healthcheck-ping CLASSIFIER_HEALTHCHECK_URL result
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=128M
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+RemoveIPC=true
+UMask=0077
+MemoryHigh=768M
+MemoryMax=1G
+CPUQuota=200%
+TasksMax=32
+LimitNOFILE=256
+
+[Install]
+WantedBy=multi-user.target

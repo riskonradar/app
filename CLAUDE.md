@@ -38,7 +38,10 @@ Continuously structures fragmented failure knowledge from scientific literature,
 
 ### System-Level Risk Analysis
 
-Models engineering assets as interconnected systems, not isolated parts. Future workflows should support subsystem dependencies, failure propagation, cascading risk, interface failure modes, and user-defined engineering systems.
+Models engineering assets as interconnected systems, not isolated parts. The implemented
+foundation supports tenant-defined component trees, dependencies, reviewed failure
+propagation, and conservative cascade paths. Aggregate reasoning is a separate optional,
+review-only stage and must not mutate accepted system or FMEA truth.
 
 ### Cross-Domain Failure Intelligence
 
@@ -53,10 +56,10 @@ Phase 1 — Failure Intelligence Engine (active):
 - DOI-linked citations, confidence scoring, evidence spans with character offsets.
 - Human-in-the-loop validation.
 
-Phase 2 — System-Level Risk Analysis:
-- Graph-based failure propagation.
+Phase 2 — System-Level Risk Analysis (foundation implemented):
+- Tenant-defined system/component trees backed by shared taxonomy nodes.
 - Cross-component dependency visualization.
-- Interface failure mode library.
+- Human-reviewed failure-propagation edges and conservative cascade paths.
 
 Phase 3 — Cross-Domain Failure Intelligence:
 - Multi-domain taxonomy alignment.
@@ -181,15 +184,19 @@ Flags: `--limit N`, `--since-days N` (incremental: only papers published in the 
 ```sh
 cd services/paper-classifier
 pip install -e .
-paper-classifier classify --mode incremental --limit 200 --extractor auto --workers 8 --watch --interval-seconds 60
+paper-classifier classify --mode incremental --limit 25 --extractor llm --workers 1 --watch --interval-seconds 300
 paper-classifier import-easa                  # import from public.easa_ads
 paper-classifier import-easa --dry-run        # preview without writing
 paper-classifier import-corpus --corpus-db path/to/corpus.db
+paper-classifier ingest-full-text --limit 100
+paper-classifier link-taxonomy
+paper-classifier reason-system --organization-id UUID --asset-id UUID       # preview
+paper-classifier reason-system --organization-id UUID --asset-id UUID --execute
 ```
 
-Key flags for classify: `--extractor auto|llm|keyword`, `--workers N` (parallel API calls, default 4), `--limit N`, `--watch`, `--dry-run`.
-
-`--extractor auto` uses LLM if `LLM_PROVIDER` is set, otherwise keyword/span fallback.
+Key flags for classify: `--extractor auto|llm|keyword`, `--workers N`, `--limit N`, `--watch`, `--dry-run`.
+Production must use `--extractor llm`. `auto`/`keyword` are diagnostics only and their jobs
+must never be represented as LLM output.
 
 ### Environment variables
 
@@ -200,11 +207,12 @@ DATABASE_URL=postgresql://postgres.PROJECT:PASSWORD@aws-0-eu-west-1.pooler.supab
 
 # Paper discovery
 DISCOVERY_CONTACT_EMAIL=you@example.com   # polite pool priority for OpenAlex
+OPENALEX_API_KEY=...                      # free key required for production-scale calls
 
-# Paper classifier — active provider
+# Paper classifier — example provider, not a claim about production
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-flash-latest           # thinkingBudget=0 is set in code to disable thinking mode
+GEMINI_MODEL=gemini-2.5-flash-lite         # example candidate; not a production-state claim
 
 # Other supported providers
 # LLM_PROVIDER=groq
@@ -216,6 +224,11 @@ GEMINI_MODEL=gemini-flash-latest           # thinkingBudget=0 is set in code to 
 # LLM_PROVIDER=anthropic
 # ANTHROPIC_API_KEY=...
 # ANTHROPIC_MODEL=claude-haiku-4-5
+
+# Optional aggregate reasoner: separate provider/model/key from per-paper extraction
+REASONING_LLM_PROVIDER=...
+REASONING_LLM_MODEL=...
+REASONING_LLM_API_KEY=...
 
 # Web app
 NEXT_PUBLIC_SUPABASE_URL=https://rqzwdzhphxuayqwptqia.supabase.co
@@ -252,6 +265,8 @@ Systemd units:
 riskonradar-discovery.timer
 riskonradar-discovery.service
 riskonradar-classifier.service
+riskonradar-full-text.timer
+riskonradar-full-text.service
 ```
 
 Runtime model:
@@ -259,7 +274,8 @@ Runtime model:
 - Discovery runs weekly and writes new/changed candidates as `pending_classification`.
 - Classifier runs continuously, polling pending candidates every 5 minutes.
 - The queue handoff is Supabase state, not a direct service-to-service call.
-- Production classifier uses Gemini with `--extractor llm`, `--workers 1`.
+- The configured provider must be chosen from the fixed human-scored evaluation, not from docs.
+- Query `knowledge.classification_jobs` to verify the provider/model actually producing jobs.
 - Do not use `--extractor auto` in production unless the user explicitly accepts keyword fallback being saved.
 - Never commit `/etc/riskonradar/pipeline.env` or values copied from it.
 
@@ -278,7 +294,8 @@ Backend: Use Next.js for the app backend. Do not add a separate general-purpose 
 
 Database: Supabase Postgres. Use the session pooler (port 5432, `aws-0-eu-west-1.pooler.supabase.com`) not the direct connection (IPv6 only on free tier).
 
-Auth: Clerk. One account per person for MVP. No org/team management yet. Mirror minimum Clerk user metadata in `app.user_accounts`.
+Auth: Clerk personal accounts and organizations. Mirror minimum user/workspace state in
+`app.*`; enforce owner/admin/member/viewer permissions on every product mutation.
 
 Billing: Stripe Billing with hosted Checkout Sessions. Server-side only. Secrets never reach browser code.
 
@@ -288,13 +305,11 @@ Do not change this architecture without explicit user approval.
 
 Supabase project: `https://rqzwdzhphxuayqwptqia.supabase.co`
 
-Current corpus (as of June 2026):
-- **3,417** paper candidates: 3,098 peer-reviewed corpus papers + 319 EASA airworthiness directives
-- **3,413** classified, 4 pending (papers with no abstract)
-- **14,990** atomic evidence claims extracted
-- **20,365** evidence spans (exact source text with character offsets)
-- **3,729** claim relationships (FMEA-shaped typed links between claims)
-- Active classifier version: `llm-extractor-v2:gemini:gemini-flash-latest`
+Never copy live counts or an "active model" into this document. Use the gated `/admin`
+dashboard or schema-qualified queries against `papers_raw.paper_candidates`,
+`knowledge.classification_jobs`, `knowledge.evidence_claims`, `knowledge.evidence_spans`, and
+`knowledge.claim_relationships`. The code classifier prefix is currently
+`llm-extractor-v5`; production history may contain other versions and providers.
 
 The knowledge base covers failure modes, causes, effects, controls, corrective actions, analysis methods, and applications across bearings, gears, pumps, seals, blades, shafts, valves, welds, pipelines, sensors, batteries, converters, and structural components — predominantly in aviation, wind energy, oil and gas, and heavy industrial domains.
 

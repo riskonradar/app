@@ -7,833 +7,47 @@ import {
   type ColumnDef,
   flexRender,
 } from "@tanstack/react-table";
-import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { AppNav } from "@/components/app-nav";
-import fmeaData from "@/data/fmea-turbofan-data.json";
-import detectionReference from "@/data/fmea-detection-reference.json";
-import occurrenceReference from "@/data/fmea-occurrence-reference.json";
-import severityReference from "@/data/fmea-severity-reference.json";
-import propagationPaths from "@/data/turbofan-propagation-paths.json";
-
-type Source = {
-  title: string;
-  year?: string;
-  doi?: string;
-  url?: string;
-  category?: string;
-  evidenceText?: string;
-  sourceField?: string;
-  charStart?: number;
-  charEnd?: number;
-};
-
-type EvidenceRow = {
-  component: string;
-  failureMode: string;
-  effect: string;
-  cause: string;
-  severity: string;
-  occurrence: string;
-  detection: string;
-  correctiveAction: string;
-  rpn: string;
-  evidenceCount: number;
-  sources: Source[];
-};
-
-type FmeaRow = EvidenceRow & {
-  id: string;
-  function: string;
-  requirement: string;
-  industry: string;
-  currentControl: string;
-  owner: string;
-  status: "needs_review" | "accepted" | "rejected";
-  included: boolean;
-};
-
-type SystemTemplate = {
-  id: string;
-  name: string;
-  domain: string;
-  source: string;
-  description: string;
-  components: string[];
-  stats: {
-    sourceRecords: number;
-    relevantRecords?: number;
-    rows: number;
-    components: number;
-    sourceType: string;
-  };
-};
-
-type FmeaDataset = {
-  system?: string;
-  sourceType?: string;
-  recordCount: number;
-  relevantRecordCount?: number;
-  rowCount: number;
-  components: string[];
-  rows: EvidenceRow[];
-};
-
-type SelectionStep = "initial" | "table";
-type EditableField =
-  | "included"
-  | "function"
-  | "industry"
-  | "failureMode"
-  | "effect"
-  | "severity"
-  | "cause"
-  | "occurrence"
-  | "currentControl"
-  | "detection"
-  | "correctiveAction"
-  | "status";
-
-type LoadingAction = "upload" | "system" | "export" | null;
-
-type SavedAnalysisResponse = {
-  analysis?: {
-    id: string;
-    name: string;
-    rows: FmeaRow[];
-  };
-  analyses?: Array<{
-    id: string;
-  }>;
-  error?: string;
-  plan?: {
-    isPro: boolean;
-    savedAnalysisLimit: number | null;
-    status: string;
-  };
-};
-
-const systemTemplates: SystemTemplate[] = [
-  {
-    id: "turbofan",
-    name: "Turbofan engine",
-    domain: "Aviation propulsion",
-    source: `${fmeaData.recordCount} evidence records from papers + EASA; ${fmeaData.rowCount} merged analysis rows`,
-    description:
-      "A preloaded reliability workspace built from the turbofan prototype corpus.",
-    components: fmeaData.components as string[],
-    stats: {
-      sourceRecords: fmeaData.recordCount,
-      relevantRecords: fmeaData.relevantRecordCount,
-      rows: fmeaData.rowCount,
-      components: (fmeaData.components as string[]).length,
-      sourceType: fmeaData.sourceType,
-    },
-  },
-];
-
-const defaultControls = [
-  "Visual inspection",
-  "Vibration monitoring",
-  "Oil debris analysis",
-  "Scheduled overhaul",
-  "Borescope inspection",
-  "Thermal trend monitoring",
-];
-
-const scoreOptions = Array.from({ length: 10 }, (_, index) => String(index + 1));
-const bundledTurbofanData = fmeaData as FmeaDataset;
-const editableFields: EditableField[] = [
-  "included",
-  "function",
-  "industry",
-  "failureMode",
-  "effect",
-  "severity",
-  "cause",
-  "occurrence",
-  "currentControl",
-  "detection",
-  "correctiveAction",
-  "status",
-];
-
-const fieldHelp: Record<string, string> = {
-  included: "Select this row if it should be included in the final Failure Mode and Effects Analysis export.",
-  component: "Physical engineering part or subsystem being analyzed.",
-  function: "Intended function the component must perform.",
-  failureMode: "How the component or function can fail.",
-  effect: "Consequence if the failure mode occurs.",
-  severity: "Severity score: 1 is minor, 10 is hazardous or catastrophic.",
-  cause: "Why the failure mode occurs.",
-  occurrence: "Occurrence score: 1 is rare, 10 is frequent.",
-  currentControl: "Existing prevention, detection, inspection, design, or maintenance control.",
-  detection: "Detection score: 1 is easily detected before harm, 10 is unlikely to be detected.",
-  rpn: "Risk Priority Number calculated as Severity x Occurrence x Detection.",
-  correctiveAction: "Recommended action to reduce risk or correct a confirmed issue.",
-  evidence: "Source count and citations behind the extracted Failure Mode and Effects Analysis fields.",
-  status: "Human review state for this row.",
-};
-
-const worksheetColumnSpecs = [
-  { id: "included", size: 44 },
-  { id: "function", size: 142 },
-  { id: "industry", size: 88 },
-  { id: "failureMode", size: 150 },
-  { id: "effect", size: 164 },
-  { id: "severity", size: 36 },
-  { id: "cause", size: 164 },
-  { id: "occurrence", size: 36 },
-  { id: "currentControl", size: 154 },
-  { id: "detection", size: 36 },
-  { id: "rpn", size: 52 },
-  { id: "correctiveAction", size: 150 },
-  { id: "evidence", size: 82 },
-  { id: "status", size: 44 },
-] as const;
-
-const helpFields = new Set(["included", "failureMode", "severity", "occurrence", "detection", "rpn", "evidence"]);
-const turbofanComponents = [
-  "Bearing",
-  "Combustor",
-  "Engine inlet / intake",
-  "Engine mount",
-  "Exhaust",
-  "Fan / fan blade",
-  "Fan case",
-  "Gearbox / accessory gearbox",
-  "High-pressure compressor",
-  "High-pressure turbine",
-  "Low-pressure compressor",
-  "Low-pressure turbine",
-  "Nacelle",
-  "Nozzle / fuel injector",
-  "Oil system / lubrication",
-  "Pump",
-  "Seal",
-  "Sensor / instrumentation",
-  "Shaft",
-  "Valve",
-];
-
-const componentRank = new Map(turbofanComponents.map((component, index) => [component, index]));
-const componentFamilies: Array<[RegExp, string | null]> = [
-  [/\b(genx|tfe731|turbofan engine|turbo fan engine|aero engine|aero-engine)\b/i, null],
-  [/\b(bearing|bearings)\b/i, "Bearing"],
-  [/\b(combustor|combustion chamber|combustion outer liner)\b/i, "Combustor"],
-  [/\b(inlet|intake|nose cowl|air intake|duct liner)\b/i, "Engine inlet / intake"],
-  [/\b(engine mount|engine support|support looseness|mounts?)\b/i, "Engine mount"],
-  [/\b(exhaust|thrust reverser|muffler|noise suppressor)\b/i, "Exhaust"],
-  [/\b(fan blade|fan blades|turbofan blade|fan hub|engine fan hub|fan rotor|fan stage|fan stator|mistuned fan|variable pitch fan|fan disc|fan disk)\b/i, "Fan / fan blade"],
-  [/\b(fan case|fan casing|fan containment|fan cowl)\b/i, "Fan case"],
-  [/\b(gearbox|gear box|accessory gearbox|reduction gearbox|gear)\b/i, "Gearbox / accessory gearbox"],
-  [/\b(high[- ]pressure(?:\s*\([^)]+\))?\s+compressor|hpc|compressor blade)\b/i, "High-pressure compressor"],
-  [/\b(high[- ]pressure(?:\s*\([^)]+\))?\s+turbine|hpt|hp turbine|turbine blade|turbine components?|turbine disk|turbine disc|disk posts?|firtree)\b/i, "High-pressure turbine"],
-  [/\b(low[- ]pressure(?:\s*\([^)]+\))?\s+compressor|lpc)\b/i, "Low-pressure compressor"],
-  [/\b(low[- ]pressure(?:\s*\([^)]+\))?\s+turbine|lpt|lp turbine)\b/i, "Low-pressure turbine"],
-  [/\b(nacelle|cowling|cowl)\b/i, "Nacelle"],
-  [/\b(fuel nozzle|fuel injector|injector|nozzle|fuel manifold|fuel metering)\b/i, "Nozzle / fuel injector"],
-  [/\b(oil system|lubrication|lubricant|engine oil|oil filter|oil strainer|air\/oil|heat exchanger)\b/i, "Oil system / lubrication"],
-  [/\b(oil pump|fuel pump|scavenge pump|pump)\b/i, "Pump"],
-  [/\b(air seal|sealing ring|seal|seals)\b/i, "Seal"],
-  [/\b(fadec|eec|electronic engine control|engine controls?|sensor|sensors|variable geometry|instrumentation)\b/i, "Sensor / instrumentation"],
-  [/\b(inter[- ]shaft|rotor shaft|compressor shaft|dual-rotor|turbofan rotor|shaft|spool)\b/i, "Shaft"],
-  [/\b(operability bleed valve|obv|bleed valve|valve|valves|bypass valve)\b/i, "Valve"],
-];
-
-const failureModeFamilies: Array<[RegExp, string | null]> = [
-  [/\b(noise|acoustic issue|acoustic propagation)\b/i, null],
-  [/\b(rotor\/engine vibration|high vibration)\b/i, null],
-  [/\b(low[- ]cycle fatigue|lcf|high[- ]cycle fatigue|hcf|very[- ]high[- ]cycle fatigue|vhcf|thermo[- ]mechanical fatigue|tmf|thermal fatigue|fretting fatigue|dwell fatigue|fatigue failure|fatigue life|fatigue crack)\b/i, "Fatigue"],
-  [/\b(crack|cracks|cracking|fracture|rupture|burst|breakage|burned-through|burn-through)\b/i, "Crack / fracture"],
-  [/\b(bird strike|impact damage|ingestion damage|ice ingestion|particle ingestion|sand ingestion|foreign object|fod)\b/i, "Foreign object damage (FOD)"],
-  [/\b(flow turbulence|flow disturbance|flow distortion|potential-flow disturbance|potential flow disturbance|flow instability|swirl distortion)\b/i, "Flow disturbance / distortion"],
-  [/\b(stall flutter|blade flexural vibration|blade\/rotor flutter|blade flutter|rotor flutter|blade\/rotor vibration|aeroelastic|flutter|mistuning)\b/i, "Blade vibration / flutter"],
-  [/\b(compressor stall|rotating stall|stall|surge)\b/i, "Stall / surge"],
-  [/\b(bending deformation|flexural deformation|flexural vibration|deformation|buckling|bulging)\b/i, "Deformation / buckling"],
-  [/\b(bearing wear|abrasive wear|fretting wear|wear|rubbing|tip rub|scuffing|scuff)\b/i, "Wear / rubbing"],
-  [/\b(hot corrosion|corrosion|rusting|rustiness|pitting)\b/i, "Corrosion / pitting"],
-  [/\b(fuel coking|coking|carbon deposition|carbon deposits|deposits|fouling|clogging|blockage|blocked)\b/i, "Deposits / blockage"],
-  [/\b(oil leak|oil leakage|fuel leak|fuel leakage|leakage|leak)\b/i, "Leakage"],
-  [/\b(overheating|overtemperature|over-temperature)\b/i, "Overheating / overtemperature"],
-  [/\b(bearing fault|bearing faults|bearing defect|ball[- ]bearing faults?)\b/i, "Bearing fault"],
-  [/\b(bearing spallation|thermal barrier coating spallation|spallation|spalling)\b/i, "Spallation"],
-  [/\b(bearing seizure|seizure)\b/i, "Seizure"],
-  [/\bcreep\b/i, "Creep"],
-  [/\berosion\b/i, "Erosion"],
-  [/\boxidation\b/i, "Oxidation"],
-  [/\bdelamination\b/i, "Delamination"],
-  [/\bdebonding\b/i, "Debonding"],
-  [/\bcoating failure\b/i, "Coating failure"],
-  [/\bthermal shock\b/i, "Thermal shock"],
-  [/\bcombustion instability\b/i, "Combustion instability"],
-  [/\b(rotor imbalance|imbalance)\b/i, "Rotor imbalance"],
-  [/\bmisalignment\b/i, "Misalignment"],
-  [/\b(overspeed|over-speed)\b/i, "Overspeed"],
-];
-
-function makeRowId(row: Pick<FmeaRow, "component" | "failureMode">, index: number) {
-  return `${row.component}-${row.failureMode}-${index}`
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-");
-}
-
-function scoreValue(value: string) {
-  return scoreOptions.includes(value) ? value : "";
-}
-
-function canonicalComponentName(component: string) {
-  const normalized = component.trim();
-  for (const [pattern, family] of componentFamilies) {
-    if (pattern.test(normalized)) return family;
-  }
-  return normalized || null;
-}
-
-function canonicalFailureModeName(failureMode: string) {
-  const normalized = failureMode.replace(/[_/]+/g, " / ").split(/\s+/).join(" ");
-  if (!normalized) return null;
-  for (const [pattern, family] of failureModeFamilies) {
-    if (pattern.test(normalized)) return family;
-  }
-  return normalized;
-}
-
-function sortedComponentNames(names: string[]) {
-  return [...names].sort((a, b) => {
-    const rankA = componentRank.get(a) ?? Number.MAX_SAFE_INTEGER;
-    const rankB = componentRank.get(b) ?? Number.MAX_SAFE_INTEGER;
-    if (rankA !== rankB) return rankA - rankB;
-    return a.localeCompare(b);
-  });
-}
-
-function mergeListValues(...values: string[]) {
-  return Array.from(
-    new Set(
-      values
-        .flatMap((value) => value.split(";"))
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  ).join("; ");
-}
-
-function maxScore(...values: string[]) {
-  const scores = values.map(scoreValue).filter(Boolean).map(Number);
-  return scores.length ? String(Math.max(...scores)) : "";
-}
-
-function sourceKey(source: Source) {
-  return source.doi || source.url || source.title || JSON.stringify(source);
-}
-
-function mergeEvidenceRows(rows: EvidenceRow[]) {
-  const merged = new Map<string, EvidenceRow>();
-
-  rows.forEach((row) => {
-    const component = canonicalComponentName(row.component);
-    const failureMode = canonicalFailureModeName(row.failureMode);
-    if (!component || !failureMode) return;
-    const key = `${component.toLowerCase()}::${failureMode.toLowerCase()}`;
-    const existing = merged.get(key);
-
-    if (!existing) {
-      merged.set(key, {
-        ...row,
-        component,
-        failureMode,
-        effect: mergeListValues(row.effect),
-        cause: mergeListValues(row.cause),
-        correctiveAction: mergeListValues(row.correctiveAction),
-        severity: scoreValue(row.severity),
-        occurrence: scoreValue(row.occurrence),
-        detection: scoreValue(row.detection),
-        evidenceCount: Number(row.evidenceCount || 0),
-        sources: row.sources ?? [],
-      });
-      return;
-    }
-
-    const sourcesByKey = new Map(existing.sources.map((source) => [sourceKey(source), source]));
-    (row.sources ?? []).forEach((source) => sourcesByKey.set(sourceKey(source), source));
-
-    merged.set(key, {
-      ...existing,
-      effect: mergeListValues(existing.effect, row.effect),
-      cause: mergeListValues(existing.cause, row.cause),
-      correctiveAction: mergeListValues(existing.correctiveAction, row.correctiveAction),
-      severity: maxScore(existing.severity, row.severity),
-      occurrence: maxScore(existing.occurrence, row.occurrence),
-      detection: maxScore(existing.detection, row.detection),
-      evidenceCount: Number(existing.evidenceCount || 0) + Number(row.evidenceCount || 0),
-      sources: Array.from(sourcesByKey.values()),
-    });
-  });
-
-  return Array.from(merged.values()).sort((a, b) => {
-    const componentDelta =
-      (componentRank.get(a.component) ?? Number.MAX_SAFE_INTEGER) -
-      (componentRank.get(b.component) ?? Number.MAX_SAFE_INTEGER);
-    if (componentDelta) return componentDelta;
-    return b.evidenceCount - a.evidenceCount || a.failureMode.localeCompare(b.failureMode);
-  });
-}
-
-function toFmeaRows(rows: EvidenceRow[]): FmeaRow[] {
-  return mergeEvidenceRows(rows).map((row, index) => ({
-    ...row,
-    severity: scoreValue(row.severity),
-    occurrence: scoreValue(row.occurrence),
-    detection: scoreValue(row.detection),
-    id: makeRowId(row, index),
-    function: functionForComponent(row.component),
-    requirement: "Maintain intended system function under defined operating conditions",
-    industry: industryForRow(row),
-    currentControl: row.correctiveAction || defaultControls[index % defaultControls.length],
-    owner: "",
-    status: "needs_review",
-    included: true,
-  }));
-}
-
-function normalizeSavedRows(rows: FmeaRow[]) {
-  const mergedRows = toFmeaRows(rows);
-  const savedByKey = new Map(
-    rows.map((row) => [
-      `${canonicalComponentName(row.component) ?? row.component}::${canonicalFailureModeName(row.failureMode) ?? row.failureMode}`.toLowerCase(),
-      row,
-    ]),
-  );
-
-  return mergedRows.map((row) => {
-    const saved = savedByKey.get(`${row.component}::${row.failureMode}`.toLowerCase());
-    return saved
-      ? {
-          ...row,
-          requirement: saved.requirement || row.requirement,
-          industry: saved.industry || row.industry,
-          currentControl: saved.currentControl || row.currentControl,
-          owner: saved.owner || row.owner,
-          status: saved.status || row.status,
-          included: saved.included,
-        }
-      : row;
-  });
-}
-
-function functionForComponent(component: string) {
-  const lower = component.toLowerCase();
-  if (lower.includes("bearing")) return "Support rotating load with controlled friction";
-  if (lower.includes("blade") || lower.includes("fan")) return "Convert shaft power into controlled airflow";
-  if (lower.includes("compressor")) return "Increase working-fluid pressure for combustion";
-  if (lower.includes("turbine")) return "Extract gas-path energy into shaft power";
-  if (lower.includes("shaft")) return "Transmit torque across rotating assemblies";
-  if (lower.includes("gear")) return "Transfer speed and torque through accessory drives";
-  if (lower.includes("seal")) return "Contain fluid and isolate pressure boundaries";
-  return `Perform ${component.toLowerCase()} function`;
-}
-
-function industryForRow(row: EvidenceRow) {
-  const sourceText = row.sources
-    .map((source) => `${source.category ?? ""} ${source.title ?? ""}`)
-    .join(" ")
-    .toLowerCase();
-
-  if (sourceText.includes("easa") || sourceText.includes("turbofan") || sourceText.includes("aircraft")) {
-    return "Aviation";
-  }
-
-  return "Cross-industry reliability";
-}
-
-function templateRowsForComponents(components: string[]): FmeaRow[] {
-  const failureModes = [
-    "Fatigue cracking",
-    "Wear / material loss",
-    "Corrosion / pitting",
-    "Loss of alignment",
-    "Thermal degradation",
-  ];
-
-  return components.flatMap((component, componentIndex) =>
-    failureModes.slice(0, 3).map((failureMode, failureIndex) => {
-      const index = componentIndex * 3 + failureIndex;
-      return {
-        id: makeRowId({ component, failureMode }, index),
-        component,
-        function: functionForComponent(component),
-        requirement: "Define requirement",
-        industry: "Cross-industry reliability",
-        failureMode,
-        effect: "",
-        cause: "",
-        severity: "",
-        occurrence: "",
-        detection: "",
-        correctiveAction: "",
-        currentControl: defaultControls[index % defaultControls.length],
-        owner: "",
-        status: "needs_review" as const,
-        included: true,
-        rpn: "",
-        evidenceCount: 0,
-        sources: [],
-      };
-    }),
-  );
-}
-
-function parseBom(text: string) {
-  return Array.from(
-    new Set(
-      text
-        .split(/\r?\n/)
-        .map((line) => line.split(/,|\t|;/)[0]?.trim())
-        .filter((item) => item && !/^(part|component|item|bom|name)$/i.test(item))
-        .slice(0, 18),
-    ),
-  );
-}
-
-function sourceLabel(source: Source) {
-  if (source.doi) return `DOI: ${source.doi}`;
-  if (source.url) return source.url;
-  return source.category ? source.category.replace(/_/g, " ") : "Source record";
-}
-
-function evidenceSummary(row: FmeaRow) {
-  return [
-    ["Component", row.component],
-    ["Failure mode", row.failureMode],
-    ["Cause", row.cause],
-    ["Effect", row.effect],
-    ["Control / action", row.correctiveAction || row.currentControl],
-  ].filter(([, value]) => String(value || "").trim());
-}
-
-function csvEscape(value: string | number | undefined) {
-  const stringValue = String(value ?? "");
-  if (!/[",\n]/.test(stringValue)) return stringValue;
-  return `"${stringValue.replace(/"/g, '""')}"`;
-}
-
-function htmlEscape(value: string | number | undefined) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function xmlEscape(value: string | number | undefined) {
-  return htmlEscape(value).replace(/'/g, "&apos;");
-}
-
-function downloadFile(filename: string, mimeType: string, content: BlobPart | BlobPart[]) {
-  const blob = new Blob(Array.isArray(content) ? content : [content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function rowRpn(row: FmeaRow) {
-  const s = Number(row.severity);
-  const o = Number(row.occurrence);
-  const d = Number(row.detection);
-  if (row.rpn) return row.rpn;
-  if (!s || !o || !d) return "";
-  return String(s * o * d);
-}
-
-function numericRowRpn(row: FmeaRow) {
-  return Number(rowRpn(row)) || 0;
-}
-
-function defaultAnalysisName(rows: FmeaRow[]) {
-  const componentNames = sortedComponentNames(Array.from(new Set(rows.map((row) => row.component))));
-  if (componentNames.length === 1) return `${componentNames[0]} Failure Mode and Effects Analysis`;
-  return "Turbofan reliability Failure Mode and Effects Analysis";
-}
-
-function isComplete(row: FmeaRow) {
-  if (!row.included) return true;
-  return Boolean(
-    row.component &&
-      row.function &&
-      row.failureMode &&
-      row.effect &&
-      row.cause &&
-      row.severity &&
-      row.occurrence &&
-      row.detection &&
-      row.currentControl,
-  );
-}
-
-function buildCsv(rows: FmeaRow[]) {
-  const headers = [
-    "Component",
-    "Function",
-    "Failure mode",
-    "Effect",
-    "Severity",
-    "Cause",
-    "Occurrence",
-    "Current controls",
-    "Detection",
-    "RPN",
-    "Recommended action",
-    "Owner",
-    "Evidence count",
-    "Sources",
-  ];
-
-  const body = rows.map((row) => [
-    row.component,
-    row.function,
-    row.failureMode,
-    row.effect,
-    row.severity,
-    row.cause,
-    row.occurrence,
-    row.currentControl,
-    row.detection,
-    rowRpn(row),
-    row.correctiveAction,
-    row.owner,
-    row.evidenceCount,
-    row.sources.map((source) => source.doi || source.title).join("; "),
-  ]);
-
-  return [headers, ...body]
-    .map((line) => line.map((cell) => csvEscape(cell)).join(","))
-    .join("\n");
-}
-
-function buildExcelHtml(rows: FmeaRow[]) {
-  const headers = [
-    "Component",
-    "Function",
-    "Failure mode",
-    "Effect",
-    "Severity",
-    "Cause",
-    "Occurrence",
-    "Current controls",
-    "Detection",
-    "RPN",
-    "Recommended action",
-    "Owner",
-    "Evidence count",
-    "Sources",
-  ];
-  const body = rows.map((row) => [
-    row.component,
-    row.function,
-    row.failureMode,
-    row.effect,
-    row.severity,
-    row.cause,
-    row.occurrence,
-    row.currentControl,
-    row.detection,
-    rowRpn(row),
-    row.correctiveAction,
-    row.owner,
-    row.evidenceCount,
-    row.sources.map((source) => source.doi || source.title).join("; "),
-  ]);
-
-  return buildXlsxWorkbook([headers, ...body]);
-}
-
-function crc32(bytes: Uint8Array) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function writeUint16(buffer: number[], value: number) {
-  buffer.push(value & 0xff, (value >>> 8) & 0xff);
-}
-
-function writeUint32(buffer: number[], value: number) {
-  buffer.push(value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff);
-}
-
-function zipStore(files: { name: string; content: string }[]) {
-  const encoder = new TextEncoder();
-  const output: number[] = [];
-  const centralDirectory: number[] = [];
-
-  for (const file of files) {
-    const nameBytes = encoder.encode(file.name);
-    const contentBytes = encoder.encode(file.content);
-    const checksum = crc32(contentBytes);
-    const localOffset = output.length;
-
-    writeUint32(output, 0x04034b50);
-    writeUint16(output, 20);
-    writeUint16(output, 0);
-    writeUint16(output, 0);
-    writeUint16(output, 0);
-    writeUint16(output, 0);
-    writeUint32(output, checksum);
-    writeUint32(output, contentBytes.length);
-    writeUint32(output, contentBytes.length);
-    writeUint16(output, nameBytes.length);
-    writeUint16(output, 0);
-    output.push(...nameBytes, ...contentBytes);
-
-    writeUint32(centralDirectory, 0x02014b50);
-    writeUint16(centralDirectory, 20);
-    writeUint16(centralDirectory, 20);
-    writeUint16(centralDirectory, 0);
-    writeUint16(centralDirectory, 0);
-    writeUint16(centralDirectory, 0);
-    writeUint16(centralDirectory, 0);
-    writeUint32(centralDirectory, checksum);
-    writeUint32(centralDirectory, contentBytes.length);
-    writeUint32(centralDirectory, contentBytes.length);
-    writeUint16(centralDirectory, nameBytes.length);
-    writeUint16(centralDirectory, 0);
-    writeUint16(centralDirectory, 0);
-    writeUint16(centralDirectory, 0);
-    writeUint16(centralDirectory, 0);
-    writeUint32(centralDirectory, 0);
-    writeUint32(centralDirectory, localOffset);
-    centralDirectory.push(...nameBytes);
-  }
-
-  const centralOffset = output.length;
-  output.push(...centralDirectory);
-  writeUint32(output, 0x06054b50);
-  writeUint16(output, 0);
-  writeUint16(output, 0);
-  writeUint16(output, files.length);
-  writeUint16(output, files.length);
-  writeUint32(output, centralDirectory.length);
-  writeUint32(output, centralOffset);
-  writeUint16(output, 0);
-
-  return new Uint8Array(output);
-}
-
-function buildXlsxWorkbook(rows: (string | number | undefined)[][]) {
-  const columnWidths = [24, 30, 30, 38, 10, 34, 12, 34, 12, 10, 34, 18, 14, 55];
-  const columnName = (index: number) => {
-    let name = "";
-    let value = index + 1;
-    while (value > 0) {
-      const remainder = (value - 1) % 26;
-      name = String.fromCharCode(65 + remainder) + name;
-      value = Math.floor((value - 1) / 26);
-    }
-    return name;
-  };
-  const columns = columnWidths
-    .map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`)
-    .join("");
-  const sheetRows = rows
-    .map((row, rowIndex) => {
-      const cells = row
-        .map((cell, columnIndex) => {
-          const ref = `${columnName(columnIndex)}${rowIndex + 1}`;
-          const style = rowIndex === 0 ? ' s="1"' : "";
-          return `<c r="${ref}"${style} t="inlineStr"><is><t>${xmlEscape(cell)}</t></is></c>`;
-        })
-        .join("");
-      return `<row r="${rowIndex + 1}">${cells}</row>`;
-    })
-    .join("");
-
-  return zipStore([
-    {
-      name: "[Content_Types].xml",
-      content:
-        '<?xml version="1.0" encoding="UTF-8"?>' +
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
-        '<Default Extension="xml" ContentType="application/xml"/>' +
-        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
-        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
-        "</Types>",
-    },
-    {
-      name: "_rels/.rels",
-      content:
-        '<?xml version="1.0" encoding="UTF-8"?>' +
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
-        "</Relationships>",
-    },
-    {
-      name: "xl/workbook.xml",
-      content:
-        '<?xml version="1.0" encoding="UTF-8"?>' +
-        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-        '<sheets><sheet name="Analysis Export" sheetId="1" r:id="rId1"/></sheets></workbook>',
-    },
-    {
-      name: "xl/_rels/workbook.xml.rels",
-      content:
-        '<?xml version="1.0" encoding="UTF-8"?>' +
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
-        "</Relationships>",
-    },
-    {
-      name: "xl/styles.xml",
-      content:
-        '<?xml version="1.0" encoding="UTF-8"?>' +
-        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-        '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Aptos"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Aptos"/></font></fonts>' +
-        '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE85634"/><bgColor indexed="64"/></patternFill></fill></fills>' +
-        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
-        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-        '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>' +
-        "</styleSheet>",
-    },
-    {
-      name: "xl/worksheets/sheet1.xml",
-      content:
-        '<?xml version="1.0" encoding="UTF-8"?>' +
-        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-        '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
-        `<cols>${columns}</cols><sheetData>${sheetRows}</sheetData></worksheet>`,
-    },
-  ]);
-}
-
-// Group rows by component for tree structure
-function groupRowsByComponent(rows: FmeaRow[]) {
-  const grouped = new Map<string, FmeaRow[]>();
-  rows.forEach((row) => {
-    if (!grouped.has(row.component)) {
-      grouped.set(row.component, []);
-    }
-    grouped.get(row.component)!.push(row);
-  });
-  return Array.from(grouped.entries()).map(([component, childRows]) => ({
-    component,
-    childRows,
-  }));
-}
+import { EvidenceDrawer } from "@/components/fmea/evidence-drawer";
+import { ScoringReferenceGuides } from "@/components/fmea/scoring-reference-guides";
+import { WorksheetHelpDialog } from "@/components/fmea/worksheet-help-dialog";
+import { ModalDialog } from "@/components/ui/modal-dialog";
+import { buildCsv, buildExcelWorkbook, downloadFile, type FmeaExportMode } from "@/lib/fmea/export";
+import {
+  editableFields,
+  fieldHelp,
+  groupRowsByComponent,
+  scoreOptions,
+  worksheetColumnSpecs,
+  type EditableField,
+} from "@/lib/fmea/table";
+import type { FmeaRow, TaxonomySearchType } from "@/lib/fmea/types";
+import {
+  defaultAnalysisName,
+  applyFmeaRowUpdate,
+  applyEvidenceClaimReview,
+  canPersistWorksheet,
+  isComplete,
+  knowledgeRowsToEvidenceRows,
+  normalizeSavedRows,
+  numericRowRpn,
+  parseBom,
+  rowRpn,
+  rowsWithUniqueIds,
+  sortedComponentNames,
+  systemTemplates,
+  templateRowsForComponents,
+  toFmeaRows,
+  type KnowledgeSearchResponse,
+  type AnalysisLoadState,
+  type LoadingAction,
+  type SavedAnalysisResponse,
+  type SelectionStep,
+} from "@/lib/fmea/worksheet";
 
 export default function FmeaPage() {
   return (
@@ -854,15 +68,22 @@ function Home() {
     isNewMode ? "initial" : "table",
   );
   const [rows, setRows] = useState<FmeaRow[]>(() => {
-    if (isNewMode || savedAnalysisId) return [];
-    return toFmeaRows(bundledTurbofanData.rows);
+    return [];
   });
   const [componentFilter, setComponentFilter] = useState("All");
   const [rowFilter, setRowFilter] = useState("all");
   const [componentQuery, setComponentQuery] = useState("");
+  const [knowledgeQuery, setKnowledgeQuery] = useState(searchParams.get("component") ?? "");
+  const [knowledgeSearchType, setKnowledgeSearchType] = useState<TaxonomySearchType>("component");
+  const [knowledgeDomain, setKnowledgeDomain] = useState("");
   const [newComponentName, setNewComponentName] = useState("");
   const [selectedSystemId, setSelectedSystemId] = useState("turbofan");
-  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(savedAnalysisId);
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+  const [expectedRowIds, setExpectedRowIds] = useState<string[] | null>(null);
+  const [analysisLoadState, setAnalysisLoadState] = useState<AnalysisLoadState>(
+    savedAnalysisId ? "loading" : "idle",
+  );
+  const [analysisLoadError, setAnalysisLoadError] = useState("");
   const [manualComponents, setManualComponents] = useState<string[]>([]);
   const [selectedSourceRow, setSelectedSourceRow] = useState<FmeaRow | null>(null);
   const [notice, setNotice] = useState(
@@ -870,10 +91,10 @@ function Home() {
       ? "Start a new Failure Mode and Effects Analysis table by selecting components or importing a BOM."
       : savedAnalysisId
       ? "Loading saved Failure Mode and Effects Analysis table..."
-      : "Start with the turbofan evidence set, upload a BOM, or choose components to narrow the worksheet.",
+      : "Loading current evidence from the shared knowledge taxonomy...",
   );
   const [analysisName, setAnalysisName] = useState(
-    isNewMode ? "Untitled Failure Mode and Effects Analysis" : "Turbofan reliability Failure Mode and Effects Analysis",
+    "Untitled Failure Mode and Effects Analysis",
   );
   const [sortMode, setSortMode] = useState<"component" | "rpn_desc" | "rpn_asc">("component");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
@@ -891,11 +112,12 @@ function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [cellViewer, setCellViewer] = useState<{ rowId: string; field: string; value: string } | null>(null);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [searchWasTruncated, setSearchWasTruncated] = useState(false);
   const groupsPerPage = 6;
   const components = useMemo(
     () => {
       const rowComponents = Array.from(new Set(rows.map((row) => row.component)));
-      return sortedComponentNames(rowComponents.length ? rowComponents : bundledTurbofanData.components);
+      return sortedComponentNames(rowComponents.length ? rowComponents : systemTemplates[0].components);
     },
     [rows],
   );
@@ -932,9 +154,14 @@ function Home() {
     [componentFilter, componentQuery, rowFilter, rows, sortMode],
   );
 
-  const includedRows = rows.filter((row) => row.included);
+  const includedRows = rows.filter((row) => row.included && row.status !== "rejected");
+  const finalRows = rows.filter(
+    (row) => row.included && row.status === "accepted" && row.provenance === "evidence" && isComplete(row) && row.evidence.length > 0,
+  );
   const incompleteRows = includedRows.filter((row) => !isComplete(row));
-  const canExport = includedRows.length > 0;
+  const canExportDraft = includedRows.length > 0;
+  const canExportFinal = finalRows.length > 0;
+  const canSave = canPersistWorksheet(analysisLoadState, currentAnalysisId, expectedRowIds);
 
   // Pagination keeps component groups intact, so related failure modes do not split oddly.
   const visibleGroupedData = useMemo(() => groupRowsByComponent(visibleRows), [visibleRows]);
@@ -942,6 +169,9 @@ function Home() {
   const paginatedGroupedData = visibleGroupedData.slice(
     (currentPage - 1) * groupsPerPage,
     currentPage * groupsPerPage,
+  );
+  const renderedRows = paginatedGroupedData.flatMap((group) =>
+    expandedComponents.has(group.component) ? group.childRows : [],
   );
 
   // Reset to page 1 when filters change
@@ -953,40 +183,57 @@ function Home() {
     setCurrentPage((page) => Math.min(page, totalPages));
   }, [totalPages]);
 
+  const loadSavedAnalysis = useCallback(async (analysisId: string, loadedNotice = "") => {
+    setAnalysisLoadState("loading");
+    setAnalysisLoadError("");
+    setCurrentAnalysisId(null);
+    setExpectedRowIds(null);
+    setRows([]);
+    setSelectionStep("table");
+    setNotice("Loading saved Failure Mode and Effects Analysis table...");
+
+    try {
+      const response = await fetch(`/api/fmea/analyses/${analysisId}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => ({}))) as SavedAnalysisResponse;
+      if (!response.ok || !payload.analysis) {
+        throw new Error(payload.error || "Could not load this saved analysis.");
+      }
+      const loadedRows = normalizeSavedRows(payload.analysis.rows);
+      setCurrentAnalysisId(payload.analysis.id);
+      setExpectedRowIds(loadedRows.map((row) => row.id));
+      setAnalysisName(payload.analysis.name);
+      setRows(loadedRows);
+      setLastSavedAt("Loaded from workspace");
+      setHasUnsavedChanges(false);
+      setAnalysisLoadState("ready");
+      setNotice(loadedNotice);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load this saved analysis.";
+      // Deliberately remain detached from the requested analysis. Save is
+      // disabled until a successful retry supplies its verified row baseline.
+      setCurrentAnalysisId(null);
+      setExpectedRowIds(null);
+      setRows([]);
+      setAnalysisLoadState("error");
+      setAnalysisLoadError(message);
+      setNotice("");
+    }
+  }, []);
+
   useEffect(() => {
     const params =
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search)
         : new URLSearchParams();
-    function loadSavedAnalysis(analysisId: string, loadedNotice = "") {
-      setCurrentAnalysisId(analysisId);
-      setSelectionStep("table");
-      setNotice("Loading saved Failure Mode and Effects Analysis table...");
-      fetch(`/api/fmea/analyses/${analysisId}`, {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      })
-        .then(async (response) => {
-          const payload = (await response.json().catch(() => ({}))) as SavedAnalysisResponse;
-          if (!response.ok || !payload.analysis) {
-            throw new Error(payload.error || "Could not load this saved analysis.");
-          }
-          setCurrentAnalysisId(payload.analysis.id);
-          setAnalysisName(payload.analysis.name);
-          setRows(normalizeSavedRows(payload.analysis.rows));
-          setLastSavedAt("Loaded from workspace");
-          setHasUnsavedChanges(false);
-          setNotice(loadedNotice);
-        })
-        .catch((error) => {
-          setNotice(error instanceof Error ? error.message : "Could not load this saved analysis.");
-        });
-    }
-
     if (params.get("mode") === "new") {
       setSelectionStep("initial");
       setRows([]);
       setCurrentAnalysisId(null);
+      setExpectedRowIds(null);
+      setAnalysisLoadState("idle");
       setAnalysisName("Untitled Failure Mode and Effects Analysis");
       setNotice("Start a new Failure Mode and Effects Analysis table by selecting components or importing a BOM.");
       return;
@@ -994,15 +241,17 @@ function Home() {
 
     const analysisId = params.get("analysis");
     if (analysisId) {
-      loadSavedAnalysis(analysisId);
+      void loadSavedAnalysis(analysisId);
       return;
     }
 
-    const component = params.get("component");
-    if (!component) return;
+    const component = params.get("component") ?? "";
     setSelectionStep("table");
-    setComponentFilter(component);
-  }, []);
+    setKnowledgeQuery(component);
+    void loadKnowledgeSearch(component, false);
+    // This is an initial route-state load; later searches are explicit form submissions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadSavedAnalysis]);
 
   // Initialize all components as expanded
   useEffect(() => {
@@ -1077,7 +326,62 @@ function Home() {
     }
   }, [componentDropdownOpen]);
 
+  function confirmWorksheetReplacement(action: string) {
+    if (!hasUnsavedChanges) return true;
+    return window.confirm(
+      `You have unsaved worksheet changes. Discard them and continue ${action}?`,
+    );
+  }
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    const protectedUrl = window.location.href;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const handleDocumentNavigation = (event: globalThis.MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as HTMLElement | null)?.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (destination.origin !== window.location.origin || destination.href === window.location.href) return;
+      if (!window.confirm("You have unsaved worksheet changes. Discard them and leave this page?")) {
+        event.preventDefault();
+        event.stopPropagation();
+      } else {
+        setHasUnsavedChanges(false);
+      }
+    };
+    const handleHistoryNavigation = () => {
+      if (window.confirm("You have unsaved worksheet changes. Discard them and leave this page?")) {
+        setHasUnsavedChanges(false);
+        return;
+      }
+      const protectedLocation = new URL(protectedUrl);
+      window.history.pushState(null, "", `${protectedLocation.pathname}${protectedLocation.search}${protectedLocation.hash}`);
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handleHistoryNavigation);
+    document.addEventListener("click", handleDocumentNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handleHistoryNavigation);
+      document.removeEventListener("click", handleDocumentNavigation, true);
+    };
+  }, [hasUnsavedChanges]);
+
   const saveFmea = useCallback((options?: { redirectToDashboard?: boolean }) => {
+    if (!canPersistWorksheet(analysisLoadState, currentAnalysisId, expectedRowIds)) {
+      setNotice(
+        analysisLoadState === "error"
+          ? "This analysis was not loaded, so it cannot be saved. Retry the load or start a new worksheet."
+          : "Wait for the analysis to finish loading before saving.",
+      );
+      return;
+    }
     setIsSaving(true);
     const savedName = analysisName.trim() || defaultAnalysisName(rows);
 
@@ -1091,6 +395,7 @@ function Home() {
         id: currentAnalysisId,
         name: savedName,
         rows,
+        expectedRowIds: currentAnalysisId ? expectedRowIds : undefined,
       }),
     })
       .then(async (response) => {
@@ -1103,7 +408,10 @@ function Home() {
         setCurrentAnalysisId(payload.analysis.id);
         setAnalysisName(savedName);
         setLastSavedAt(now);
-        setRows(normalizeSavedRows(payload.analysis.rows));
+        const savedRows = normalizeSavedRows(payload.analysis.rows);
+        setRows(savedRows);
+        setExpectedRowIds(savedRows.map((row) => row.id));
+        setAnalysisLoadState("ready");
         setHasUnsavedChanges(false);
         setNotice(`Saved "${savedName}".`);
         setTimeout(() => setNotice(""), 3000);
@@ -1121,11 +429,13 @@ function Home() {
       .finally(() => {
         setIsSaving(false);
       });
-  }, [analysisName, currentAnalysisId, router, rows]);
+  }, [analysisLoadState, analysisName, currentAnalysisId, expectedRowIds, router, rows]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isEditingText = Boolean(target?.closest("input, textarea, select, [contenteditable='true']"));
       // Ctrl+S or Cmd+S to save
       if ((event.ctrlKey || event.metaKey) && event.key === "s") {
         event.preventDefault();
@@ -1157,6 +467,7 @@ function Home() {
 
       // Ctrl+A to select all visible rows
       if ((event.ctrlKey || event.metaKey) && event.key === "a") {
+        if (isEditingText || !target?.closest("#worksheet")) return;
         event.preventDefault();
         const newSelection = new Set(visibleRows.map((row) => row.id));
         setSelectedRowIds(newSelection);
@@ -1164,7 +475,7 @@ function Home() {
 
       // Delete to remove selected rows
       if (event.key === "Delete" && selectedRowIds.size > 0) {
-        if ((event.target as HTMLElement | null)?.closest("input, textarea, select")) return;
+        if (isEditingText) return;
         event.preventDefault();
         if (confirm(`Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? "" : "s"}?`)) {
           setRows((currentRows) => currentRows.filter((row) => !selectedRowIds.has(row.id)));
@@ -1173,18 +484,6 @@ function Home() {
         }
       }
 
-      // Ctrl+D to toggle include on selected rows
-      if ((event.ctrlKey || event.metaKey) && event.key === "d") {
-        event.preventDefault();
-        setRows((currentRows) =>
-          currentRows.map((row) =>
-            selectedRowIds.has(row.id)
-              ? { ...row, included: !row.included }
-              : row,
-          ),
-        );
-        setHasUnsavedChanges(true);
-      }
     };
 
     document.addEventListener("keydown", handleKeyDown);
@@ -1196,8 +495,32 @@ function Home() {
   const isLoading = loadingAction !== null;
 
   function updateRow(id: string, update: Partial<FmeaRow>) {
+    const normalizedUpdate = update.status === "rejected" ? { ...update, included: false } : update;
     setRows((currentRows) =>
-      currentRows.map((row) => (row.id === id ? { ...row, ...update } : row)),
+      currentRows.map((row) => (row.id === id ? applyFmeaRowUpdate(row, normalizedUpdate) : row)),
+    );
+    setSelectedSourceRow((current) =>
+      current?.id === id ? applyFmeaRowUpdate(current, normalizedUpdate) : current,
+    );
+    setHasUnsavedChanges(true);
+  }
+
+  async function reviewEvidenceClaim(
+    claimId: string,
+    status: "accepted" | "rejected" | "needs_review",
+  ) {
+    const response = await fetch("/api/knowledge/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ claimId, status }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) throw new Error(payload.error || "Could not update evidence review.");
+    setRows((currentRows) =>
+      currentRows.map((row) => applyEvidenceClaimReview(row, claimId, status)),
+    );
+    setSelectedSourceRow((current) =>
+      current ? applyEvidenceClaimReview(current, claimId, status) : current,
     );
     setHasUnsavedChanges(true);
   }
@@ -1222,19 +545,22 @@ function Home() {
     field: EditableField,
   ) => {
     if (event.key !== "Tab") return;
-    const rowIndex = visibleRows.findIndex((row) => row.id === rowId);
+    const rowIndex = renderedRows.findIndex((row) => row.id === rowId);
     const fieldIndex = editableFields.indexOf(field);
     if (rowIndex < 0 || fieldIndex < 0) return;
 
-    event.preventDefault();
     const flatIndex = rowIndex * editableFields.length + fieldIndex;
     const nextFlatIndex = flatIndex + (event.shiftKey ? -1 : 1);
-    const maxIndex = visibleRows.length * editableFields.length - 1;
-    const clampedIndex = Math.max(0, Math.min(maxIndex, nextFlatIndex));
-    const nextRow = visibleRows[Math.floor(clampedIndex / editableFields.length)];
-    const nextField = editableFields[clampedIndex % editableFields.length];
-    if (nextRow && nextField) focusCell(nextRow.id, nextField);
-  }, [focusCell, visibleRows]);
+    const maxIndex = renderedRows.length * editableFields.length - 1;
+    // At worksheet boundaries retain the browser's native Tab behavior so
+    // keyboard focus can leave the grid in either direction.
+    if (nextFlatIndex < 0 || nextFlatIndex > maxIndex) return;
+    const nextRow = renderedRows[Math.floor(nextFlatIndex / editableFields.length)];
+    const nextField = editableFields[nextFlatIndex % editableFields.length];
+    if (!nextRow || !nextField || !cellRefs.current.has(`${nextRow.id}:${nextField}`)) return;
+    event.preventDefault();
+    focusCell(nextRow.id, nextField);
+  }, [focusCell, renderedRows]);
 
   const editableCellClass = useCallback((rowId: string, field: EditableField) => {
     return focusedCellId === `${rowId}:${field}` ? "cell-focused" : "";
@@ -1260,6 +586,7 @@ function Home() {
 
   function importBomFile(file: File) {
     if (!file) return;
+    if (!confirmWorksheetReplacement("with the BOM import")) return;
     setLoadingAction("upload");
     const text = file.text();
     text.then((text) => {
@@ -1270,6 +597,10 @@ function Home() {
         return;
       }
       setRows(templateRowsForComponents(componentsFromBom));
+      setSearchWasTruncated(false);
+      setCurrentAnalysisId(null);
+      setExpectedRowIds(null);
+      setAnalysisLoadState("idle");
       setSelectionStep("table");
       setNotice(`Imported ${componentsFromBom.length} BOM components. Edit the generated worksheet, then export when required fields are complete.`);
       setHasUnsavedChanges(true);
@@ -1293,48 +624,36 @@ function Home() {
     importBomFile(file);
   }
 
-  function rowsForSelectedComponents(datasetRows: EvidenceRow[], selectedComponents: string[]) {
-    const selected = new Set(
-      selectedComponents
-        .map((component) => canonicalComponentName(component)?.toLowerCase())
-        .filter(Boolean),
-    );
-    return datasetRows.filter((row) => {
-      const component = canonicalComponentName(row.component)?.toLowerCase();
-      return Boolean(component && selected.has(component));
-    });
-  }
-
   async function startManualWorksheet() {
+    if (!confirmWorksheetReplacement("with a new manual worksheet")) return;
     const nextComponents = manualComponents.length ? manualComponents : components.slice(0, 5);
     setLoadingAction("system");
     setComponentFilter("All");
     setComponentQuery("");
     setRowFilter("all");
     try {
-      const liveDataset = await fetchLiveTurbofanDataset();
-      const evidenceRows = rowsForSelectedComponents(
-        [...liveDataset.rows, ...bundledTurbofanData.rows],
-        nextComponents,
-      );
-      const nextRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents(nextComponents);
+      const evidenceResult = await fetchKnowledgeRowsForComponents(nextComponents);
+      const nextRows = evidenceResult.rows.length ? toFmeaRows(evidenceResult.rows) : templateRowsForComponents(nextComponents);
       setRows(nextRows);
+      setSearchWasTruncated(evidenceResult.hasNext);
+      setCurrentAnalysisId(null);
+      setExpectedRowIds(null);
+      setAnalysisLoadState("idle");
       setAnalysisName(defaultAnalysisName(nextRows));
       setNotice(
-        evidenceRows.length
+        evidenceResult.rows.length
           ? `Loaded ${nextRows.length} evidence-backed analysis row${nextRows.length === 1 ? "" : "s"} for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
           : `Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`,
       );
     } catch {
-      const evidenceRows = rowsForSelectedComponents(bundledTurbofanData.rows, nextComponents);
-      const nextRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents(nextComponents);
+      const nextRows = templateRowsForComponents(nextComponents);
       setRows(nextRows);
+      setSearchWasTruncated(false);
+      setCurrentAnalysisId(null);
+      setExpectedRowIds(null);
+      setAnalysisLoadState("idle");
       setAnalysisName(defaultAnalysisName(nextRows));
-      setNotice(
-        evidenceRows.length
-          ? `Loaded bundled evidence-backed analysis rows for ${nextComponents.length} selected component${nextComponents.length === 1 ? "" : "s"}.`
-          : `Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`,
-      );
+      setNotice(`Live evidence could not be loaded. Started a manual worksheet with ${nextComponents.length} component${nextComponents.length === 1 ? "" : "s"}.`);
     } finally {
       setSelectionStep("table");
       setHasUnsavedChanges(true);
@@ -1342,39 +661,109 @@ function Home() {
     }
   }
 
-  async function fetchLiveTurbofanDataset() {
-    const response = await fetch("/api/knowledge/fmea?limit=1000", {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to load turbofan evidence (${response.status})`);
-    }
-    return (await response.json()) as FmeaDataset;
+  async function fetchKnowledgeEvidence(
+    query: string,
+    type: TaxonomySearchType,
+    domain = "",
+  ) {
+    const pageSize = 500;
+    const maximumRows = 5_000;
+    let offset = 0;
+    let total = 0;
+    let hasNext = false;
+    let taxonomyMatch: KnowledgeSearchResponse["taxonomyMatch"] = null;
+    const loadedRows = [] as ReturnType<typeof knowledgeRowsToEvidenceRows>;
+
+    do {
+      const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset), type });
+      if (query.trim()) params.set("q", query.trim());
+      if (domain.trim()) params.set("domain", domain.trim());
+      const response = await fetch(`/api/knowledge/search?${params.toString()}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as KnowledgeSearchResponse;
+        throw new Error(payload.error || `Failed to load knowledge evidence (${response.status})`);
+      }
+      const payload = (await response.json()) as KnowledgeSearchResponse;
+      const pageRows = knowledgeRowsToEvidenceRows(payload.rows ?? []);
+      loadedRows.push(...pageRows);
+      taxonomyMatch ??= payload.taxonomyMatch ?? null;
+      total = payload.total ?? loadedRows.length;
+      hasNext = payload.pagination?.hasNext ?? offset + pageRows.length < total;
+      offset += pageRows.length;
+      if (!pageRows.length) break;
+    } while (hasNext && loadedRows.length < maximumRows);
+
+    return {
+      rows: loadedRows.slice(0, maximumRows),
+      taxonomyMatch,
+      total,
+      hasNext: hasNext && loadedRows.length >= maximumRows,
+    };
   }
 
-  function rowsWithUniqueIds(nextRows: FmeaRow[], existingRows: FmeaRow[]) {
-    const usedIds = new Set(existingRows.map((row) => row.id));
-    return nextRows.map((row, index) => {
-      if (!usedIds.has(row.id)) {
-        usedIds.add(row.id);
-        return row;
+  async function fetchKnowledgeRowsForComponents(componentNames: string[]) {
+    const results = new Array<Awaited<ReturnType<typeof fetchKnowledgeEvidence>>>(componentNames.length);
+    let nextIndex = 0;
+    const workers = Array.from({ length: Math.min(4, componentNames.length) }, async () => {
+      while (nextIndex < componentNames.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await fetchKnowledgeEvidence(componentNames[index], "component");
       }
-      const id = `${row.id}-added-${Date.now()}-${index}`;
-      usedIds.add(id);
-      return { ...row, id };
     });
+    await Promise.all(workers);
+    return {
+      rows: results.flatMap((result) => result.rows),
+      hasNext: results.some((result) => result.hasNext),
+    };
+  }
+
+  async function loadKnowledgeSearch(
+    query: string,
+    markUnsaved = true,
+    type: TaxonomySearchType = knowledgeSearchType,
+  ) {
+    if (markUnsaved && !confirmWorksheetReplacement("with these search results")) return;
+    setLoadingAction("system");
+    const searchLabel = type === "failure_mode" ? "failure mode" : "component";
+    setNotice(query.trim() ? `Searching current ${searchLabel} taxonomy for “${query.trim()}”...` : "Loading current evidence from the knowledge graph...");
+    try {
+      const result = await fetchKnowledgeEvidence(query, type, knowledgeDomain);
+      const nextRows = toFmeaRows(result.rows);
+      setRows(nextRows);
+      setComponentFilter("All");
+      setComponentQuery("");
+      setSelectionStep("table");
+      setCurrentAnalysisId(null);
+      setExpectedRowIds(null);
+      setAnalysisLoadState("idle");
+      setAnalysisName(query.trim() ? `${result.taxonomyMatch?.name ?? query.trim()} Failure Mode and Effects Analysis` : "Knowledge evidence review");
+      setHasUnsavedChanges(markUnsaved);
+      setSearchWasTruncated(result.hasNext);
+      setNotice(
+        nextRows.length
+          ? `${nextRows.length} grouped evidence row${nextRows.length === 1 ? "" : "s"} loaded from ${result.total} matching claim${result.total === 1 ? "" : "s"}${result.taxonomyMatch ? ` under ${result.taxonomyMatch.name}` : ""}.${result.hasNext ? " The result set exceeds 5,000 claims; refine the query or domain to load the remainder." : ""} Scores require engineer input.`
+          : `No linked evidence found for “${query.trim()}” in the ${searchLabel} taxonomy.`,
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not load current knowledge evidence.");
+    } finally {
+      setLoadingAction(null);
+    }
   }
 
   async function addTypedComponent() {
     const rawComponent = newComponentName.trim();
     if (!rawComponent) return;
 
-    const component = canonicalComponentName(rawComponent) ?? rawComponent;
+    const component = rawComponent;
     const componentKey = component.toLowerCase();
     const existingComponentKeys = new Set(
       rows
-        .map((row) => canonicalComponentName(row.component)?.toLowerCase())
+        .map((row) => row.component.trim().toLowerCase())
         .filter(Boolean),
     );
 
@@ -1388,11 +777,7 @@ function Home() {
 
     setLoadingAction("system");
     try {
-      const liveDataset = await fetchLiveTurbofanDataset();
-      const evidenceRows = rowsForSelectedComponents(
-        [...liveDataset.rows, ...bundledTurbofanData.rows],
-        [component],
-      );
+      const evidenceRows = (await fetchKnowledgeEvidence(component, "component")).rows;
       const generatedRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents([component]);
       const rowsToAdd = rowsWithUniqueIds(generatedRows, rows);
       setRows((currentRows) => [...currentRows, ...rowsToAdd]);
@@ -1404,17 +789,12 @@ function Home() {
           : `Added starter Failure Mode and Effects Analysis rows for ${component}.`,
       );
     } catch {
-      const evidenceRows = rowsForSelectedComponents(bundledTurbofanData.rows, [component]);
-      const generatedRows = evidenceRows.length ? toFmeaRows(evidenceRows) : templateRowsForComponents([component]);
+      const generatedRows = templateRowsForComponents([component]);
       const rowsToAdd = rowsWithUniqueIds(generatedRows, rows);
       setRows((currentRows) => [...currentRows, ...rowsToAdd]);
       setComponentFilter("All");
       setExpandedComponents((current) => new Set([...current, ...rowsToAdd.map((row) => row.component)]));
-      setNotice(
-        evidenceRows.length
-          ? `Added bundled evidence-backed rows for ${component}.`
-          : `Added starter Failure Mode and Effects Analysis rows for ${component}.`,
-      );
+      setNotice(`Live evidence could not be loaded. Added starter rows for ${component}.`);
     } finally {
       setNewComponentName("");
       setHasUnsavedChanges(true);
@@ -1423,29 +803,71 @@ function Home() {
     }
   }
 
+  function addBlankFailureModeRow() {
+    const component = componentFilter !== "All" ? componentFilter : components[0];
+    if (!component) {
+      setNotice("Add a component before adding a failure-mode row.");
+      return;
+    }
+    const [blankRow] = rowsWithUniqueIds(templateRowsForComponents([component]), rows);
+    setRows((currentRows) => [...currentRows, blankRow]);
+    setExpandedComponents((current) => new Set([...current, component]));
+    setSelectedRowIds(new Set([blankRow.id]));
+    setHasUnsavedChanges(true);
+    setNotice(`Added a blank, unconfirmed row for ${component}. It is excluded from final export.`);
+  }
+
+  function duplicateSelectedRows() {
+    const selectedRows = rows.filter((row) => selectedRowIds.has(row.id));
+    if (!selectedRows.length) return;
+    const duplicates = rowsWithUniqueIds(
+      selectedRows.map((row) => ({
+        ...row,
+        id: `${row.id}-copy`,
+        status: "needs_review" as const,
+        included: false,
+        reviewedAt: undefined,
+      })),
+      rows,
+    );
+    setRows((currentRows) => [...currentRows, ...duplicates]);
+    setSelectedRowIds(new Set(duplicates.map((row) => row.id)));
+    setHasUnsavedChanges(true);
+    setNotice(`Duplicated ${duplicates.length} row${duplicates.length === 1 ? "" : "s"}. Review and include each copy explicitly.`);
+  }
+
+  function deleteSelectedRows() {
+    if (!selectedRowIds.size) return;
+    if (!window.confirm(`Delete ${selectedRowIds.size} selected row${selectedRowIds.size === 1 ? "" : "s"}?`)) return;
+    setRows((currentRows) => currentRows.filter((row) => !selectedRowIds.has(row.id)));
+    setSelectedRowIds(new Set());
+    setHasUnsavedChanges(true);
+  }
+
   async function loadSystem(systemId: string) {
     const nextSystem = systemTemplates.find((system) => system.id === systemId);
     if (!nextSystem) return;
+    if (!confirmWorksheetReplacement(`with ${nextSystem.name}`)) return;
     setLoadingAction("system");
     setSelectedSystemId(systemId);
     setComponentFilter("All");
     setComponentQuery("");
     try {
-      const liveDataset = await fetchLiveTurbofanDataset();
-      const nextRows = toFmeaRows(liveDataset.rows);
+      const evidenceResult = await fetchKnowledgeRowsForComponents(nextSystem.components);
+      const nextRows = toFmeaRows(evidenceResult.rows);
       setRowFilter("all");
       setRows(nextRows);
+      setCurrentAnalysisId(null);
+      setExpectedRowIds(null);
+      setAnalysisLoadState("idle");
+      setSearchWasTruncated(evidenceResult.hasNext);
       setAnalysisName(defaultAnalysisName(nextRows));
-      setNotice(`Loaded live turbofan evidence: ${liveDataset.recordCount} classified records, ${nextRows.length} merged analysis rows.`);
+      setNotice(`Loaded ${nextRows.length} current evidence-backed rows for ${nextSystem.name}. Scores require engineer input.`);
       setSelectionStep("table");
       setHasUnsavedChanges(true);
     } catch {
       setRowFilter("all");
-      const nextRows = toFmeaRows(bundledTurbofanData.rows);
-      setRows(nextRows);
-      setAnalysisName(defaultAnalysisName(nextRows));
-      setSelectionStep("table");
-      setNotice("Could not load live turbofan evidence. Using bundled worksheet snapshot.");
+      setNotice("Could not load live evidence. Your current worksheet was preserved; retry the knowledge search or start a manual worksheet.");
     } finally {
       setLoadingAction(null);
     }
@@ -1471,21 +893,34 @@ function Home() {
     saveFmea({ redirectToDashboard: true });
   }
 
+  function recoverWithNewWorksheet() {
+    setCurrentAnalysisId(null);
+    setExpectedRowIds(null);
+    setAnalysisLoadState("idle");
+    setAnalysisLoadError("");
+    setRows([]);
+    setSearchWasTruncated(false);
+    setAnalysisName("Untitled Failure Mode and Effects Analysis");
+    setHasUnsavedChanges(false);
+    setSelectionStep("initial");
+    window.history.replaceState(null, "", "/fmea?mode=new");
+  }
+
   function handleManualSelection() {
     startManualWorksheet();
   }
 
-  function exportData(format: "csv" | "excel") {
+  function exportData(format: "csv" | "excel", mode: FmeaExportMode) {
     setIsExporting(true);
     setLoadingAction("export");
     setTimeout(() => {
       if (format === "csv") {
-        downloadFile("risk-on-radar-fmea.csv", "text/csv;charset=utf-8", buildCsv(includedRows));
+        downloadFile(`risk-on-radar-fmea-${mode}.csv`, "text/csv;charset=utf-8", buildCsv(rows, mode));
       } else {
         downloadFile(
-          "risk-on-radar-fmea.xlsx",
+          `risk-on-radar-fmea-${mode}.xlsx`,
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          buildExcelHtml(includedRows),
+          buildExcelWorkbook(rows, mode),
         );
       }
       setShowExportDropdown(false);
@@ -1496,23 +931,13 @@ function Home() {
 
   function HeaderLabel({ field, label }: { field: string; label: string }) {
     const helpText = fieldHelp[field];
-    const showHelp = helpText && helpFields.has(field);
     return (
-      <span className={`header-label header-label-${field}`}>
+      <span
+        className={`header-label header-label-${field}`}
+        aria-label={helpText ? `${label}: ${helpText}` : label}
+        title={helpText || undefined}
+      >
         <span className="header-label-text">{label}</span>
-        {showHelp && (
-          <button
-            type="button"
-            className={`field-help field-help-${field}`}
-            aria-label={`${label}: ${helpText}`}
-            data-tooltip={helpText}
-          >
-            i
-            <span className="field-help-tooltip" role="tooltip">
-              {helpText}
-            </span>
-          </button>
-        )}
       </span>
     );
   }
@@ -1528,10 +953,6 @@ function Home() {
         className={`fmea-cell-control fmea-text-open ${editableCellClass(row.id, field)}`}
         aria-label={`Open full ${label.toLowerCase()} text for ${row.component} - ${row.failureMode}`}
         title={value || `Open ${label.toLowerCase()} text`}
-        onPointerDown={(event) => {
-          event.stopPropagation();
-          openText();
-        }}
         onClick={(event) => {
           event.stopPropagation();
           openText();
@@ -1553,6 +974,50 @@ function Home() {
     );
   }
 
+  function renderScoreCell(
+    row: FmeaRow,
+    field: "severity" | "occurrence" | "detection",
+    label: "Severity" | "Occurrence" | "Detection",
+  ) {
+    const suggestion = row.scoreSuggestions?.[field];
+    return (
+      <div className="score-input-stack">
+        <select
+          ref={(element) => registerCell(row.id, field, element)}
+          value={row[field]}
+          onChange={(event) => updateRow(row.id, { [field]: event.target.value })}
+          className={`fmea-cell-control fmea-score-control ${editableCellClass(row.id, field)}`}
+          aria-label={`${label} engineer input for ${row.component} - ${row.failureMode}`}
+          title={row[field] ? `${label} ${row[field]} (engineer input)` : `${label} requires engineer input`}
+          onFocus={() => setFocusedCellId(`${row.id}:${field}`)}
+          onBlur={() => setFocusedCellId(null)}
+          onKeyDown={(event) => handleTableCellKeyDown(event, row.id, field)}
+        >
+          <option value="">-</option>
+          {scoreOptions.map((score) => (
+            <option key={score} value={score}>
+              {score}
+            </option>
+          ))}
+        </select>
+        {suggestion && (
+          <button
+            type="button"
+            className="score-suggestion"
+            title={`Heuristic suggestion only: ${suggestion.rationale}`}
+            aria-label={`Apply heuristic ${label.toLowerCase()} suggestion ${suggestion.value}. ${suggestion.rationale}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              updateRow(row.id, { [field]: suggestion.value });
+            }}
+          >
+            Suggested {suggestion.value}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   // TanStack Table columns
   const columns: ColumnDef<FmeaRow>[] = [
       {
@@ -1561,35 +1026,35 @@ function Home() {
         cell: ({ row }) => {
           const toggleIncluded = () => updateRow(row.original.id, { included: !row.original.included });
           return (
-            <input
-              ref={(element) => registerCell(row.original.id, "included", element)}
-              type="checkbox"
-              checked={row.original.included}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                toggleIncluded();
-              }}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-              onChange={(event) => event.stopPropagation()}
-              className="fmea-checkbox"
-              aria-label={`Include ${row.original.component} - ${row.original.failureMode} in exported Failure Mode and Effects Analysis spreadsheet`}
-              title="Include this row in the exported Failure Mode and Effects Analysis spreadsheet"
-              onFocus={() => setFocusedCellId(`${row.original.id}:included`)}
-              onBlur={() => setFocusedCellId(null)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
+            <label className="fmea-checkbox-hitarea" onClick={(event) => event.stopPropagation()}>
+              <span className="visually-hidden">
+                Include {row.original.component} - {row.original.failureMode} in draft export and,
+                when eligible, final export
+              </span>
+              <input
+                ref={(element) => registerCell(row.original.id, "included", element)}
+                type="checkbox"
+                checked={row.original.included}
+                onChange={(event) => {
                   event.stopPropagation();
                   toggleIncluded();
-                  return;
-                }
-                handleTableCellKeyDown(event, row.original.id, "included");
-              }}
-            />
+                }}
+                onClick={(event) => event.stopPropagation()}
+                className="fmea-checkbox"
+                title="Include this row in exports. Final export additionally requires accepted, complete evidence-backed content."
+                onFocus={() => setFocusedCellId(`${row.original.id}:included`)}
+                onBlur={() => setFocusedCellId(null)}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    toggleIncluded();
+                    return;
+                  }
+                  handleTableCellKeyDown(event, row.original.id, "included");
+                }}
+              />
+            </label>
           );
         },
         size: 44,
@@ -1627,27 +1092,8 @@ function Home() {
       {
         accessorKey: "severity",
         header: () => <HeaderLabel field="severity" label="S" />,
-        cell: ({ row }) => (
-          <select
-            ref={(element) => registerCell(row.original.id, "severity", element)}
-            value={row.original.severity}
-            onChange={(e) => updateRow(row.original.id, { severity: e.target.value })}
-            className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "severity")}`}
-            aria-label={`Severity score for ${row.original.component} - ${row.original.failureMode}`}
-            title={row.original.severity ? `Severity ${row.original.severity}` : "No severity score"}
-            onFocus={() => setFocusedCellId(`${row.original.id}:severity`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "severity")}
-          >
-            <option value="">-</option>
-            {scoreOptions.map((score) => (
-              <option key={score} value={score}>
-                {score}
-              </option>
-            ))}
-          </select>
-        ),
-        size: 36,
+        cell: ({ row }) => renderScoreCell(row.original, "severity", "Severity"),
+        size: 72,
       },
       {
         accessorKey: "cause",
@@ -1658,27 +1104,8 @@ function Home() {
       {
         accessorKey: "occurrence",
         header: () => <HeaderLabel field="occurrence" label="O" />,
-        cell: ({ row }) => (
-          <select
-            ref={(element) => registerCell(row.original.id, "occurrence", element)}
-            value={row.original.occurrence}
-            onChange={(e) => updateRow(row.original.id, { occurrence: e.target.value })}
-            className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "occurrence")}`}
-            aria-label={`Occurrence score for ${row.original.component} - ${row.original.failureMode}`}
-            title={row.original.occurrence ? `Occurrence ${row.original.occurrence}` : "No occurrence score"}
-            onFocus={() => setFocusedCellId(`${row.original.id}:occurrence`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "occurrence")}
-          >
-            <option value="">-</option>
-            {scoreOptions.map((score) => (
-              <option key={score} value={score}>
-                {score}
-              </option>
-            ))}
-          </select>
-        ),
-        size: 36,
+        cell: ({ row }) => renderScoreCell(row.original, "occurrence", "Occurrence"),
+        size: 72,
       },
       {
         accessorKey: "currentControl",
@@ -1689,27 +1116,8 @@ function Home() {
       {
         accessorKey: "detection",
         header: () => <HeaderLabel field="detection" label="D" />,
-        cell: ({ row }) => (
-          <select
-            ref={(element) => registerCell(row.original.id, "detection", element)}
-            value={row.original.detection}
-            onChange={(e) => updateRow(row.original.id, { detection: e.target.value })}
-            className={`fmea-cell-control fmea-score-control ${editableCellClass(row.original.id, "detection")}`}
-            aria-label={`Detection score for ${row.original.component} - ${row.original.failureMode}`}
-            title={row.original.detection ? `Detection ${row.original.detection}` : "No detection score"}
-            onFocus={() => setFocusedCellId(`${row.original.id}:detection`)}
-            onBlur={() => setFocusedCellId(null)}
-            onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "detection")}
-          >
-            <option value="">-</option>
-            {scoreOptions.map((score) => (
-              <option key={score} value={score}>
-                {score}
-              </option>
-            ))}
-          </select>
-        ),
-        size: 36,
+        cell: ({ row }) => renderScoreCell(row.original, "detection", "Detection"),
+        size: 72,
       },
       {
         accessorKey: "rpn",
@@ -1748,9 +1156,14 @@ function Home() {
           <select
             ref={(element) => registerCell(row.original.id, "status", element)}
             value={row.original.status}
-            onChange={(e) =>
-              updateRow(row.original.id, { status: e.target.value as FmeaRow["status"] })
-            }
+            onChange={(e) => {
+              const status = e.target.value as FmeaRow["status"];
+              if (status === "accepted" && !isComplete(row.original)) {
+                setNotice("Complete the required engineering fields before accepting this row.");
+                return;
+              }
+              updateRow(row.original.id, { status });
+            }}
             className={`fmea-cell-control status-control status-${row.original.status} ${editableCellClass(row.original.id, "status")}`}
             aria-label={`Review status for ${row.original.component} - ${row.original.failureMode}`}
             title={row.original.status.replace("_", " ")}
@@ -1758,9 +1171,10 @@ function Home() {
             onBlur={() => setFocusedCellId(null)}
             onKeyDown={(e) => handleTableCellKeyDown(e, row.original.id, "status")}
           >
-            <option value="needs_review">!</option>
-            <option value="accepted">✓</option>
-            <option value="rejected">×</option>
+            <option value="needs_review">Needs review</option>
+            <option value="edited">Edited · review again</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
           </select>
         ),
         size: 44,
@@ -1776,6 +1190,9 @@ function Home() {
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
   });
+  const tableRowsById = new Map(
+    table.getRowModel().rows.map((tableRow) => [tableRow.original.id, tableRow] as const),
+  );
 
   const selectedTemplate = systemTemplates.find((system) => system.id === selectedSystemId) ?? systemTemplates[0];
 
@@ -1823,25 +1240,7 @@ function Home() {
                     ))}
                   </select>
                   <p>{selectedTemplate.description}</p>
-                  <dl className="system-card-stats" aria-label={`${selectedTemplate.name} evidence statistics`}>
-                    <div>
-                      <dt>Papers and ADs</dt>
-                      <dd>{selectedTemplate.stats.sourceRecords}</dd>
-                    </div>
-                    <div>
-                      <dt>Relevant records</dt>
-                      <dd>{selectedTemplate.stats.relevantRecords ?? selectedTemplate.stats.sourceRecords}</dd>
-                    </div>
-                    <div>
-                      <dt>FMEA rows</dt>
-                      <dd>{selectedTemplate.stats.rows}</dd>
-                    </div>
-                    <div>
-                      <dt>Components</dt>
-                      <dd>{selectedTemplate.stats.components}</dd>
-                    </div>
-                  </dl>
-                  <span>{selectedTemplate.stats.sourceType}</span>
+                  <span>{selectedTemplate.source}</span>
                   <button
                     className="btn btn-primary btn-full"
                     type="button"
@@ -1985,6 +1384,9 @@ function Home() {
       <AppNav />
 
       <main id="main-content" className="app-main">
+        <h1 className="visually-hidden">
+          {analysisName || "Failure Mode and Effects Analysis worksheet"}
+        </h1>
         <section className="workflow-card worksheet-workspace">
           {/* Worksheet header actions */}
           <div className="fmea-header">
@@ -2018,7 +1420,7 @@ function Home() {
                 onClick={() => saveFmea()}
                 className="btn btn-secondary btn-sm"
                 type="button"
-                disabled={isSaving}
+                disabled={isSaving || !canSave}
               >
                 {isSaving ? "Saving..." : "Save"}
               </button>
@@ -2032,37 +1434,53 @@ function Home() {
                   onClick={() => setShowExportDropdown(!showExportDropdown)}
                   className="btn btn-primary btn-sm"
                   type="button"
-                  disabled={isExporting || !canExport}
-                  aria-describedby={!canExport ? "export-disabled-reason" : undefined}
+                  disabled={isExporting || (!canExportFinal && !canExportDraft)}
+                  aria-expanded={showExportDropdown}
+                  aria-controls="fmea-export-options"
+                  aria-describedby={!canExportFinal && !canExportDraft ? "export-disabled-reason" : undefined}
                 >
                   {isExporting ? "Exporting..." : "Export"}
                 </button>
-                {!canExport && (
+                {!canExportFinal && !canExportDraft && (
                   <span id="export-disabled-reason" className="visually-hidden">
-                    Include at least one row before exporting.
+                    Include at least one non-rejected row before creating a draft export.
                   </span>
                 )}
                 {showExportDropdown && (
-                  <div className="export-dropdown" role="menu" aria-label="Export formats">
+                  <div id="fmea-export-options" className="export-dropdown" aria-label="Export formats">
                     <button
                       type="button"
-                      role="menuitem"
-                      onClick={() => exportData("excel")}
+                      onClick={() => exportData("excel", "final")}
+                      disabled={!canExportFinal}
                     >
-                      Export as Excel
+                      Final Excel · accepted evidence only
                     </button>
                     <button
                       type="button"
-                      role="menuitem"
-                      onClick={() => exportData("csv")}
+                      onClick={() => exportData("csv", "final")}
+                      disabled={!canExportFinal}
                     >
-                      Export as CSV
+                      Final CSV · accepted evidence only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => exportData("excel", "draft")}
+                      disabled={!canExportDraft}
+                    >
+                      Draft Excel · review required
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => exportData("csv", "draft")}
+                      disabled={!canExportDraft}
+                    >
+                      Draft CSV · review required
                     </button>
                   </div>
                 )}
-                {canExport && incompleteRows.length > 0 && (
+                {(canExportFinal || canExportDraft) && (
                   <span className="export-hint" role="status">
-                    {incompleteRows.length} included row{incompleteRows.length === 1 ? "" : "s"} export with blanks.
+                    {finalRows.length} final-ready · {includedRows.length - finalRows.length} draft-only
                   </span>
                 )}
               </div>
@@ -2077,11 +1495,76 @@ function Home() {
             </div>
           </div>
 
+          {analysisLoadState === "error" && (
+            <section className="notice" role="alert" aria-labelledby="analysis-load-error-title">
+              <h2 id="analysis-load-error-title">This saved analysis was not loaded</h2>
+              <p>{analysisLoadError}</p>
+              <p>No analysis ID or row baseline is attached to this empty recovery view, so Save is disabled.</p>
+              <div className="dialog-actions">
+                <button
+                  className="btn btn-primary btn-sm"
+                  type="button"
+                  onClick={() => savedAnalysisId && void loadSavedAnalysis(savedAnalysisId)}
+                  disabled={!savedAnalysisId}
+                >
+                  Retry load
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={recoverWithNewWorksheet}>
+                  Start a separate new worksheet
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => router.push("/dashboard")}>
+                  Return to dashboard
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* Worksheet Controls */}
-          <div className="worksheet-controls">
+          <div className="worksheet-controls" aria-disabled={analysisLoadState === "error" || analysisLoadState === "loading"}>
+            <form
+              className="control-field control-field-wide knowledge-search-control"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void loadKnowledgeSearch(knowledgeQuery, true, knowledgeSearchType);
+              }}
+            >
+              <label className="field-label" htmlFor="knowledge-search">
+                Search shared knowledge
+              </label>
+              <div className="add-component-control">
+                <select
+                  aria-label="Shared knowledge taxonomy"
+                  value={knowledgeSearchType}
+                  onChange={(event) => setKnowledgeSearchType(event.target.value as TaxonomySearchType)}
+                >
+                  <option value="component">Component</option>
+                  <option value="failure_mode">Failure mode</option>
+                </select>
+                <input
+                  id="knowledge-search"
+                  className="text-input"
+                  type="search"
+                  placeholder={knowledgeSearchType === "failure_mode" ? "Low-cycle fatigue, corrosion, wear..." : "Bearing, gearbox, pump, turbine blade..."}
+                  value={knowledgeQuery}
+                  onChange={(event) => setKnowledgeQuery(event.target.value)}
+                />
+                <input
+                  className="text-input"
+                  type="text"
+                  aria-label="Operating domain or application filter"
+                  placeholder="Domain (optional)"
+                  value={knowledgeDomain}
+                  onChange={(event) => setKnowledgeDomain(event.target.value)}
+                />
+                <button className="btn btn-primary btn-sm" type="submit" disabled={loadingAction === "system"}>
+                  Search
+                </button>
+              </div>
+            </form>
+
             <div className="control-field control-field-wide">
               <label className="field-label" htmlFor="component-search">
-                Search components
+                Filter loaded rows
               </label>
               <input
                 id="component-search"
@@ -2196,9 +1679,36 @@ function Home() {
             </div>
           </div>
 
+          <div className="dialog-actions" aria-label="Worksheet row actions">
+            <button className="btn btn-secondary btn-sm" type="button" onClick={addBlankFailureModeRow}>
+              Add blank row
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={duplicateSelectedRows}
+              disabled={selectedRowIds.size === 0}
+            >
+              Duplicate selected
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={deleteSelectedRows}
+              disabled={selectedRowIds.size === 0}
+            >
+              Delete selected
+            </button>
+          </div>
+
           {/* Notice */}
           {notice && (
             <p className="notice" role="status" aria-live="polite">{notice}</p>
+          )}
+          {searchWasTruncated && (
+            <p className="notice" role="status">
+              More than 5,000 matching claims exist. Refine the component, failure mode, or domain before treating this worksheet as a complete search result.
+            </p>
           )}
 
           {/* Table */}
@@ -2212,6 +1722,10 @@ function Home() {
                 </div>
               )}
               <table className={`fmea-table ${focusedCellId ? "focus-mode" : ""}`}>
+                <caption className="visually-hidden">
+                  {analysisName || "Failure Mode and Effects Analysis worksheet"}. Rows are grouped
+                  by component and include engineering values, scores, evidence, and review state.
+                </caption>
                 <colgroup>
                   {worksheetColumnSpecs.map((column) => (
                     <col
@@ -2242,11 +1756,10 @@ function Home() {
                     </tr>
                   ))}
                 </thead>
-                <tbody>
-                  {paginatedGroupedData.map(({ component, childRows }) => (
-                    <Fragment key={component}>
+                {paginatedGroupedData.map(({ component, childRows }) => (
+                  <tbody key={component}>
                       <tr className="component-section-row">
-                        <td colSpan={visibleColumnCount}>
+                        <th scope="rowgroup" colSpan={visibleColumnCount}>
                           <div className="component-row-content">
                             <button
                               type="button"
@@ -2260,17 +1773,25 @@ function Home() {
                             </button>
                             <span className="component-name" title={component}>{component}</span>
                           </div>
-                        </td>
+                        </th>
                       </tr>
                       {expandedComponents.has(component) && childRows.map((row) => (
                         <tr
                           key={row.id}
                           className={`fmea-data-row component-open-row ${selectedRowIds.has(row.id) ? "row-selected" : ""}`}
+                          aria-selected={selectedRowIds.has(row.id)}
+                          tabIndex={0}
                           onClick={(event) => {
                             toggleRowSelection(row.id, event);
                           }}
+                          onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            toggleRowSelection(row.id, event);
+                          }}
                         >
-                          {table.getRowModel().rows.find(r => r.original.id === row.id)?.getVisibleCells()
+                          {tableRowsById.get(row.id)?.getVisibleCells()
                             .filter((cell) => cell.column.id !== "component")
                             .map((cell) => (
                             <td
@@ -2287,9 +1808,8 @@ function Home() {
                           ))}
                         </tr>
                       ))}
-                    </Fragment>
-                  ))}
-                </tbody>
+                  </tbody>
+                ))}
               </table>
               {!visibleRows.length && <p className="empty-state">No rows match the current filters.</p>}
             </div>
@@ -2336,141 +1856,20 @@ function Home() {
           </div>
         </section>
 
-        <section className="reference-section" aria-label="Scoring references">
-          <details className="reference-disclosure">
-            <summary>Severity scoring guide</summary>
-            <div className="reference-table-wrap">
-              <table className="reference-table severity-guide-table">
-                <thead>
-                  <tr>
-                    <th>S</th>
-                    <th>Class</th>
-                    <th>System effect</th>
-                    <th>Guidance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {severityReference.map((item) => (
-                    <tr key={item.score}>
-                      <td>{item.score}</td>
-                      <td>{item.classification}</td>
-                      <td>{item.systemEffect}</td>
-                      <td>{item.scoringGuidance}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-
-          <details className="reference-disclosure">
-            <summary>Occurrence scoring guide</summary>
-            <p className="reference-description">
-              Proposed O uses weighted evidence count plus a cause modifier. EASA AD records count as
-              2 evidence points, journal papers count as 1. Recurring degradation causes can add 1;
-              event-dependent causes such as bird strike, FOD, or maintenance error can subtract 1.
-            </p>
-            <div className="reference-table-wrap">
-              <table className="reference-table occurrence-guide-table">
-                <thead>
-                  <tr>
-                    <th>O</th>
-                    <th>Likelihood</th>
-                    <th>Weighted evidence</th>
-                    <th>Guidance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {occurrenceReference.map((item) => (
-                    <tr key={item.score}>
-                      <td>{item.score}</td>
-                      <td>{item.likelihood}</td>
-                      <td>{item.weightedEvidence}</td>
-                      <td>{item.scoringGuidance}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-
-          <details className="reference-disclosure">
-            <summary>Detection scoring guide</summary>
-            <p className="reference-description">
-              Proposed D starts at 6. Clear inspection or monitoring terms subtract 2. EASA source
-              titles with inspection, check, test, or replacement subtract 1. Internal or latent
-              causes add 1. Sudden, event-dependent, or hard-to-predict failures add 2. The final
-              value is clamped from 1 to 10.
-            </p>
-            <div className="reference-table-wrap">
-              <table className="reference-table detection-guide-table">
-                <thead>
-                  <tr>
-                    <th>D</th>
-                    <th>Detectability</th>
-                    <th>Meaning</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detectionReference.map((item) => (
-                    <tr key={item.score}>
-                      <td>{item.score}</td>
-                      <td>{item.detectability}</td>
-                      <td>{item.meaning}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-
-          <details className="reference-disclosure">
-            <summary>Severity propagation paths</summary>
-            <div className="reference-table-wrap">
-              <table className="reference-table propagation-table">
-                <thead>
-                  <tr>
-                    <th>Cause</th>
-                    <th>Component failure</th>
-                    <th>Local effect</th>
-                    <th>Engine effect</th>
-                    <th>Mission consequence</th>
-                    <th>S</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {propagationPaths.map((path) => (
-                    <tr key={`${path.cause}-${path.componentFailure}`}>
-                      <td>{path.cause}</td>
-                      <td>{path.componentFailure}</td>
-                      <td>{path.localEffect}</td>
-                      <td>{path.engineEffect}</td>
-                      <td>{path.aircraftMissionConsequence}</td>
-                      <td>{path.suggestedSeverity}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        </section>
+        <ScoringReferenceGuides />
       </main>
 
       {showExitDialog && (
-        <div className="source-dialog-backdrop" role="presentation" onClick={() => setShowExitDialog(false)}>
-          <section
-            className="source-dialog source-dialog-compact"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Unsaved Failure Mode and Effects Analysis changes"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setShowExitDialog(false)}>
-              ×
-            </button>
+        <ModalDialog
+          className="source-dialog-compact"
+          ariaLabelledBy="fmea-exit-dialog-title"
+          ariaDescribedBy="fmea-exit-dialog-description"
+          closeLabel="Close unsaved changes dialog"
+          onClose={() => setShowExitDialog(false)}
+        >
             <span className="metric-label">Unsaved Failure Mode and Effects Analysis</span>
-            <h3>Save before returning to the dashboard?</h3>
-            <p>
+            <h2 id="fmea-exit-dialog-title">Save before returning to the dashboard?</h2>
+            <p id="fmea-exit-dialog-description">
               This Failure Mode and Effects Analysis has unsaved edits. Save them now, or discard the changes and return to the dashboard.
             </p>
             <div className="dialog-actions">
@@ -2481,201 +1880,39 @@ function Home() {
                 {isSaving ? "Saving..." : "Save and exit"}
               </button>
             </div>
-          </section>
-        </div>
+        </ModalDialog>
       )}
 
       {selectedSourceRow && (
-        <div className="source-dialog-backdrop" role="presentation" onClick={() => setSelectedSourceRow(null)}>
-          <section
-            className="source-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Evidence sources"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setSelectedSourceRow(null)}>
-              ×
-            </button>
-            <span className="metric-label">Evidence</span>
-            <h3>
-              {selectedSourceRow.component} · {selectedSourceRow.failureMode}
-            </h3>
-            <p>
-              Source-linked evidence remains review-required until an engineer accepts the row.
-            </p>
-            <ul className="source-list">
-              <li>
-                <strong>Extracted Failure Mode and Effects Analysis fields</strong>
-                {evidenceSummary(selectedSourceRow).map(([label, value]) => (
-                  <span key={label}>
-                    {label}: {value}
-                  </span>
-                ))}
-              </li>
-              {selectedSourceRow.sources.map((source) => (
-                <li key={[source.doi, source.title].filter(Boolean).join("|")}>
-                  <strong>{source.title}</strong>
-                  <span>
-                    {sourceLabel(source)}
-                    {source.year ? ` · ${source.year}` : ""}
-                  </span>
-                  {source.evidenceText ? (
-                    <blockquote>{source.evidenceText}</blockquote>
-                  ) : (
-                    <span>Exact evidence span is not included in this bundled snapshot.</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
+        <EvidenceDrawer
+          row={selectedSourceRow}
+          onClose={() => setSelectedSourceRow(null)}
+          onReviewClaim={reviewEvidenceClaim}
+        />
       )}
 
-      {showHelpModal && (
-        <div className="source-dialog-backdrop" role="presentation" onClick={() => setShowHelpModal(false)}>
-          <section
-            className="source-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Keyboard shortcuts and help"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setShowHelpModal(false)}>
-              ×
-            </button>
-            <span className="metric-label">Help</span>
-            <h3>Keyboard Shortcuts</h3>
-            <ul className="source-list">
-              <li>
-                <strong>Tab / Shift+Tab</strong>
-                <span>Navigate between editable cells</span>
-              </li>
-              <li>
-                <strong>Ctrl+S / Cmd+S</strong>
-                <span>Save analysis data</span>
-              </li>
-              <li>
-                <strong>Ctrl+A / Cmd+A</strong>
-                <span>Select all visible rows</span>
-              </li>
-              <li>
-                <strong>Ctrl+Click / Cmd+Click</strong>
-                <span>Add/remove row from selection (multi-select). Click without Ctrl for single selection.</span>
-              </li>
-              <li>
-                <strong>Delete</strong>
-                <span>Delete selected rows (with confirmation)</span>
-              </li>
-              <li>
-                <strong>Ctrl+D / Cmd+D</strong>
-                <span>Toggle include/exclude on selected rows</span>
-              </li>
-              <li>
-                <strong>Ctrl+H / Ctrl+?</strong>
-                <span>Open help modal</span>
-              </li>
-              <li>
-                <strong>Escape</strong>
-                <span>Close dialogs, dropdowns, or clear selection</span>
-              </li>
-            </ul>
-            <h3>Failure Mode and Effects Analysis Field Explanations</h3>
-            <ul className="source-list">
-              <li>
-                <strong>Component</strong>
-                <span>Physical engineering part or subsystem being analyzed</span>
-              </li>
-              <li>
-                <strong>Function</strong>
-                <span>Intended function the component must perform</span>
-              </li>
-              <li>
-                <strong>Failure Mode</strong>
-                <span>How the component or function can fail</span>
-              </li>
-              <li>
-                <strong>Effect</strong>
-                <span>Consequence if the failure mode occurs</span>
-              </li>
-              <li>
-                <strong>Severity (S)</strong>
-                <span>Severity score: 1 is minor, 10 is hazardous or catastrophic</span>
-              </li>
-              <li>
-                <strong>Cause</strong>
-                <span>Why the failure mode occurs</span>
-              </li>
-              <li>
-                <strong>Occurrence (O)</strong>
-                <span>Occurrence score: 1 is rare, 10 is frequent</span>
-              </li>
-              <li>
-                <strong>Controls</strong>
-                <span>Existing prevention, detection, inspection, design, or maintenance control</span>
-              </li>
-              <li>
-                <strong>Detection (D)</strong>
-                <span>Detection score: 1 is easily detected before harm, 10 is unlikely to be detected</span>
-              </li>
-              <li>
-                <strong>RPN</strong>
-                <span>Risk Priority Number = S × O × D. Higher values indicate higher risk priority</span>
-              </li>
-              <li>
-                <strong>Action</strong>
-                <span>Recommended action to reduce risk or correct a confirmed issue</span>
-              </li>
-              <li>
-                <strong>Evidence</strong>
-                <span>Source count and citations behind the extracted Failure Mode and Effects Analysis fields</span>
-              </li>
-              <li>
-                <strong>Status</strong>
-                <span>Human review state for this row</span>
-              </li>
-            </ul>
-            <h3>Row Status</h3>
-            <ul className="source-list">
-              <li>
-                <strong>Needs Review</strong>
-                <span>Row requires engineer review and validation</span>
-              </li>
-              <li>
-                <strong>Accepted</strong>
-                <span>Row has been reviewed and validated</span>
-              </li>
-              <li>
-                <strong>Rejected</strong>
-                <span>Row has been reviewed and rejected</span>
-              </li>
-            </ul>
-          </section>
-        </div>
-      )}
+      {showHelpModal && <WorksheetHelpDialog onClose={() => setShowHelpModal(false)} />}
 
       {cellViewer && (
-        <div className="source-dialog-backdrop" role="presentation" onClick={() => setCellViewer(null)}>
-          <section
-            className="source-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Edit ${cellViewer.field}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button className="dialog-close" type="button" aria-label="Close" onClick={() => setCellViewer(null)}>
-              ×
-            </button>
+        <ModalDialog
+          ariaLabelledBy="fmea-cell-dialog-title"
+          closeLabel={`Close ${cellViewer.field} editor`}
+          onClose={() => setCellViewer(null)}
+        >
             <span className="metric-label">Edit</span>
-            <h3>{cellViewer.field}</h3>
+            <h2 id="fmea-cell-dialog-title">{cellViewer.field}</h2>
+            <label className="field-label" htmlFor="fmea-cell-editor">
+              Engineering value
+            </label>
             <textarea
+              id="fmea-cell-editor"
               value={cellViewer.value}
               onChange={(e) => setCellViewer({ ...cellViewer, value: e.target.value })}
               className="cell-viewer-textarea"
               rows={6}
-              autoFocus
+              data-dialog-autofocus
             />
-            <div style={{ display: "flex", gap: "12px", marginTop: "20px", justifyContent: "flex-end" }}>
+            <div className="dialog-actions">
               <button
                 className="btn btn-secondary btn-sm"
                 type="button"
@@ -2691,8 +1928,7 @@ function Home() {
                 Save
               </button>
             </div>
-          </section>
-        </div>
+        </ModalDialog>
       )}
 
       <footer className="footer">

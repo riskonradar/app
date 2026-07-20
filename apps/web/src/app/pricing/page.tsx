@@ -1,10 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
 import { billingPlans } from "@/lib/billing/plans";
 import { PricingCheckoutButton, PricingPageActions } from "./checkout-controls";
 
-const demoPlans = billingPlans.filter((plan) => plan.key === "individual");
+const selfServePlans = billingPlans.filter(
+  (plan) => plan.key === "individual" || plan.key === "team",
+);
 const freePlan = {
   name: "Free",
   priceLabel: "EUR 0",
@@ -16,17 +19,22 @@ const freePlan = {
   ],
 };
 
+export const metadata: Metadata = {
+  title: "Plans and pricing",
+  description: "Compare Risk on Radar workspace plans and analysis limits.",
+};
+
 export default function PricingPage() {
   return (
     <div className="app-shell">
       <AppNav />
-      <main className="app-main pricing-main">
+      <main id="main-content" className="app-main pricing-main" tabIndex={-1}>
         <section className="page-card pricing-card pricing-card-wide">
           <div className="page-heading">
             <span className="metric-label">Pricing</span>
-            <h1>Risk on Radar Individual plan</h1>
+            <h1>Risk on Radar plans</h1>
             <p>
-              Start with one Failure Mode and Effects Analysis table, then upgrade when you need unlimited reliability analyses.
+              Start with one Failure Mode and Effects Analysis table, then upgrade for unlimited individual or team workflows.
             </p>
           </div>
 
@@ -47,12 +55,16 @@ export default function PricingPage() {
                 Start free
               </Link>
             </article>
-            {demoPlans.map((plan) => (
+            {selfServePlans.map((plan) => (
               <article key={plan.key} className="pricing-plan primary">
                 <div>
-                  <span className="metric-label">Pro</span>
+                  <span className="metric-label">{plan.name}</span>
                   <strong>{plan.priceLabel}</strong>
-                  <small>Unlimited Failure Mode and Effects Analysis tables</small>
+                  <small>
+                    {plan.billingScope === "organization"
+                      ? `${plan.includedSeats ?? 1} seats included`
+                      : "1 named user"}
+                  </small>
                   <p>{plan.description}</p>
                 </div>
                 <ul>
@@ -60,7 +72,13 @@ export default function PricingPage() {
                     <li key={feature}>{feature}</li>
                   ))}
                 </ul>
-                <PricingCheckoutButton amountValue={plan.amountValue} planKey={plan.key} />
+                <PricingCheckoutButton
+                  amountValue={plan.amountValue}
+                  additionalSeatPriceLabel={plan.additionalSeatPriceLabel}
+                  billingScope={plan.billingScope}
+                  includedSeats={plan.includedSeats}
+                  planKey={plan.key}
+                />
               </article>
             ))}
           </div>

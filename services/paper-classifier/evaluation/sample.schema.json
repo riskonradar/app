@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://riskonradar.com/schemas/classifier-eval-sample-v1.json",
+  "title": "Risk on Radar classifier evaluation sample record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_version", "sample_id", "paper"],
+  "properties": {
+    "format_version": {"const": 1},
+    "sample_id": {"type": "string", "minLength": 1},
+    "paper": {
+      "type": "object",
+      "required": ["id", "title", "source"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "doi": {"type": ["string", "null"]},
+        "title": {"type": "string", "minLength": 1},
+        "abstract": {"type": ["string", "null"]},
+        "journal": {"type": ["string", "null"]},
+        "year": {"type": ["integer", "null"]},
+        "authors": {"type": ["string", "null"]},
+        "url": {"type": ["string", "null"]},
+        "source": {"type": "string", "minLength": 1},
+        "cited_by": {"type": ["integer", "null"]},
+        "openalex_id": {"type": ["string", "null"]},
+        "full_text": {"type": ["string", "null"]},
+        "full_text_id": {"type": ["string", "null"]},
+        "full_text_source_url": {"type": ["string", "null"]},
+        "full_text_license": {"type": ["string", "null"]},
+        "full_text_sha256": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

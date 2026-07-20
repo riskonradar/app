@@ -1,0 +1,38 @@
+RISK ON RADAR - CUSTOMER CONTRACT PACK
+Last updated: 14 July 2026
+
+BEFORE SHARING CONFIDENTIAL INFORMATION
+[ ] Mutual NDA - only when confidential information will be shared before the main agreement is signed.
+
+FOR A PAID PILOT
+[ ] Pilot Agreement / Pilot Order Form - scope, dates, users, price, VAT, success criteria, review responsibility, confidentiality, liability, termination, and conversion decision.
+[ ] Data Processing Agreement (DPA) - attach when Risk on Radar processes personal data on the customer's behalf.
+[ ] Security Schedule - factual description of hosting, access, encryption, isolation, backups, incidents, retention, deletion, LLM use, and subprocessors.
+[ ] Subprocessor List - current customer-data vendors, purpose, processing location, and change-notification method.
+[ ] AI Intended-Use and Limitations Statement - evidence research copilot, engineer review required, no certification, no guaranteed completeness, no autonomous safety decision.
+[ ] Data Schedule - customer inputs, prohibited data, ownership, permitted processing, export, return, and deletion.
+
+FOR A SUBSCRIPTION AFTER THE PILOT
+[ ] Master Subscription Agreement (MSA) / B2B SaaS Terms.
+[ ] Subscription Order Form - plan, seats/workspace, price, term, renewal, support, and billing.
+[ ] Data Processing Agreement (DPA), if applicable.
+[ ] Security Schedule.
+[ ] Subprocessor List.
+[ ] Service Level Agreement (SLA) - only when uptime/support commitments are sold.
+[ ] Acceptable Use Policy - may be incorporated by reference in the MSA.
+[ ] AI Intended-Use and Limitations Statement - may be incorporated in the MSA/product documentation.
+
+PUBLIC WEBSITE DOCUMENTS - NOT A SUBSTITUTE FOR CUSTOMER CONTRACTS
+[ ] Legal Notice / Company Information.
+[ ] Privacy Notice.
+[ ] Cookie Notice and consent controls, where needed.
+[ ] Public Terms of Service for self-serve accounts.
+[ ] Public Subprocessor Page.
+
+INTERNAL SIGN-OFF BEFORE SENDING
+[ ] Correct Risk on Radar legal entity, address, KVK number, VAT ID, and signatory.
+[ ] Commercial terms match the approved quote.
+[ ] Liability cap matches the insurance position and has legal review.
+[ ] No unsupported standards, certification, safety, accuracy, or compliance claim.
+[ ] Customer confidential data is not used for model training unless expressly agreed.
+[ ] Signed copy stored in the restricted customer contract folder with renewal/notice dates recorded.

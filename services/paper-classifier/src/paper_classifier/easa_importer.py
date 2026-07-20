@@ -105,6 +105,14 @@ def import_easa_ads(limit: int | None = None, dry_run: bool = False) -> int:
                     when papers_raw.paper_candidates.abstract is distinct from excluded.abstract
                     then 'pending'
                     else papers_raw.paper_candidates.classification_status
+                  end,
+                  classification_lease_token = case
+                    when papers_raw.paper_candidates.abstract is distinct from excluded.abstract
+                    then null else papers_raw.paper_candidates.classification_lease_token
+                  end,
+                  classification_lease_expires_at = case
+                    when papers_raw.paper_candidates.abstract is distinct from excluded.abstract
+                    then null else papers_raw.paper_candidates.classification_lease_expires_at
                   end
                 """,
                 {

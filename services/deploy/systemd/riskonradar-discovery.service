@@ -1,0 +1,45 @@
+[Unit]
+Description=Risk on Radar weekly paper discovery
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=true
+WorkingDirectory=/opt/riskonradar
+EnvironmentFile=/etc/riskonradar/pipeline.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/opt/riskonradar/services/deploy/healthcheck-ping DISCOVERY_HEALTHCHECK_URL start
+ExecStart=/opt/riskonradar/venv/bin/paper-discovery --limit 25 --since-days 30
+ExecStartPost=/opt/riskonradar/services/deploy/healthcheck-ping DISCOVERY_HEALTHCHECK_URL success
+ExecStopPost=/opt/riskonradar/services/deploy/healthcheck-ping DISCOVERY_HEALTHCHECK_URL result
+NoNewPrivileges=true
+PrivateTmp=true
+TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=128M
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+RemoveIPC=true
+UMask=0077
+MemoryHigh=512M
+MemoryMax=768M
+CPUQuota=150%
+TasksMax=24
+LimitNOFILE=256
+TimeoutStartSec=2h10m

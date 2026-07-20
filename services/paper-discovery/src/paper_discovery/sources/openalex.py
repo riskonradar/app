@@ -9,9 +9,57 @@ import httpx
 from paper_discovery.models import DiscoveredPaper
 
 _BASE = "https://api.openalex.org/works"
-_SELECT = "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,open_access,cited_by_count"
+_SELECT = "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,open_access,best_oa_location,cited_by_count"
 _PAGE_SIZE = 100
-_REQUEST_DELAY = 0.1  # OpenAlex polite rate limit
+_REQUEST_DELAY = 0.125  # OpenAlex polite rate limit (max 10 req/s; stay under it)
+_MAX_ATTEMPTS = 5
+_BACKOFF_BASE_SECONDS = 2.0
+_BACKOFF_CAP_SECONDS = 60.0
+_RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
+_DOI_BATCH_SIZE = 100
+
+_last_request_at = 0.0
+
+
+def _throttle() -> None:
+    """Keep every OpenAlex request in this process under the polite rate limit."""
+    global _last_request_at
+    wait = _REQUEST_DELAY - (time.monotonic() - _last_request_at)
+    if wait > 0:
+        time.sleep(wait)
+    _last_request_at = time.monotonic()
+
+
+def _get_with_backoff(
+    client: httpx.Client,
+    url: str,
+    params: dict[str, Any],
+    sleep=time.sleep,
+) -> httpx.Response:
+    """GET with retry on rate-limit/transient errors, honoring Retry-After."""
+    response: httpx.Response
+    for attempt in range(_MAX_ATTEMPTS):
+        _throttle()
+        response = client.get(url, params=params)
+        if response.status_code not in _RETRYABLE_STATUSES:
+            return response
+        if response.status_code == 429 and _daily_limit_exhausted(response):
+            return response
+        if attempt == _MAX_ATTEMPTS - 1:
+            break
+        retry_after = response.headers.get("Retry-After")
+        try:
+            delay = float(retry_after) if retry_after else _BACKOFF_BASE_SECONDS * (2**attempt)
+        except ValueError:
+            delay = _BACKOFF_BASE_SECONDS * (2**attempt)
+        if delay > _BACKOFF_CAP_SECONDS:
+            return response
+        sleep(min(delay, _BACKOFF_CAP_SECONDS))
+    return response
+
+
+def _daily_limit_exhausted(response: httpx.Response) -> bool:
+    return response.headers.get("X-RateLimit-Remaining") == "0"
 
 
 def fetch(
@@ -20,6 +68,7 @@ def fetch(
     limit: int,
     contact_email: str | None = None,
     from_publication_date: str | None = None,
+    api_key: str | None = None,
 ) -> Iterator[DiscoveredPaper]:
     """Yield papers from a single OpenAlex ISSN + keyword search, up to limit.
 
@@ -40,16 +89,15 @@ def fetch(
         params["sort"] = "publication_date:desc"
     if contact_email:
         params["mailto"] = contact_email
+    if api_key:
+        params["api_key"] = api_key
 
     fetched = 0
     with httpx.Client(timeout=30) as client:
         while fetched < limit:
             params["per-page"] = min(limit - fetched, _PAGE_SIZE)
-            try:
-                response = client.get(_BASE, params=params)
-                response.raise_for_status()
-            except httpx.HTTPError as exc:
-                raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
+            response = _request_with_backoff(client, _BASE, params)
+            _raise_for_status(response)
 
             data = response.json()
             results: list[dict[str, Any]] = data.get("results", [])
@@ -69,7 +117,6 @@ def fetch(
             if not next_cursor or len(results) < _PAGE_SIZE:
                 break
             params["cursor"] = next_cursor
-            time.sleep(_REQUEST_DELAY)
 
 
 def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
@@ -95,6 +142,7 @@ def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
     source_url = f"https://doi.org/{doi}"
 
     open_access = item.get("open_access") or {}
+    best_oa_location = item.get("best_oa_location") or {}
     cited_by = item.get("cited_by_count")
 
     return DiscoveredPaper(
@@ -108,8 +156,11 @@ def _paper_from_item(item: dict[str, Any]) -> DiscoveredPaper | None:
         external_ids={"openalex": item["id"]} if item.get("id") else {},
         raw_payload=item,
         is_oa=bool(open_access.get("is_oa")) if open_access else None,
-        oa_url=open_access.get("oa_url"),
+        oa_url=best_oa_location.get("pdf_url") or open_access.get("oa_url"),
         oa_status=open_access.get("oa_status"),
+        oa_license=best_oa_location.get("license"),
+        oa_license_url=license_url_for(best_oa_location.get("license")),
+        oa_version=best_oa_location.get("version"),
         cited_by_count=int(cited_by) if cited_by is not None else None,
     )
 
@@ -128,25 +179,134 @@ def _format_authorship(authorship: dict[str, Any]) -> str | None:
     return name or None
 
 
-def fetch_work_by_doi(doi: str, contact_email: str | None = None) -> dict[str, Any] | None:
+def fetch_work_by_doi(
+    doi: str,
+    contact_email: str | None = None,
+    api_key: str | None = None,
+    client: httpx.Client | None = None,
+) -> dict[str, Any] | None:
     """Fetch a single OpenAlex work by DOI (open-access + citation fields only).
 
-    Returns None when OpenAlex has no record for the DOI.
+    Returns None when OpenAlex has no record for the DOI. Pass a shared client
+    when calling in a loop so connections are reused across requests.
     """
     url = f"{_BASE}/https://doi.org/{doi}"
-    params: dict[str, Any] = {"select": "id,doi,open_access,cited_by_count"}
+    params: dict[str, Any] = {
+        "select": "id,doi,open_access,best_oa_location,cited_by_count"
+    }
     if contact_email:
         params["mailto"] = contact_email
-    with httpx.Client(timeout=30) as client:
-        response = client.get(url, params=params)
-        if response.status_code == 404:
-            return None
-        try:
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise DiscoverySourceError(f"OpenAlex request failed: {exc}") from exc
-        return response.json()
+    if api_key:
+        params["api_key"] = api_key
+    if client is None:
+        with httpx.Client(timeout=30) as own_client:
+            return _fetch_work(own_client, url, params)
+    return _fetch_work(client, url, params)
+
+
+def fetch_works_by_dois(
+    dois: list[str],
+    contact_email: str | None = None,
+    api_key: str | None = None,
+    client: httpx.Client | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Fetch up to 100 works in one filtered request, keyed by canonical DOI."""
+    normalized_dois = [_normalize_doi(doi) for doi in dois]
+    if len(normalized_dois) > _DOI_BATCH_SIZE:
+        raise ValueError(f"OpenAlex DOI batches are limited to {_DOI_BATCH_SIZE} works")
+    if not normalized_dois:
+        return {}
+
+    params: dict[str, Any] = {
+        "filter": f"doi:{'|'.join(normalized_dois)}",
+        "select": "id,doi,open_access,best_oa_location,cited_by_count",
+        "per-page": len(normalized_dois),
+    }
+    if contact_email:
+        params["mailto"] = contact_email
+    if api_key:
+        params["api_key"] = api_key
+
+    if client is None:
+        with httpx.Client(timeout=30) as own_client:
+            return _fetch_works(own_client, params)
+    return _fetch_works(client, params)
+
+
+def _fetch_works(
+    client: httpx.Client, params: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    response = _request_with_backoff(client, _BASE, params)
+    _raise_for_status(response)
+    results = response.json().get("results", [])
+    return {
+        _normalize_doi(item["doi"]): item
+        for item in results
+        if isinstance(item, dict) and item.get("doi")
+    }
+
+
+def _fetch_work(
+    client: httpx.Client, url: str, params: dict[str, Any]
+) -> dict[str, Any] | None:
+    response = _request_with_backoff(client, url, params)
+    if response.status_code == 404:
+        return None
+    _raise_for_status(response)
+    return response.json()
+
+
+def _request_with_backoff(
+    client: httpx.Client, url: str, params: dict[str, Any]
+) -> httpx.Response:
+    try:
+        return _get_with_backoff(client, url, params)
+    except httpx.RequestError as exc:
+        raise DiscoverySourceError(
+            f"OpenAlex request failed: {type(exc).__name__}."
+        ) from None
+
+
+def _raise_for_status(response: httpx.Response) -> None:
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After") or response.headers.get(
+            "X-RateLimit-Reset"
+        )
+        retry_hint = f" Retry after {retry_after} seconds." if retry_after else ""
+        raise OpenAlexRateLimitError(
+            "OpenAlex API allowance is exhausted or rate-limited."
+            f"{retry_hint} Configure OPENALEX_API_KEY for production runs."
+        )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        raise DiscoverySourceError(
+            f"OpenAlex request failed with HTTP {response.status_code}."
+        ) from None
+
+
+def _normalize_doi(doi: str) -> str:
+    return doi.strip().lower().removeprefix("https://doi.org/")
 
 
 class DiscoverySourceError(RuntimeError):
     pass
+
+
+class OpenAlexRateLimitError(DiscoverySourceError):
+    pass
+
+
+def license_url_for(license_id: str | None) -> str | None:
+    if not license_id:
+        return None
+    normalized = license_id.strip().lower().replace("_", "-")
+    return {
+        "cc-by": "https://creativecommons.org/licenses/by/4.0/",
+        "cc-by-4.0": "https://creativecommons.org/licenses/by/4.0/",
+        "cc-by-sa": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "cc-by-sa-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "cc0": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "cc-0": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "public-domain": "https://creativecommons.org/publicdomain/mark/1.0/",
+    }.get(normalized)

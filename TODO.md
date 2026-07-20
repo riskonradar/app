@@ -1,160 +1,179 @@
-# Risk on Radar — Master TODO
+# Risk on Radar - Delivery Status
 
-High-level roadmap from the 2026-07-09 architecture review. Technical detail lives in the
-review artifact; this file is the grand-scheme checklist.
+Updated 2026-07-17 after the production-readiness implementation and audit.
 
-## Decisions made
+This file records what is implemented in the repository and what still requires a human,
+paid account, production secret, or engineering judgment. A checked item means code and
+tests exist; it does not claim that an external service has been configured or deployed.
 
-- [x] **Switch billing to Stripe Billing.** Blocked on business registration (KvK) — Stripe
-      requires a registered entity to go live, and iDEAL scheme rules require the KvK number
-      displayed on the site. App code now uses Stripe Checkout + Billing in test/live mode
-      depending on the configured Stripe keys and Price IDs.
-- [ ] **Keep Clerk for all auth** — personal accounts + organizations. The org schema and
-      webhooks already exist in the codebase; what's missing is the org UI and role checks.
-      Clerk free tier covers us for a long time (orgs included).
-- [ ] **Stay on Supabase Postgres.** Move Free → Pro (~$25/mo) before launch: free projects
-      pause after 1 week of inactivity and cap at 500 MB, both incompatible with a weekly
-      pipeline and a growing corpus.
-- [ ] **Standalone web app, no desktop build.** (Onshape is browser-based too.)
-- [x] **Discovery: OpenAlex-only.** Crossref support removed from the codebase entirely
-      (2026-07-10): abstract-less papers are unclassifiable, and OpenAlex ingests Crossref
-      data with better abstract coverage. Weekly sweep is now 476 API calls (was 952).
-      ⚠ On next droplet deploy, update the discovery systemd unit: drop `--source all`
-      (the flag no longer exists and will error).
-- [ ] **Full-text ingestion strategy.** Today we extract from abstracts only (~250 words).
-      Step 1 (free, legal): OpenAlex exposes `open_access.oa_url` — fetch open-access PDFs
-      (~40–50% of papers) and extract from full text. Step 2 (paid, later): Elsevier TDM
-      (text-and-data-mining) commercial licence — 12 of our 17 journals are Elsevier, so one
-      agreement covers most of the corpus. Subscriptions for humans ≠ TDM rights; we need
-      the TDM licence specifically for machine processing.
-- [ ] **Prompt experiments ride the eval harness.** Any prompt change = classifier version
-      bump + run against the fixed eval sample (same harness as the model comparison in
-      docs/model-selection.md). Never tweak the prompt blind.
-- [ ] **Two-model pipeline (future, Phase 4).** Keep a cheap extractor model per paper;
-      add a stronger reasoning model that works over the aggregated claims graph
-      (system-level interactions, FMEA narrative) — per-corpus calls, not per-paper, so a
-      big model is affordable there.
-- [ ] **Use citation counts / citation graph.** OpenAlex returns `cited_by_count` and
-      `referenced_works` per paper; we fetch neither. Step 1: add `cited_by_count` to the
-      discovery `select`, store it, use it as a ranking/confidence signal. Step 2 (later):
-      citation snowballing — walk references/citers of confirmed-relevant papers as a second
-      discovery channel beyond keyword sweeps.
+## Implemented
 
-## Open decisions
+### Security and tenancy
 
-- [ ] **Classifier LLM.** Production currently runs Gemini 2.5 Flash-Lite (GPT-5.4-nano is a
-      configured alternative, not what's live). Cost is negligible on every candidate model
-      (~€2–25 for a full 3.4k-corpus re-run), so decide on *quality*: build a ~50-paper
-      hand-scored eval set and compare Flash-Lite vs GPT-5.4-nano vs Claude Haiku 4.5.
-- [ ] **UI theme.** Light-first professional workspace (Onshape-like) vs current dark theme;
-      pick a new restrained accent (drop the heavy orange); reserve red/amber/green strictly
-      for risk semantics (severity / action priority) in an FMEA tool.
-- [ ] **Knowledge API exposure.** The whole corpus is publicly dumpable via unauthenticated
-      endpoints today. Decide: public marketing surface vs login-gated IP. Gate by default.
-- [ ] **Pricing model** — with Mikhail (see agenda below).
+- [x] All knowledge, FMEA, system, account, billing, and admin routes require Clerk auth.
+- [x] Service-role database access stays server-side and every product query is scoped to
+      the resolved personal or organization workspace.
+- [x] Owner/admin/member mutation permissions are enforced consistently.
+- [x] `/admin` is bookmark-only, middleware-protected, and hard-gated by `ADMIN_EMAILS` with
+      `notFound()` for no user or a non-admin email.
+- [x] Localhost billing bypasses and committed Clerk development keys are removed.
+- [x] Account synchronization no longer overwrites Stripe-owned plan and seat state.
+- [x] Security-definer functions have explicit search paths, role checks, revokes, and grants.
+- [x] The pipeline has a dedicated least-privilege database runtime role.
 
-## Done 2026-07-11 (classifier v3 + discovery — needs deploy)
+### Evidence and FMEA product loop
 
-- [x] Aviation/turbofan relevance gate removed from the LLM prompt (cross-domain unblocked).
-- [x] Classifier failures persist: `failed` jobs with `last_error`, retry capped at 3
-      attempts; abstract-less papers marked `skipped` (terminal) — no more infinite retries.
-- [x] Re-classification supersedes old unreviewed claims instead of deleting them
-      (review work and FMEA citations survive re-runs). Migration
-      `20260711090000_exclude_superseded_claims.sql` updates the serving RPCs.
-- [x] Relationship quotes are now span-verified like claim quotes (last hallucination
-      door closed); span matching is whitespace-tolerant (recall win, guarantee intact).
-- [x] Discovery `--since-days N`: incremental OpenAlex sweeps by publication date.
-- [x] Classifier version bumped to `llm-extractor-v3`.
-- [x] Relationship index-shift bug fixed (found by the model-selection analysis): edges
-      referenced the LLM's original claim positions, but gates drop claims — edges could
-      silently attach to the wrong claim. Indices now remap to surviving claims.
-- [ ] Pre-eval code fixes from docs/model-selection.md: pin the Gemini model (the
-      `gemini-flash-latest` floating alias is baked into the audited classifier_version),
-      repair the Anthropic caller (max_tokens 1800 → 4096 + forced JSON), move OpenAI to
-      strict json_schema, add label-free eval counters to `_result_from_payload`.
+- [x] `/fmea` opens on live taxonomy-aware evidence search, not bundled demo data.
+- [x] Component and failure-mode search share deterministic taxonomy matching and expose
+      unresolved labels through the taxonomy inbox.
+- [x] Exact source spans, offsets, DOI/source metadata, confidence, support type, and review
+      state are visible in an evidence drawer.
+- [x] Severity, occurrence, and detection are explicit engineer inputs with reference guides;
+      heuristic values are suggestions only.
+- [x] Saves are transactional, workspace-scoped, and preserve field-level claim lineage plus
+      review/audit events.
+- [x] CSV/XLSX exports include traceability without spreadsheet-formula injection.
+- [x] The previous monolithic worksheet is split into typed helpers and focused components.
+- [x] Removed/retracted sources are excluded from active search, lineage, and reasoning.
 
-⚠ **Deploy checklist (in this order):**
-1. `supabase db push` (superseded-claims migration BEFORE the classifier redeploy).
-2. Deploy classifier to droplet; v3 will re-classify the whole corpus (~€2 Gemini).
-3. Update discovery systemd unit: drop `--source all`, add `--since-days 30`.
-4. Pin the model in `/etc/riskonradar/pipeline.env`: `GEMINI_MODEL=gemini-2.5-flash-lite`
-   (the deployed `gemini-flash-latest` is a floating alias baked into the audited
-   classifier version string).
-5. One-time: run `paper-discovery --backfill-oa --limit 4000` to annotate the whole
-   corpus with open-access URLs + citation counts (~6 min, free) — tells us the real
-   OA coverage % for the full-text plan.
+### Shared taxonomy
 
-## Phase 0 — Stop the bleeding (days)
+- [x] Hierarchical component and failure-mode taxonomies use exact, alias, trigram-fuzzy, and
+      inbox fallback linking after every classification batch and through `link-taxonomy`.
+- [x] Analysis-method and application taxonomies use the same schema, linker, inbox, and
+      backfill pattern.
+- [x] Keyword fallback loads the canonical database taxonomies once per batch instead of
+      maintaining duplicate Python vocabularies.
+- [x] Specific LLM phrases are stored without destructive pre-normalization.
+- [x] Cause, effect, control, corrective-action, operating-context, material, and environment
+      remain open evidence text. The audited corpus does not support a useful closed tree.
+- [x] Detection/inspection vocabulary remains a future narrow taxonomy only if more data
+      demonstrates stable clustering; it is not forced into the current release.
 
-- [ ] Fix the security holes (grouped; full list in review): unauthenticated write RPC on
-      review state, open knowledge endpoints, permissive `USING (true)` RLS policies, no auth
-      middleware in the web app, Clerk dev-instance key in production, localhost payment
-      auto-success bypass.
-- [ ] Classifier hygiene: persist failures (4 abstract-less papers currently retry every
-      5 minutes forever); stop upserts clobbering user profiles and org plan fields on every
-      request.
-- [ ] Reproducibility: make `supabase db push` work on a fresh project (migration order bug,
-      missing GRANTs); script the droplet deploy (currently manual scp).
+### Pipeline reliability
 
-## Phase 1 — Shared taxonomy (1–2 weeks) ← the core fix
+- [x] OpenAlex is the only routine discovery API; inserts are concurrency-safe.
+- [x] Incremental discovery never globally marks unseen corpus, EASA, or old papers stale.
+- [x] OA URLs, citation counts, and bounded licensed full-text ingestion are implemented.
+- [x] PDF downloads reject private-network/unsafe redirects and pin validated public peers;
+      parsing runs in a resource-limited subprocess under a hardened systemd unit.
+- [x] Completed classifier jobs are immutable and idempotent; retry attempts cannot delete
+      accepted or cited evidence.
+- [x] Keyword diagnostics cannot supersede LLM evidence or masquerade as an LLM job.
+- [x] Failed classification attempts have a three-attempt terminal cutoff.
+- [x] Discovery, classifier, and full-text services support Healthchecks-compatible start,
+      success, and failure signals.
+- [x] A fixed-sample evaluation harness, schemas, fixtures, comparison metrics, and report
+      command exist for model/prompt selection.
+- [x] The legacy `knowledge.paper_classifications`, duplicate classifier dictionaries,
+      prototype exporters, and turbofan-only serving RPC are retired.
 
-- [ ] Wire in `knowledge.components` — a 38-node hierarchical taxonomy with aliases, fuzzy
-      auto-linker, and subtree search already exists in the DB with **zero callers**.
-      Backfill-link all ~15k existing claims (no LLM calls needed).
-- [ ] Add `knowledge.failure_modes` with the same pattern (fatigue → LCF / HCF / fretting;
-      corrosion → pitting / SCC / galvanic).
-- [ ] Add a resolution step after LLM extraction: exact match → alias → fuzzy → human
-      "taxonomy inbox" for unresolved labels. The taxonomy grows under human control.
-- [ ] Delete the four duplicated vocabularies (two Python maps, exporter maps, inline SQL).
-- [ ] Remove the hard-coded turbofan/aviation filter from the LLM prompt; replace the
-      `%turbofan%` RPC with parameterized component/domain search.
-- [ ] Reprocessing must supersede old claims, not delete them (today it destroys human
-      review work and breaks on FMEA-cited claims).
+### Commercial layer
 
-## Phase 2 — Close the product loop (2–4 weeks)
+- [x] Personal and Clerk organization workspaces have membership UI, invitations, roles,
+      audit events, and seat enforcement.
+- [x] Stripe checkout is subscription-only and enforces Individual = personal workspace and
+      Team = organization workspace.
+- [x] Team billing uses one base item for three included seats plus a separate extra-seat item.
+- [x] Checkout/customer creation is serialized and idempotent; one billing customer and one
+      non-terminal subscription are allowed per workspace.
+- [x] Webhooks are signed, retry-safe, recover failed processing, fetch current subscription
+      state, and derive entitlements only from configured Stripe price IDs.
+- [x] Seat limits synchronize to Clerk from valid Stripe subscription state.
+- [x] Customer Portal access is owner-only and live mode requires a configuration that
+      disables unsafe plan/quantity changes.
+- [x] Stripe Tax is required before live checkout; billing lifecycle and dunning states are
+      shown in the product.
 
-- [ ] Real search UI against the knowledge base (today the default view renders a bundled
-      static JSON snapshot; "search" filters already-loaded rows in the browser).
-- [ ] Evidence drawer: exact spans with offsets, per-claim confidence, DOI citations —
-      all already in the DB, never shown to the user.
-- [ ] Severity/Occurrence/Detection become explicit engineer inputs with the reference
-      tables alongside; current keyword heuristics demoted to clearly-marked suggestions.
-- [ ] Write field-level evidence lineage and review audit trail on save; include claim IDs,
-      spans, and confidence in exports.
-- [ ] Split the 2,700-line worksheet component; make saves transactional.
+### System-level analysis
 
-## Phase 3 — Commercial layer (when we start selling)
+- [x] `/systems` supports tenant-defined assets, component hierarchies linked to taxonomy,
+      dependencies, reviewed propagation edges, conservative cascade paths, and audit history.
+- [x] Aggregate system reasoning is preview-first and requires an explicit execute command.
+- [x] Reasoning inputs are a bounded accepted-relationship closure rooted in asset components,
+      not all claims from a relevant paper.
+- [x] Reasoning outputs are strict-schema, lineage-checked, review-only suggestions and never
+      mutate accepted FMEA or system truth automatically.
+- [x] Reasoning jobs are idempotent and leased so crashed workers can be reclaimed safely.
 
-- [ ] Org UX: Clerk Organizations components, member management, role enforcement on every
-      mutation, seat limits (schema exists, code never checks roles).
-- [ ] Stripe Billing: subscriptions (iDEAL first payment → SEPA Direct Debit recurring),
-      Stripe Tax for EU VAT reverse-charge, invoices, dunning/downgrade, customer portal.
+### Internal operations
 
-## Phase 4 — System-level analysis (whitepaper Phase 2)
+- [x] `/admin` shows pipeline totals, status breakdowns, latest discovery, failed/stuck jobs,
+      7/30-day evidence growth, paginated papers, and unresolved taxonomy labels.
+- [x] The product UI uses a light, restrained engineering-workspace theme with risk colors
+      reserved for actual risk semantics.
+- [x] Example environment files list every required integration variable without real secrets.
+- [x] Repository documentation no longer hard-codes mutable corpus counts or claims an
+      unverified production model/deployment state.
 
-- [ ] Tenant-defined system trees whose component instances reference taxonomy nodes;
-      failure-propagation edges between instances; graph view. Designed to need zero
-      `knowledge.*` schema changes if Phase 1 lands first.
+## Human and external steps before a paid pilot
 
-## To discuss with co-founder
+These cannot be completed safely from source code. Do them in this order.
 
-- [ ] **Manual review of every paper, or auto-publish?** Proposal: auto-publish extracted
-      claims as "unverified — evidence-linked", human review happens (a) in a curation queue
-      for the taxonomy inbox and low-confidence claims, and (b) at FMEA-build time where the
-      engineer accepts/rejects rows anyway. Full manual review of 15k claims doesn't scale.
-- [ ] **Analysis formats beyond FMEA:** 8D problem solving, root-cause analysis, FMECA,
-      RCM worksheets; export templates per standard (AIAG-VDA form, ISO-style).
-      Which do customers actually ask for? (market research input)
-- [ ] **Pricing** — free tier scope, individual vs team price points, seat model.
+1. [ ] Review this branch, the database migration dry run, and the verification results; then
+       merge through a pull request rather than pushing directly to `main`.
+2. [ ] Create production Clerk configuration: production instance, sign-in methods,
+       Organizations enabled, webhook endpoint/signing secret, and deployed production keys.
+3. [ ] Set `ADMIN_EMAILS` as a real deployment secret containing the two founder emails.
+4. [ ] Register the Dutch company and obtain its KvK and VAT details before enabling live
+       payments or displaying a live iDEAL checkout.
+5. [ ] Create Stripe products/prices matching the code exactly: Individual EUR 49/month;
+       Team base EUR 399/month including three seats; Team extra seat EUR 99/month.
+6. [ ] Configure Stripe Tax, EU VAT/tax-ID collection, a signed webhook endpoint, dunning,
+       and a dedicated Customer Portal configuration with subscription plan/quantity updates
+       disabled. Store only the resulting IDs and secrets in the deployment secret manager.
+7. [ ] Upgrade Supabase to Pro before relying on it for a paid production workload.
+8. [ ] Create three Healthchecks.io checks and set `DISCOVERY_HEALTHCHECK_URL`,
+       `CLASSIFIER_HEALTHCHECK_URL`, and `FULL_TEXT_HEALTHCHECK_URL` on the pipeline host.
+9. [x] After applying the migrations, generate a strong password for the NOLOGIN
+       `riskonradar_pipeline` role, enable LOGIN in the Supabase SQL editor, and replace the
+       stale droplet `DATABASE_URL` with that role's session-pooler URL. Never put the
+       password in this repository or a shell transcript.
+10. [ ] Deploy the reviewed service snapshot and systemd units to `/opt/riskonradar`, enable
+        the discovery/full-text timers, run the taxonomy and OA backfills, and inspect logs.
+        Snapshot/unit deployment, timers, database connectivity, and taxonomy linking are
+        verified. The OA run now requires a free `OPENALEX_API_KEY`; the anonymous daily
+        allowance was exhausted and the retry loop was stopped.
+11. [ ] Hand-label roughly 50 representative papers in the evaluation annotation file, run
+       the candidate-model comparison, review errors with both founders, and select the
+       production extraction model. Do not start continuous classification before this.
+12. [ ] Perform a real test-mode Stripe checkout, renewal/update, failed-payment recovery,
+        cancellation, seat-change, and webhook-retry test with a Clerk organization.
+13. [ ] Complete the customer-facing pilot contract pack: mutual NDA where needed, pilot
+        agreement/SOW, DPA, privacy notice, security schedule, subprocessor list, and agreed
+        liability cap backed by professional-indemnity and cyber-insurance quotes.
 
-## Expected monthly costs (sources + math in the review)
+## Deliberate product decisions
 
-| Item                        | Now (building) | At launch |
-|-----------------------------|----------------|-----------|
-| Clerk (auth + orgs)         | €0             | €0–23     |
-| Stripe                      | €0             | per-transaction only (~1.5% + €0.25 cards; iDEAL flat; +~0.7% Billing) |
-| Supabase Postgres           | €0             | ~€23 (Pro $25) |
-| Cloudflare Workers (web)    | €0             | ~€5       |
-| DigitalOcean droplet (bots) | ~€6–11         | ~€6–11    |
-| LLM — Gemini 2.5 Flash-Lite | ~€1–5          | ~€1–5     |
-| **Total**                   | **~€10–15**    | **~€40–70** |
+- [x] Browser application only; no desktop build.
+- [x] Clerk remains the identity and organization system.
+- [x] Supabase Postgres remains the application and knowledge database.
+- [x] The app is an engineering copilot. Machine claims stay unverified until an engineer
+      accepts them in a taxonomy, FMEA, or system-review workflow.
+- [x] No forced cause/effect/control taxonomy.
+- [x] No real-time dashboard, admin write controls, or bespoke authorization framework.
+- [ ] Founders must approve final pricing before live activation.
+- [ ] Customer discovery must determine whether 8D, RCA, FMECA, RCM, or additional export
+      formats come next.
+- [ ] Elsevier or another publisher TDM agreement is a later commercial decision; ordinary
+      human subscription access is not treated as machine-processing permission.
+
+## Release commands
+
+Run only after review and with production credentials supplied out of band:
+
+```sh
+supabase migration list --linked
+supabase db push --linked --dry-run --include-all
+supabase db push --linked --include-all
+
+cd services/paper-classifier
+paper-classifier link-taxonomy
+
+cd ../paper-discovery
+paper-discovery --backfill-oa --limit 15000
+```
+
+Deploy the versioned units from `services/deploy/systemd/`, enable the discovery and
+full-text timers, and keep the continuous classifier stopped until the human evaluation and
+model choice are complete.

@@ -1,19 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { ensureCurrentWorkspace } from "@/lib/account/server";
+import { requireWorkspaceMutationAccess } from "@/lib/auth/workspace-access";
 import { getSupabaseServiceClient } from "@/lib/supabase/server";
 
 const VALID_STATUSES = ["accepted", "rejected", "edited", "needs_review"] as const;
 type ReviewStatus = (typeof VALID_STATUSES)[number];
 
 export async function POST(request: Request) {
-  const workspace = await ensureCurrentWorkspace(request);
-  if (!workspace) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await requireWorkspaceMutationAccess(request, "content");
+  if (!access.ok) {
+    return Response.json({ error: access.error }, { status: access.status });
   }
-  if (workspace.role === "viewer") {
-    return Response.json({ error: "You do not have permission to review evidence." }, { status: 403 });
-  }
+  const { workspace } = access;
 
   const body = await request.json().catch(() => ({}));
   const { claimId, status } = body as { claimId?: string; status?: string };

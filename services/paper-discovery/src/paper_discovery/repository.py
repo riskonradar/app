@@ -49,7 +49,6 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
             """,
             {"source": source, "query": query},
         ).fetchone()
-        self._conn().commit()
         return str(row["id"])
 
     def finish_run(self, run_id: str, stats: DiscoveryWriteStats, status: str = "finished") -> None:
@@ -71,11 +70,11 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
                         "updated": stats.updated,
                         "unchanged": stats.unchanged,
                         "skipped": stats.skipped,
+                        "write_committed": True,
                     }
                 ),
             },
         )
-        self._conn().commit()
 
     def fail_run(self, run_id: str, error: str) -> None:
         self._conn().execute(
@@ -83,67 +82,55 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
             update papers_raw.discovery_runs
             set status = 'failed',
                 finished_at = now(),
-                metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{error}', %(error)s::jsonb)
+                metadata = coalesce(metadata, '{}'::jsonb) || %(metadata)s::jsonb
             where id = %(run_id)s
             """,
-            {"run_id": run_id, "error": json.dumps(error)},
+            {
+                "run_id": run_id,
+                "metadata": json.dumps(
+                    {
+                        "error": error,
+                        "papers_found": 0,
+                        "write_committed": False,
+                    }
+                ),
+            },
         )
-        self._conn().commit()
 
     def upsert_papers(self, run_id: str, papers: Iterable[DiscoveredPaper]) -> DiscoveryWriteStats:
         inserted = 0
         updated = 0
         unchanged = 0
         skipped = 0
-        for paper in papers:
-            if not paper.title_fingerprint:
-                skipped += 1
-                continue
+        # One source-call batch is all-or-nothing.  The connection itself uses
+        # autocommit for run lifecycle updates, so an explicit transaction is
+        # required here to prevent a failed batch from leaving partially
+        # written candidates while its discovery run is marked failed.
+        with self._conn().transaction():
+            for paper in papers:
+                if not paper.title_fingerprint:
+                    skipped += 1
+                    continue
 
-            existing = self._find_existing_candidate(paper)
-            if existing is None:
-                self._insert_paper(run_id, paper)
-                inserted += 1
-                continue
+                existing = self._find_existing_candidate(paper)
+                if existing is None:
+                    if self._insert_paper(run_id, paper):
+                        inserted += 1
+                        continue
 
-            changed = self._update_paper(existing, run_id, paper)
-            if changed:
-                updated += 1
-            else:
-                unchanged += 1
+                    # Another discovery run inserted this DOI between our
+                    # lookup and insert. Resolve it inside this transaction.
+                    existing = self._find_existing_candidate(paper)
+                    if existing is None:
+                        raise RuntimeError("Conflicting paper insert could not be resolved.")
 
-        self._conn().commit()
+                changed = self._update_paper(existing, run_id, paper)
+                if changed:
+                    updated += 1
+                else:
+                    unchanged += 1
+
         return DiscoveryWriteStats(inserted, updated, unchanged, skipped)
-
-    def mark_stale(self, days_without_seen: int) -> int:
-        row = self._conn().execute(
-            """
-            update papers_raw.paper_candidates
-            set lifecycle_status = 'stale',
-                stale_at = now()
-            where lifecycle_status in ('pending_classification', 'classified')
-              and last_seen_at < now() - (%(days)s::text || ' days')::interval
-            returning id
-            """,
-            {"days": days_without_seen},
-        ).fetchall()
-        self._conn().commit()
-        return len(row)
-
-    def mark_removed(self, days_stale: int) -> int:
-        row = self._conn().execute(
-            """
-            update papers_raw.paper_candidates
-            set lifecycle_status = 'removed',
-                removed_at = now()
-            where lifecycle_status = 'stale'
-              and stale_at < now() - (%(days)s::text || ' days')::interval
-            returning id
-            """,
-            {"days": days_stale},
-        ).fetchall()
-        self._conn().commit()
-        return len(row)
 
     def _find_existing_candidate(self, paper: DiscoveredPaper) -> dict[str, Any] | None:
         if paper.canonical_doi:
@@ -193,8 +180,8 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
 
         return None
 
-    def _insert_paper(self, run_id: str, paper: DiscoveredPaper) -> None:
-        self._conn().execute(
+    def _insert_paper(self, run_id: str, paper: DiscoveredPaper) -> bool:
+        row = self._conn().execute(
             """
             insert into papers_raw.paper_candidates (
               discovery_run_id,
@@ -246,9 +233,12 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
               %(discovery_metadata)s::jsonb,
               %(raw_payload)s::jsonb
             )
+            on conflict (doi) do nothing
+            returning id
             """,
             self._paper_params(run_id, paper),
-        )
+        ).fetchone()
+        return row is not None
 
     def _update_paper(self, existing: dict[str, Any], run_id: str, paper: DiscoveredPaper) -> bool:
         next_abstract = paper.abstract or existing["abstract"]
@@ -291,6 +281,16 @@ class DiscoveryRepository(AbstractContextManager["DiscoveryRepository"]):
                     or abstract is distinct from coalesce(%(abstract)s, abstract)
                   then 'pending'
                   else classification_status
+                end,
+                classification_lease_token = case
+                  when title is distinct from %(title)s
+                    or abstract is distinct from coalesce(%(abstract)s, abstract)
+                  then null else classification_lease_token
+                end,
+                classification_lease_expires_at = case
+                  when title is distinct from %(title)s
+                    or abstract is distinct from coalesce(%(abstract)s, abstract)
+                  then null else classification_lease_expires_at
                 end
             where id = %(paper_id)s
             """,
@@ -360,6 +360,12 @@ def _discovery_metadata(paper: DiscoveredPaper) -> dict[str, Any]:
         metadata["oa_url"] = paper.oa_url
     if paper.oa_status:
         metadata["oa_status"] = paper.oa_status
+    if paper.oa_license:
+        metadata["oa_license"] = paper.oa_license
+    if paper.oa_license_url:
+        metadata["oa_license_url"] = paper.oa_license_url
+    if paper.oa_version:
+        metadata["oa_version"] = paper.oa_version
     if paper.cited_by_count is not None:
         metadata["cited_by_count"] = paper.cited_by_count
     return metadata

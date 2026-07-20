@@ -37,6 +37,9 @@ The product database is Supabase Postgres. Always schema-qualify product queries
 - `knowledge.evidence_claims`: one atomic extracted or inferred reliability claim.
 - `knowledge.evidence_spans`: exact source text supporting a claim.
 - `knowledge.claim_relationships`: links between claims from the same paper.
+- `papers_raw.paper_full_texts`: append-only licensed-PDF retrieval audit and bounded extracted text.
+- `app.reasoning_jobs` / `app.reasoning_suggestions`: optional aggregate-system reasoning
+  inputs and review-only outputs; these must never mutate system or FMEA truth.
 
 The frontend should usually read from `knowledge` for product workflows and join back to `papers_raw.paper_candidates` for citation/source drill-downs.
 
@@ -103,8 +106,20 @@ pip install -e .
 paper-discovery --help
 paper-discovery --limit 100
 paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
-paper-discovery --limit 25 --since-days 30 --mark-stale-days 60 --mark-removed-days 180
+paper-discovery --limit 25 --since-days 30
 ```
+
+Production installs use the reviewed runtime lock before installing the local
+packages without dependency resolution:
+
+```sh
+python -m pip install --requirement services/requirements.lock
+python -m pip install --no-deps --editable services/paper-discovery \
+  --editable services/paper-classifier
+```
+
+Refresh `services/requirements.lock` only as an explicit dependency update and
+run both service test suites before deployment.
 
 Environment:
 
@@ -114,6 +129,7 @@ DATABASE_URL=postgresql://...
 SUPABASE_DB_URL=postgresql://...
 
 DISCOVERY_CONTACT_EMAIL=you@example.com
+OPENALEX_API_KEY=...                     # free production API key
 ```
 
 ## Classifier Service
@@ -123,9 +139,11 @@ Path: `services/paper-classifier`
 Main responsibilities:
 
 - Poll `papers_raw.paper_candidates` for pending/failed or unprocessed papers.
-- Extract reliability/FMEA claims from title/abstract and later full text when available.
+- Extract reliability/FMEA claims from title/abstract and explicitly licensed full text.
 - Store atomic claims, evidence spans, relationships, model metadata, and confidence.
 - Mark successfully processed papers as classified.
+- Link supported claims to database-owned component, failure-mode, analysis-method, and
+  application taxonomies after each batch.
 
 Production should use LLM-only mode when claiming LLM extraction quality:
 
@@ -140,7 +158,7 @@ Supported provider env vars:
 ```sh
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-flash-latest
+GEMINI_MODEL=gemini-2.5-flash-lite
 
 LLM_PROVIDER=groq
 GROQ_API_KEY=...
@@ -160,10 +178,31 @@ One-off helpers:
 ```sh
 paper-classifier import-corpus --corpus-db /path/to/corpus.db
 paper-classifier import-easa
+paper-classifier ingest-full-text --limit 100
+paper-classifier link-taxonomy
 paper-classifier classify --extractor keyword --limit 1 --dry-run
+paper-classifier reason-system --organization-id UUID --asset-id UUID
 ```
 
-## Current Droplet Deployment
+`reason-system` is preview-only unless `--execute` is passed. Execution requires the
+separate `REASONING_LLM_*` environment variables and writes auditable suggestions for human
+review; it does not update system edges or FMEA rows.
+
+Model or prompt changes must use the fixed evaluation sample and completed human annotations:
+
+```sh
+paper-classifier eval-validate \
+  --sample evaluation/sample-v1.jsonl \
+  --annotations evaluation/annotations-v1.jsonl
+paper-classifier eval-run --sample evaluation/sample-v1.jsonl --model MODEL --output predictions.jsonl
+paper-classifier eval-score \
+  --sample evaluation/sample-v1.jsonl \
+  --annotations evaluation/annotations-v1.jsonl \
+  --predictions predictions.jsonl \
+  --output scores.json
+```
+
+## Droplet Deployment Target
 
 The pipeline is deployed on a DigitalOcean droplet:
 
@@ -182,14 +221,13 @@ Systemd units:
 - `riskonradar-discovery.timer`: enabled weekly discovery timer.
 - `riskonradar-discovery.service`: oneshot discovery run.
 - `riskonradar-classifier.service`: long-running classifier worker.
+- `riskonradar-full-text.timer`: weekly OA metadata and licensed full-text ingestion.
 
 Current intended commands:
 
 ```sh
 # Weekly discovery, via timer
-# (deployed unit still passes --source all from before the Crossref removal —
-#  drop that flag when next deploying; it no longer exists and will error)
-/opt/riskonradar/venv/bin/paper-discovery --limit 25 --mark-stale-days 60 --mark-removed-days 180
+/opt/riskonradar/venv/bin/paper-discovery --limit 25 --since-days 30
 
 # Continuous classifier worker
 /opt/riskonradar/venv/bin/paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1
@@ -208,14 +246,17 @@ systemctl restart riskonradar-classifier.service
 
 ## Deployment Notes
 
-The droplet currently contains a copied snapshot of this repository under `/opt/riskonradar`, not an automated git checkout/deploy pipeline. If code changes are made locally, redeploy by copying the updated service files, reinstalling editable packages if needed, and restarting the relevant systemd unit.
+The droplet uses a copied snapshot under `/opt/riskonradar`, not an automated git checkout.
+Repository state does not prove deployment state: verify unit files, `systemctl`, logs,
+database connectivity, and classifier-version rows after every rollout.
 
 Keep the production worker conservative:
 
 - Weekly discovery is enough for now.
 - Classifier polling every 5 minutes is enough for now.
 - `--workers 1` protects low-cost LLM quotas.
-- If Gemini returns quota errors, let the LLM-only classifier retry later rather than saving keyword fallback output as LLM output.
+- Let LLM quota/provider errors fail visibly and retry later; never label deterministic
+  fallback output as an LLM job.
 
 ## Testing
 
@@ -230,4 +271,3 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 ```
 
 Use dry-run commands before broad ingestion/classification when changing query packs, dedupe, or extractor behavior.
-

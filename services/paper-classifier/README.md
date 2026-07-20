@@ -5,22 +5,12 @@ This service is responsible for classifying raw paper candidates into structured
 Initial responsibilities:
 
 - Read unclassified paper candidates from the raw paper store.
-- Classify relevance from title and abstract.
+- Classify relevance from title/abstract and a license-approved OA full text when available.
 - Extract or propose component, failure mode, cause, effect, control, operating context, citation, confidence, and evidence-span records.
 - Write classified records into a separate classified knowledge store or schema.
 - Preserve model metadata and review state for auditability.
 
 This service can use a small LLM or classifier pipeline, but classified output should not be treated as validated engineering truth until reviewed.
-
-## Prototype FMEA Classifier
-
-The turbofan RIS prototype can be regenerated with:
-
-```sh
-python -m paper_classifier.main prototype-ris --ris ../paper-discovery/data/ris/turbofan-engine.ris --output data/classified/fmea-turbofan-data.json
-```
-
-The generated rows are grouped by component and failure mode, preserve paper citations, and keep severity, occurrence, detection, corrective action, and RPN blank until reviewed or scored by an approved workflow.
 
 ## Data Model
 
@@ -61,6 +51,10 @@ GEMINI_MODEL=gemini-2.5-flash-lite
 Other supported providers:
 
 ```sh
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=llama3.1:8b
+OLLAMA_BASE_URL=http://localhost:11434
+
 LLM_PROVIDER=openai
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5.4-nano
@@ -71,6 +65,15 @@ ANTHROPIC_MODEL=claude-haiku-4-5
 ```
 
 If `LLM_PROVIDER` is unset or `none`, the service uses the deterministic keyword/span extractor.
+
+The optional aggregate reasoner has separate, explicit configuration and never falls back to
+the extraction model:
+
+```sh
+REASONING_LLM_PROVIDER=anthropic
+REASONING_LLM_MODEL=claude-sonnet-model-id
+REASONING_LLM_API_KEY=...
+```
 
 ## Commands
 
@@ -94,6 +97,31 @@ paper-classifier classify --mode incremental --limit 50 --extractor auto --watch
 
 Use `--dry-run` on either command to inspect behavior without writing.
 
+Preview the bounded, tenant-scoped system/evidence manifest without calling a model:
+
+```sh
+paper-classifier reason-system \
+  --organization-id ORGANIZATION_UUID \
+  --asset-id ASSET_UUID
+```
+
+After reviewing the printed manifest hash and counts, make the opt-in stronger-model call:
+
+```sh
+paper-classifier reason-system \
+  --organization-id ORGANIZATION_UUID \
+  --asset-id ASSET_UUID \
+  --max-claims 200 \
+  --execute
+```
+
+This stage reads only the selected tenant's component instances, dependencies, accepted failure
+propagations, and tenant-accepted evidence. It stores auditable jobs and `needs_review`
+suggestions in `app.reasoning_jobs` and `app.reasoning_suggestions`. Suggestions may cite only
+IDs in the immutable input manifest and never update FMEA rows, assets, component instances, or
+accepted propagation records. Re-running the same input/provider/model/prompt version is
+idempotent. A failed job is retried only with `--retry-failed`, up to three total attempts.
+
 `classify` reads from `papers_raw.paper_candidates`; it does not need the SQLite corpus once papers are already in Supabase. It selects papers that are pending/failed, plus papers that do not have a completed `knowledge.classification_jobs` row for the current classifier version/model. Deleted paper candidates cascade-delete their classifier jobs, claims, spans, relationships, and legacy classification rows through foreign keys.
 
 ## Current Classifier
@@ -111,4 +139,4 @@ The deterministic extractor is intentionally conservative:
 - stores inferred claims separately with `support_type='inferred_from_span'`;
 - proposes low-confidence relationships for review.
 
-The LLM extractor writes to the same tables. Direct LLM claims are accepted only when their `evidence_text` is found exactly in the title or abstract. Inferred LLM claims must still include source evidence text and an inference rationale.
+The LLM extractor writes to the same tables. Direct LLM claims are accepted only when their `evidence_text` is found in the named title, abstract, or full-text source. Inferred LLM claims and relationships must still include verified source evidence text and an inference rationale.

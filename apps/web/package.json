@@ -15,15 +15,13 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.7",
-    "@riskonradar/shared": "workspace:*",
     "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-table": "^8.21.3",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "stripe": "^22.3.1",
-    "svix": "^1.96.0",
-    "three": "^0.184.0"
+    "svix": "^1.96.0"
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.19.11",
@@ -33,7 +31,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",

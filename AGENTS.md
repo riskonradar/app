@@ -56,7 +56,8 @@ Use consistent domain language:
 - Always schema-qualify DB queries: `papers_raw.paper_candidates`, `knowledge.evidence_claims`, etc.
 - Never query `knowledge.evidence_records` — it is an empty legacy table, never populated.
 - Never query `knowledge.paper_classifications` — legacy coarse summary, now empty after cleanup.
-- The active classifier version is `llm-extractor-v2:gemini:gemini-flash-latest`. Filter jobs by this version when querying for current knowledge.
+- Never hard-code an "active" provider/model. The code prefix is `llm-extractor-v5`;
+  query completed `knowledge.classification_jobs` and its metadata for runtime truth.
 - Do not change architecture or stack decisions without explicit user approval.
 
 ## Repository Architecture
@@ -68,7 +69,7 @@ services/
   paper-discovery/        Python: finds papers via OpenAlex, writes to papers_raw
   paper-classifier/       Python: reads pending papers, extracts claims, writes to knowledge
 packages/
-  shared/                 (empty — shared types once contracts stabilize)
+  shared/                 empty — shared types once contracts stabilize
 supabase/
   migrations/             SQL migrations for all schemas
 ```
@@ -87,7 +88,7 @@ Connection: use the session pooler — `aws-0-eu-west-1.pooler.supabase.com:5432
 - `app` — user accounts, billing customers, billing payments (Clerk mirror + Stripe state)
 - `papers_raw` — raw discovery input: discovery runs and paper candidates
 - `knowledge` — machine-extracted reliability intelligence: classification jobs, evidence claims, spans, relationships
-- `public` — EASA ADs source table (`public.easa_ads`, 319 rows, original structured source)
+- `public` — EASA ADs source table (`public.easa_ads`, original structured source)
 
 All product tables use RLS. Server-side code must use appropriate credentials. An empty result from the API may mean an RLS policy issue, not missing data. The Supabase Table Editor defaults to `public`; switch the schema dropdown to see product tables.
 
@@ -140,7 +141,7 @@ One row per unique paper or document. The source-of-record for all raw input bef
 | discovery_metadata | jsonb | Discovery run metadata |
 | raw_payload | jsonb | Full original API response or import payload |
 
-**Current state**: 3,417 rows. 3,098 corpus papers (`source='corpus'`), 319 EASA ADs (`source='easa_ad'`). 3,413 classified, 4 pending (no abstract).
+Query the database or `/admin` for current counts; never copy a snapshot into this file.
 
 **Deduplication**: canonical DOI first, then title fingerprint + year, then abstract hash.
 
@@ -157,7 +158,7 @@ One auditable row per (paper, classifier version). Prevents double-processing an
 | id | uuid | PK |
 | paper_candidate_id | uuid | FK → paper_candidates |
 | input_hash | text | SHA-256 of `{title, abstract}` — changes if content changes |
-| classifier_version | text | Full version string e.g. `llm-extractor-v2:gemini:gemini-flash-latest` |
+| classifier_version | text | Full version string e.g. `llm-extractor-v5:gemini:gemini-2.5-flash-lite` |
 | mode | text | `'incremental'` or `'backfill'` |
 | status | text | `'completed'`, `'failed'` |
 | attempts | int | Retry count |
@@ -165,11 +166,11 @@ One auditable row per (paper, classifier version). Prevents double-processing an
 | completed_at | timestamptz | |
 | classifier_metadata | jsonb | `extractor`, `llm_provider`, `llm_model`, `claim_count`, `relationship_count` |
 
-**Active version**: `llm-extractor-v2:gemini:gemini-flash-latest`
+The code classifier prefix is `llm-extractor-v5`. Provider/model suffixes are runtime config.
 
 **Version semantics**: changing the model or bumping `LLM_CLASSIFIER_VERSION` in `llm.py` makes all papers eligible for reclassification. Old jobs and their claims are kept until explicitly deleted.
 
-**Current state**: 3,417 jobs (one per paper, active v2 version only — old v1/Groq/keyword jobs were cleaned up).
+Query completed jobs by version and provider for current runtime state.
 
 ---
 
@@ -193,7 +194,7 @@ The core output table. One row per atomic extracted or inferred fact. This is wh
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
 
-**Current state**: 14,990 rows.
+Claim counts are runtime data and belong in `/admin`, not documentation.
 
 **Claim type definitions** (constraint: `evidence_claims_claim_type_check`):
 
@@ -213,24 +214,6 @@ The core output table. One row per atomic extracted or inferred fact. This is wh
 | `material` | Material involved | CFRP, Inconel, titanium alloy, hardened steel |
 | `environment` | Environmental condition | marine atmosphere, high humidity, elevated temperature |
 
-**Breakdown by type** (current live data):
-
-| Type | Count |
-|---|---|
-| control | 3,233 |
-| failure_mode | 2,904 |
-| component | 2,678 |
-| analysis_method | 1,863 |
-| application | 1,620 |
-| effect | 773 |
-| corrective_action | 603 |
-| cause | 593 |
-| operating_context | 394 |
-| environment | 147 |
-| material | 72 |
-| detection_method | 66 |
-| maintenance_action | 1 |
-
 **DO NOT** read `knowledge.evidence_records` — it is an empty legacy table from an earlier schema design that was never populated. The atomic claim approach in `evidence_claims` supersedes it entirely.
 
 ---
@@ -243,13 +226,13 @@ One row per piece of source text that supports a claim. Provides full traceabili
 |---|---|---|
 | id | uuid | PK |
 | evidence_claim_id | uuid | FK → evidence_claims |
-| source_field | text | `'title'` or `'abstract'` |
+| source_field | text | `'title'`, `'abstract'`, or licensed `'full_text'` |
 | text | text | Exact verbatim quote from the source field |
 | char_start | int | Character offset where quote begins in source_field |
 | char_end | int | Character offset where quote ends |
 | license_safe | bool | Whether this span is safe to display (default true) |
 
-**Current state**: 20,365 rows.
+Span counts are runtime data and belong in `/admin`, not documentation.
 
 Every `direct_span` claim has at least one span with exact character positions. Inferred claims have spans pointing to the supporting evidence, not the inferred value.
 
@@ -272,7 +255,7 @@ Typed directed links between two claims from the same paper. These form the FMEA
 | metadata | jsonb | Classifier metadata |
 | review_status | text | `'needs_review'`, `'accepted'`, `'edited'`, `'rejected'`, `'superseded'` |
 
-**Current state**: 3,729 rows.
+Relationship counts are runtime data and belong in `/admin`, not documentation.
 
 **Relationship type definitions** (constraint: `claim_relationships_relationship_type_check`):
 
@@ -291,7 +274,7 @@ Typed directed links between two claims from the same paper. These form the FMEA
 
 ### `public.easa_ads`
 
-Original structured source table for EASA Airworthiness Directives. 319 rows. Not written to by the classifier — these are the upstream records.
+Original structured source table for EASA Airworthiness Directives. It is not written to by the classifier; these are upstream records.
 
 Key columns: `ad_number`, `title`, `engine_family`, `engine_models` (jsonb array), `ata_chapter`, `issue_date`, `effective_date`, `summary_text` (extracted PDF reason section), `required_actions`, `compliance_time`, `ad_url`, `primary_pdf_url`, `approval_holder`, `source_category`, `keyword`.
 
@@ -320,7 +303,7 @@ Queries OpenAlex by trusted journal ISSN × search query combinations. Upserts r
 
 **Step 2 — Classification** (`services/paper-classifier`):
 Polls `papers_raw.paper_candidates` for rows where `classification_status='pending'` or no completed `classification_jobs` row for the current classifier version. For each paper:
-1. Sends title + abstract to the LLM (Gemini, Groq, OpenAI, or Anthropic).
+1. Sends title + abstract and, when legally ingested, bounded OA full text to the LLM.
 2. LLM returns structured JSON: `relevance`, `confidence`, list of typed `claims`, list of typed `relationships`.
 3. Each claim is validated, evidence-anchored, and written to `knowledge.evidence_claims`.
 4. Each claim's supporting text is written to `knowledge.evidence_spans` with character offsets.
@@ -356,7 +339,7 @@ join knowledge.evidence_claims comp on comp.id = cr_fm.subject_claim_id
 join knowledge.evidence_claims fm   on fm.id   = cr_fm.object_claim_id
 join papers_raw.paper_candidates pc  on pc.id  = cr_fm.paper_candidate_id
 join knowledge.classification_jobs cj on cj.id = cr_fm.classification_job_id
-  and cj.classifier_version like 'llm-extractor-v2%'
+  and cj.classifier_metadata->>'extractor' = 'llm'
 left join knowledge.claim_relationships cr_cause on cr_cause.paper_candidate_id = pc.id
   and cr_cause.subject_claim_id = fm.id and cr_cause.relationship_type = 'caused_by'
 left join knowledge.evidence_claims cause on cause.id = cr_cause.object_claim_id
@@ -395,7 +378,7 @@ from knowledge.evidence_claims ec
 join knowledge.evidence_spans es on es.evidence_claim_id = ec.id
 join knowledge.classification_jobs cj on cj.id = ec.classification_job_id
 where ec.paper_candidate_id = $1
-  and cj.classifier_version like 'llm-extractor-v2%'
+  and cj.classifier_metadata->>'extractor' = 'llm'
 order by ec.claim_type, es.char_start;
 ```
 
@@ -419,7 +402,7 @@ join papers_raw.paper_candidates pc on pc.id = ec.paper_candidate_id
 join knowledge.classification_jobs cj on cj.id = ec.classification_job_id
 where ec.claim_type = 'failure_mode'
   and ec.normalized_value ilike '%fatigue%'
-  and cj.classifier_version like 'llm-extractor-v2%'
+  and cj.classifier_metadata->>'extractor' = 'llm'
 order by ec.confidence desc
 limit 100;
 ```
@@ -441,7 +424,7 @@ join knowledge.claim_relationships cr on cr.subject_claim_id = comp.id
 join knowledge.evidence_claims fm on fm.id = cr.object_claim_id
 join papers_raw.paper_candidates pc on pc.id = comp.paper_candidate_id
 join knowledge.classification_jobs cj on cj.id = comp.classification_job_id
-  and cj.classifier_version like 'llm-extractor-v2%'
+  and cj.classifier_metadata->>'extractor' = 'llm'
 left join knowledge.claim_relationships cr2 on cr2.paper_candidate_id = pc.id
   and cr2.subject_claim_id = fm.id
 left join knowledge.evidence_claims cause on cause.id = cr2.object_claim_id
@@ -491,7 +474,7 @@ paper-classifier import-corpus --corpus-db path/to/corpus.db
 | Flag | Default | Description |
 |---|---|---|
 | `--extractor auto\|llm\|keyword` | `auto` | `auto` uses LLM if `LLM_PROVIDER` set, else keyword fallback |
-| `--workers N` | `4` | Parallel API workers (8 recommended for Gemini paid) |
+| `--workers N` | `4` | Parallel API workers; production currently uses 1 to bound cost |
 | `--limit N` | `25` | Max papers per batch |
 | `--mode incremental\|backfill` | `incremental` | Written to `classification_jobs.mode` for auditing |
 | `--watch` | off | Loop continuously |
@@ -503,9 +486,9 @@ paper-classifier import-corpus --corpus-db path/to/corpus.db
 
 Format: `{LLM_CLASSIFIER_VERSION}:{provider}:{model}` for LLM, or `keyword-span-preprocessor-v1` for keyword extractor.
 
-Current active: `llm-extractor-v2:gemini:gemini-flash-latest`
+Current code prefix: `llm-extractor-v5` (runtime provider/model form the suffix).
 
-Bumping `LLM_CLASSIFIER_VERSION` in `llm.py` (currently `"llm-extractor-v2"`) or changing the model makes all papers eligible for reclassification, because the `pending_candidates` query uses `not exists (completed job for this version)`.
+Bumping `LLM_CLASSIFIER_VERSION` in `llm.py` (currently `"llm-extractor-v5"`) or changing the model makes all papers eligible for reclassification, because the `pending_candidates` query uses `not exists (completed job for this version)`.
 
 ### Pending candidate selection query
 
@@ -522,10 +505,10 @@ order by pc.publication_year desc nulls last, pc.created_at asc
 limit :limit
 ```
 
-### LLM prompt structure (v2)
+### LLM prompt structure (v5)
 
 The prompt extracts 13 claim types and 8 relationship types. Key rules enforced in prompt:
-- `direct_span`: `evidence_text` must be an exact quote from title or abstract.
+- `direct_span`: `evidence_text` must be an exact quote from title, abstract, or licensed full text.
 - `inferred_from_span`: must cite supporting quote AND provide `inference_rationale`.
 - Unsupported claims are not stored — LLM must have evidence.
 - `not_relevant` papers return zero claims.
@@ -536,7 +519,7 @@ Gemini Flash thinking is disabled via `"thinkingConfig": {"thinkingBudget": 0}` 
 
 | Provider | Env vars | Notes |
 |---|---|---|
-| Gemini | `LLM_PROVIDER=gemini`, `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-flash-latest` | Recommended. Paid tier ~$0.50/3000 papers. Thinking disabled. |
+| Gemini | `LLM_PROVIDER=gemini`, `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-2.5-flash-lite` | Candidate model; thinking disabled. |
 | Groq | `LLM_PROVIDER=groq`, `GROQ_API_KEY`, `GROQ_MODEL=llama-3.3-70b-versatile` | Free tier: 100k tokens/day (~150 papers). 3.5s delay between calls to avoid TPM limit. |
 | OpenAI | `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5.4-nano` | Uses Responses API (`/v1/responses`). |
 | Anthropic | `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL=claude-haiku-4-5` | Uses Messages API. |
@@ -578,7 +561,11 @@ paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
 
 ### Source
 
-- **OpenAlex** (sole source): ISSN + keyword filter, reconstructs abstract from inverted index, cursor pagination. Crossref support was removed 2026-07 — papers without abstracts are unclassifiable downstream, and OpenAlex ingests Crossref data with better abstract coverage.
+- **OpenAlex** (sole source): ISSN + keyword filter, reconstructs abstract from inverted
+  index, cursor pagination. Crossref support was removed 2026-07 — papers without abstracts
+  are unclassifiable downstream, and OpenAlex ingests Crossref data with better abstract
+  coverage. Production-scale sweeps and OA backfills require a free `OPENALEX_API_KEY`;
+  email-only polite-pool identification does not provide sufficient daily allowance.
 
 Writes to `papers_raw.paper_candidates` with `source='discovery'` and deduplicates by canonical DOI (then title fingerprint + year as fallback).
 
@@ -594,7 +581,7 @@ With `--since-days N` the sweep becomes incremental: the OpenAlex filter gains `
 
 EASA ADs are mandatory safety documents from the European Union Aviation Safety Agency. They describe confirmed unsafe conditions in aircraft and engines and mandate corrective actions. They are extremely high-quality sources for failure_mode, cause, effect, and corrective_action claims.
 
-**Source**: `public.easa_ads` (319 rows, keywords: turbofan/turboprop/turboshaft/turbojet)
+**Source**: `public.easa_ads` (query for current count)
 
 **Import command**: `paper-classifier import-easa`
 
@@ -665,21 +652,24 @@ Systemd units:
 - `riskonradar-discovery.timer`: enabled weekly discovery timer.
 - `riskonradar-discovery.service`: one-shot discovery job.
 - `riskonradar-classifier.service`: continuously running classifier worker.
+- `riskonradar-full-text.timer`: weekly OA metadata/full-text timer.
+- `riskonradar-full-text.service`: one-shot legal OA ingestion job.
 
 Current production commands:
 
 ```sh
-/opt/riskonradar/venv/bin/paper-discovery --limit 25 --mark-stale-days 60 --mark-removed-days 180
+/opt/riskonradar/venv/bin/paper-discovery --limit 25 --since-days 30
 /opt/riskonradar/venv/bin/paper-classifier classify --extractor llm --limit 25 --mode incremental --watch --interval-seconds 300 --workers 1
 ```
 
-Note: the deployed systemd unit still passes `--source all` from before the Crossref removal — drop that flag when next deploying (it no longer exists and will error). Recommended new unit command adds `--since-days 30` for incremental sweeps.
+The versioned unit files are in `services/deploy/systemd/`. Runtime state must be checked with
+`systemctl` and `journalctl`; do not infer deployment state from the repository.
 
 Production behavior:
 
 - Discovery runs weekly and writes new/changed papers to `pending_classification`.
 - Classifier polls Supabase every 5 minutes and processes pending papers.
-- Classifier uses Gemini through `LLM_PROVIDER=gemini`.
+- The provider/model must be selected from the fixed human-scored evaluation and verified in job metadata.
 - Keep production on `--extractor llm`; do not use `--extractor auto` unless the user explicitly accepts keyword fallback being saved.
 - Worker count is intentionally `1` to protect quota/cost.
 

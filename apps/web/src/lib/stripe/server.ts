@@ -26,3 +26,7 @@ export function getStripePriceId(planKey: BillingPlanKey) {
 
   return envByPlan[planKey] || null;
 }
+
+export function getStripeTeamExtraSeatPriceId() {
+  return process.env.STRIPE_TEAM_EXTRA_SEAT_PRICE_ID || null;
+}

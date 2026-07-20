@@ -10,38 +10,11 @@ class KeywordTerm:
     normalized: str
     aliases: tuple[str, ...]
     claim_type: ClaimType
+    depth: int = 0
 
 
-COMPONENT_TERMS: tuple[KeywordTerm, ...] = (
-    KeywordTerm("bearing", ("bearing", "bearings", "roller bearing", "ball bearing"), ClaimType.COMPONENT),
-    KeywordTerm("bolt", ("bolt", "bolts", "fastening bolt", "structural bolt"), ClaimType.COMPONENT),
-    KeywordTerm("gear", ("gear", "gears", "gearbox", "gear tooth", "tooth"), ClaimType.COMPONENT),
-    KeywordTerm("pump", ("pump", "pumps", "centrifugal pump"), ClaimType.COMPONENT),
-    KeywordTerm("seal", ("seal", "seals", "mechanical seal", "gasket"), ClaimType.COMPONENT),
-    KeywordTerm("shaft", ("shaft", "shafts", "rotor shaft", "drive shaft"), ClaimType.COMPONENT),
-    KeywordTerm("valve", ("valve", "valves", "check valve", "control valve"), ClaimType.COMPONENT),
-    KeywordTerm("sensor", ("sensor", "sensors", "temperature sensor", "pressure sensor"), ClaimType.COMPONENT),
-    KeywordTerm("spring", ("spring", "springs"), ClaimType.COMPONENT),
-    KeywordTerm("weld", ("weld", "welds", "welded joint", "weld joint"), ClaimType.COMPONENT),
-    KeywordTerm("pipe", ("pipe", "pipes", "pipeline", "tube", "tubing"), ClaimType.COMPONENT),
-    KeywordTerm("battery", ("battery", "cell", "lithium-ion cell", "module"), ClaimType.COMPONENT),
-    KeywordTerm("converter", ("converter", "power converter", "inverter"), ClaimType.COMPONENT),
-    KeywordTerm("blade", ("blade", "turbine blade", "fan blade"), ClaimType.COMPONENT),
-)
-
-FAILURE_TERMS: tuple[KeywordTerm, ...] = (
-    KeywordTerm("fatigue failure", ("fatigue failure", "fatigue fracture", "fatigue crack", "fatigue cracking"), ClaimType.FAILURE_MODE),
-    KeywordTerm("fracture", ("fracture", "fractured", "brittle fracture", "ductile fracture"), ClaimType.FAILURE_MODE),
-    KeywordTerm("corrosion", ("corrosion", "corroded", "pitting corrosion", "stress corrosion"), ClaimType.FAILURE_MODE),
-    KeywordTerm("wear", ("wear", "abrasive wear", "adhesive wear", "fretting wear"), ClaimType.FAILURE_MODE),
-    KeywordTerm("cracking", ("cracking", "crack initiation", "crack propagation", "cracks"), ClaimType.FAILURE_MODE),
-    KeywordTerm("delamination", ("delamination", "debonding", "bond failure"), ClaimType.FAILURE_MODE),
-    KeywordTerm("overheating", ("overheating", "thermal runaway", "thermal fatigue"), ClaimType.FAILURE_MODE),
-    KeywordTerm("leakage", ("leakage", "leak", "fluid leakage"), ClaimType.FAILURE_MODE),
-    KeywordTerm("buckling", ("buckling", "collapse"), ClaimType.FAILURE_MODE),
-    KeywordTerm("spalling", ("spalling", "pitting", "surface pitting"), ClaimType.FAILURE_MODE),
-)
-
+# Closed component, failure-mode, analysis-method, and application vocabularies
+# are loaded from the corresponding knowledge taxonomy tables at batch time.
 CAUSE_TERMS: tuple[KeywordTerm, ...] = (
     KeywordTerm("cyclic loading", ("cyclic loading", "repeated loading", "alternating load", "dynamic load"), ClaimType.CAUSE),
     KeywordTerm("overload", ("overload", "excessive load", "overloading", "high load"), ClaimType.CAUSE),
@@ -76,36 +49,9 @@ CORRECTIVE_ACTION_TERMS: tuple[KeywordTerm, ...] = (
     KeywordTerm("component removal", ("removal", "remove and replace", "part replacement"), ClaimType.CORRECTIVE_ACTION),
 )
 
-ANALYSIS_METHOD_TERMS: tuple[KeywordTerm, ...] = (
-    KeywordTerm("finite element analysis", ("finite element analysis", "finite element method", "fea", "fem", "finite element"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("scanning electron microscopy", ("scanning electron microscopy", "sem", "electron microscopy"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("probabilistic analysis", ("probabilistic analysis", "probabilistic fatigue", "reliability analysis", "monte carlo"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("machine learning", ("machine learning", "deep learning", "neural network", "random forest", "convolutional neural"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("experimental testing", ("experimental", "experiment", "laboratory test", "bench test"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("simulation", ("simulation", "numerical simulation", "computational simulation"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("analytical model", ("analytical model", "analytical solution", "mathematical model"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("fracture mechanics", ("fracture mechanics", "linear elastic fracture", "lefm", "stress intensity factor"), ClaimType.ANALYSIS_METHOD),
-    KeywordTerm("x-ray diffraction", ("x-ray diffraction", "xrd", "x-ray analysis"), ClaimType.ANALYSIS_METHOD),
-)
-
-APPLICATION_TERMS: tuple[KeywordTerm, ...] = (
-    KeywordTerm("aviation", ("aviation", "aircraft", "aerospace", "turbofan", "turboprop", "turboshaft", "aeroengine"), ClaimType.APPLICATION),
-    KeywordTerm("wind energy", ("wind turbine", "wind energy", "wind power", "offshore wind"), ClaimType.APPLICATION),
-    KeywordTerm("oil and gas", ("oil and gas", "pipeline", "offshore platform", "subsea", "petroleum"), ClaimType.APPLICATION),
-    KeywordTerm("automotive", ("automotive", "vehicle", "car", "powertrain", "drivetrain"), ClaimType.APPLICATION),
-    KeywordTerm("nuclear", ("nuclear", "nuclear power plant", "reactor"), ClaimType.APPLICATION),
-    KeywordTerm("marine", ("marine", "ship", "vessel", "propulsion"), ClaimType.APPLICATION),
-    KeywordTerm("power generation", ("power generation", "power plant", "gas turbine", "steam turbine"), ClaimType.APPLICATION),
-    KeywordTerm("mining", ("mining", "mine", "excavator", "drilling rig"), ClaimType.APPLICATION),
-)
-
-ALL_TERMS: tuple[KeywordTerm, ...] = (
-    COMPONENT_TERMS
-    + FAILURE_TERMS
-    + CAUSE_TERMS
+HEURISTIC_TERMS: tuple[KeywordTerm, ...] = (
+    CAUSE_TERMS
     + CONTROL_TERMS
     + ENVIRONMENT_TERMS
     + CORRECTIVE_ACTION_TERMS
-    + ANALYSIS_METHOD_TERMS
-    + APPLICATION_TERMS
 )

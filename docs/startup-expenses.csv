@@ -1,0 +1,2 @@
+Expense ID,Date,Supplier,Category,Paid By,Invoice Number,Currency,Amount Excl. VAT,VAT Amount,Total Paid,Payment Method,Invoice or Receipt Link,Business Purpose,Reimbursed by Company,Reimbursement Date,Notes
+EXAMPLE,2026-07-01,Domain registrar,Domain,Founder name,INV-EXAMPLE,EUR,12.00,2.52,14.52,Personal card,https://drive.google.com/example,Registration of the Risk on Radar website domain,No,,Example only - replace or delete this row

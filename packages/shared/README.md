@@ -1,7 +1,6 @@
 # Shared Package
 
-Shared product contracts for app and service boundaries.
+Reserved for shared product contracts once an application/service boundary needs them.
 
-Current contents:
-
-- `@riskonradar/shared/taxonomy`: component taxonomy nodes, aliases, and lookup helpers used by the product APIs.
+Taxonomy data does not belong here. PostgreSQL is the authoritative shared vocabulary;
+clients resolve and browse it through authenticated database functions.
