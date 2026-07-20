@@ -177,6 +177,10 @@ cd services/paper-classifier
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 ```
 
+Production dependencies are pinned in `services/requirements.lock`. Install
+that file first, then install both packages with `--no-deps`; do not resolve
+fresh unbounded dependencies during a droplet rollout.
+
 Dry-run classifier database read:
 
 ```sh

@@ -48,3 +48,16 @@ The DPA should say that, at the end of the pilot or services, Risk on Radar will
 - Whether pilots permit customer confidential data in LLM prompts.
 - Whether customer data is EU-only.
 - Whether audit logs need longer retention for enterprise customers.
+
+## Current Product Deletion Path
+
+Verified Clerk `user.deleted`, `organization.deleted`, and membership-deletion webhooks now
+remove application access immediately. User profile fields are anonymized and workspaces are
+archived; FMEA review history, billing records, and engineering audit records are retained so
+their provenance is not silently destroyed.
+
+Self-service deletion of all workspace engineering data is intentionally not exposed yet. The
+owner must first choose whether the workspace should be exported, transferred to another owner,
+or deleted, and billing/legal retention may apply. Until that policy and backup rotation are
+configured, account and workspace erasure requests use the documented support process and the
+pilot deletion procedure above. This is a product/legal decision, not a hidden automatic delete.

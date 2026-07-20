@@ -109,6 +109,18 @@ paper-discovery --dry-run --limit 10 --issn 1350-6307 --query "bearing failure"
 paper-discovery --limit 25 --since-days 30
 ```
 
+Production installs use the reviewed runtime lock before installing the local
+packages without dependency resolution:
+
+```sh
+python -m pip install --requirement services/requirements.lock
+python -m pip install --no-deps --editable services/paper-discovery \
+  --editable services/paper-classifier
+```
+
+Refresh `services/requirements.lock` only as an explicit dependency update and
+run both service test suites before deployment.
+
 Environment:
 
 ```sh
